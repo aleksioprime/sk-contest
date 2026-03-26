@@ -1,0 +1,10 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_URL: ${API_URL}
+        LOGGER: ${LOGGER:-true}
+    ports:
+      - "3000:80"
+    restart: unless-stopped
