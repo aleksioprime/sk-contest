@@ -14,15 +14,121 @@ const sheet = ref(null)
 const works = ref([])
 const evaluationsMap = ref({}) // { sheet_work_id: evaluation }
 const criteriaCount = ref(0)
+const criteriaList = ref([])    // all criteria for this scorecard
+const categories = ref([])      // criterion categories
+const allEvaluations = ref([])  // all evaluations for all works (viewer mode)
+const allItems = ref([])        // all evaluation_items (viewer mode)
 const itemsCountMap = ref({}) // { evaluation_id: count of items with level_id }
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
+const sortBy = ref('total')     // 'total' | 'rank' | category_id
 let refreshTimer = null
+
+const hasCategories = computed(() => categories.value.length > 0)
+
+const sortOptions = computed(() => {
+  const opts = [{ value: 'total', label: 'По общему баллу' }]
+  if (hasCategories.value) {
+    for (const cat of categories.value) {
+      opts.push({ value: String(cat.id), label: cat.title })
+    }
+  }
+  opts.push({ value: 'rank', label: 'По месту' })
+  return opts
+})
+
+// Предвычисленная карта: { workId: { categoryId: avgScore } }
+const categoryScoresCache = computed(() => {
+  if (!hasCategories.value || !allItems.value.length) return {}
+
+  // Группируем criteria по category_id
+  const critByCat = {}
+  for (const c of criteriaList.value) {
+    if (c.category_id) {
+      if (!critByCat[c.category_id]) critByCat[c.category_id] = new Set()
+      critByCat[c.category_id].add(c.id)
+    }
+  }
+
+  // Индексируем items по evaluation_id
+  const itemsByEval = {}
+  for (const item of allItems.value) {
+    if (!itemsByEval[item.evaluation_id]) itemsByEval[item.evaluation_id] = []
+    itemsByEval[item.evaluation_id].push(item)
+  }
+
+  // Группируем evaluations по sheet_work_id
+  const evalsByWork = {}
+  for (const ev of allEvaluations.value) {
+    if (!evalsByWork[ev.sheet_work_id]) evalsByWork[ev.sheet_work_id] = []
+    evalsByWork[ev.sheet_work_id].push(ev)
+  }
+
+  const result = {}
+  for (const w of works.value) {
+    const workEvals = evalsByWork[w.id] || []
+    if (!workEvals.length) continue
+    const catScores = {}
+    for (const catId of Object.keys(critByCat)) {
+      const criterionIds = critByCat[catId]
+      let total = 0
+      let judgeCount = 0
+      for (const ev of workEvals) {
+        const evItems = itemsByEval[ev.id] || []
+        let judgeSum = 0
+        for (const item of evItems) {
+          if (criterionIds.has(item.criterion_id) && item.score != null) {
+            judgeSum += Number(item.score)
+          }
+        }
+        total += judgeSum
+        judgeCount++
+      }
+      catScores[catId] = judgeCount ? +(total / judgeCount).toFixed(2) : 0
+    }
+    result[w.id] = catScores
+  }
+  return result
+})
+
+function workCategoryScore(workId, categoryId) {
+  return categoryScoresCache.value[workId]?.[categoryId] ?? 0
+}
+
+// Кэш category scores для текущей сортировки
+const workCategoryScores = computed(() => {
+  if (sortBy.value === 'total' || sortBy.value === 'rank' || !hasCategories.value) return {}
+  const catId = sortBy.value
+  const map = {}
+  for (const w of works.value) {
+    map[w.id] = categoryScoresCache.value[w.id]?.[catId] ?? 0
+  }
+  return map
+})
 
 const sortedWorks = computed(() => {
   if (auth.isJudge) return works.value
-  return [...works.value].sort((a, b) => {
+
+  const sorted = [...works.value]
+  if (sortBy.value === 'rank') {
+    return sorted.sort((a, b) => {
+      if (a.rank && b.rank) return a.rank - b.rank
+      if (a.rank) return -1
+      if (b.rank) return 1
+      return 0
+    })
+  }
+  if (sortBy.value !== 'total' && hasCategories.value) {
+    // Сортировка по категории
+    return sorted.sort((a, b) => {
+      const sa = workCategoryScores.value[a.id] ?? 0
+      const sb = workCategoryScores.value[b.id] ?? 0
+      return sb - sa
+    })
+  }
+  // По общему баллу
+  return sorted.sort((a, b) => {
     if (a.rank && b.rank) return a.rank - b.rank
     if (a.rank) return -1
     if (b.rank) return 1
@@ -64,57 +170,133 @@ async function loadData(isRefresh = false) {
       return
     }
 
-    // Загружаем количество критериев для scorecard
+    // Загружаем критерии + оценки параллельно (после получения sheet и works)
     const scorecardId = sheet.value.scorecard_id
-    if (scorecardId) {
-      const criteriaRes = await api.get('/contest_scorecard_criteria:list', {
-        params: {
-          filter: JSON.stringify({ scorecard_id: scorecardId }),
-          pageSize: 200,
-        },
-      })
-      criteriaCount.value = (criteriaRes.data.data || []).length
-    }
+    const workIds = works.value.map((w) => w.id)
 
-    // Для жюри загружаем оценки и items для проверки полноты
-    if (auth.isJudge) {
-      const personId = auth.personId
-      if (personId && works.value.length) {
-        const workIds = works.value.map((w) => w.id)
-        const evalRes = await api.get('/contest_evaluations:list', {
+    const parallelRequests = []
+
+    // Критерии (нужны всем)
+    if (scorecardId) {
+      parallelRequests.push(
+        api.get('/contest_scorecard_criteria:list', {
           params: {
-            filter: JSON.stringify({
-              sheet_work_id: { $in: workIds },
-              judge_id: personId,
-            }),
+            filter: JSON.stringify({ scorecard_id: scorecardId }),
             pageSize: 200,
           },
-        })
-        const evals = evalRes.data.data || []
-        const newEvalsMap = {}
-        for (const ev of evals) {
-          newEvalsMap[ev.sheet_work_id] = ev
-        }
-        evaluationsMap.value = newEvalsMap
+        }).then((res) => ({ type: 'criteria', data: res.data.data || [] }))
+      )
+    }
 
-        // Загружаем evaluation_items для всех оценок, чтобы определить полноту
-        const evalIds = evals.map((ev) => ev.id)
-        const newItemsCount = {}
-        if (evalIds.length) {
-          const itemsRes = await api.get('/contest_evaluation_items:list', {
+    // Для жюри — оценки текущего пользователя
+    if (auth.isJudge) {
+      const personId = auth.personId
+      if (personId && workIds.length) {
+        parallelRequests.push(
+          api.get('/contest_evaluations:list', {
             params: {
-              filter: JSON.stringify({ evaluation_id: { $in: evalIds } }),
-              pageSize: 1000,
+              filter: JSON.stringify({ sheet_work_id: { $in: workIds }, judge_id: personId }),
+              pageSize: 200,
             },
-          })
-          for (const item of itemsRes.data.data || []) {
+          }).then((res) => ({ type: 'judgeEvals', data: res.data.data || [] }))
+        )
+      }
+    }
+
+    // Для viewer — все оценки
+    if (!auth.isJudge && workIds.length) {
+      parallelRequests.push(
+        api.get('/contest_evaluations:list', {
+          params: {
+            filter: JSON.stringify({ sheet_work_id: { $in: workIds } }),
+            pageSize: 500,
+          },
+        }).then((res) => ({ type: 'allEvals', data: res.data.data || [] }))
+      )
+    }
+
+    const parallelResults = await Promise.all(parallelRequests)
+
+    let loadedCriteria = []
+    let judgeEvals = []
+
+    for (const r of parallelResults) {
+      if (r.type === 'criteria') loadedCriteria = r.data
+      else if (r.type === 'judgeEvals') judgeEvals = r.data
+      else if (r.type === 'allEvals') allEvaluations.value = r.data
+    }
+
+    criteriaList.value = loadedCriteria
+    criteriaCount.value = loadedCriteria.length
+
+    // Второй параллельный раунд: категории + evaluation_items
+    const parallelRequests2 = []
+
+    // Категории критериев
+    const categoryIds = [...new Set(loadedCriteria.map((c) => c.category_id).filter(Boolean))]
+    if (categoryIds.length) {
+      parallelRequests2.push(
+        api.get('/contest_criterion_categories:list', {
+          params: {
+            filter: JSON.stringify({ id: { $in: categoryIds } }),
+            pageSize: 200,
+          },
+        }).then((res) => ({ type: 'categories', data: res.data.data || [] }))
+      )
+    } else {
+      categories.value = []
+    }
+
+    // Evaluation items для viewer (подсчёт по категориям)
+    if (!auth.isJudge && allEvaluations.value.length && categoryIds.length) {
+      const evalIds = allEvaluations.value.map((ev) => ev.id)
+      parallelRequests2.push(
+        api.get('/contest_evaluation_items:list', {
+          params: {
+            filter: JSON.stringify({ evaluation_id: { $in: evalIds } }),
+            pageSize: 5000,
+          },
+        }).then((res) => ({ type: 'allItems', data: res.data.data || [] }))
+      )
+    }
+
+    // Evaluation items для жюри (проверка полноты)
+    if (auth.isJudge && judgeEvals.length) {
+      const evalIds = judgeEvals.map((ev) => ev.id)
+      parallelRequests2.push(
+        api.get('/contest_evaluation_items:list', {
+          params: {
+            filter: JSON.stringify({ evaluation_id: { $in: evalIds } }),
+            pageSize: 1000,
+          },
+        }).then((res) => ({ type: 'judgeItems', data: res.data.data || [] }))
+      )
+    }
+
+    if (parallelRequests2.length) {
+      const results2 = await Promise.all(parallelRequests2)
+      for (const r of results2) {
+        if (r.type === 'categories') categories.value = r.data
+        else if (r.type === 'allItems') allItems.value = r.data
+        else if (r.type === 'judgeItems') {
+          const newItemsCount = {}
+          for (const item of r.data) {
             if (item.level_id != null) {
               newItemsCount[item.evaluation_id] = (newItemsCount[item.evaluation_id] || 0) + 1
             }
           }
+          itemsCountMap.value = newItemsCount
         }
-        itemsCountMap.value = newItemsCount
       }
+    }
+
+    // Карта оценок жюри
+    if (auth.isJudge) {
+      const newEvalsMap = {}
+      for (const ev of judgeEvals) {
+        newEvalsMap[ev.sheet_work_id] = ev
+      }
+      evaluationsMap.value = newEvalsMap
     }
   } catch (e) {
     if (!isRefresh) error.value = 'Не удалось загрузить работы'
@@ -189,7 +371,20 @@ function isFullyEvaluated(work) {
       Нет работ для оценки
     </p>
 
-    <div class="flex flex-col gap-3" v-else>
+    <template v-else>
+      <!-- Sort dropdown (viewer only, when categories exist) -->
+      <div v-if="!auth.isJudge && hasCategories" class="mb-3 flex items-center gap-2">
+        <label for="sort-select" class="text-sm text-gray-600 dark:text-gray-400">Сортировка:</label>
+        <select
+          id="sort-select"
+          v-model="sortBy"
+          class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        >
+          <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </div>
+
+    <div class="flex flex-col gap-3">
       <router-link
         v-for="work in sortedWorks"
         :key="work.id"
@@ -203,6 +398,18 @@ function isFullyEvaluated(work) {
           </div>
           <div v-if="getSupervisors(work).length" class="text-sm text-gray-500 dark:text-gray-400">
             <span class="font-medium">Руководители:</span> {{ getSupervisors(work).map(s => s.full_name || s.short_name).join(', ') }}
+          </div>
+          <!-- Category scores (viewer only) -->
+          <div v-if="!auth.isJudge && hasCategories && allItems.length" class="mt-1.5 flex flex-wrap gap-2">
+            <span
+              v-for="cat in categories"
+              :key="cat.id"
+              class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+              :class="sortBy === String(cat.id) ? 'ring-1 ring-primary bg-primary-light text-primary dark:bg-primary/20 dark:text-primary' : ''"
+            >
+              <span class="max-w-24 truncate">{{ cat.title }}</span>
+              <strong>{{ workCategoryScore(work.id, cat.id) }}</strong>
+            </span>
           </div>
         </div>
         <!-- Viewer: баллы и ранг -->
@@ -226,6 +433,7 @@ function isFullyEvaluated(work) {
         </template>
       </router-link>
     </div>
+    </template>
   </div>
 </template>
 

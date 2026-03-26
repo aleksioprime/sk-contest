@@ -15,6 +15,7 @@ const sheet = ref(null)
 const work = ref(null)
 const evaluation = ref(null)
 const criteria = ref([])
+const categories = ref([])      // categories from contest_criterion_categories
 const items = reactive({})      // { [criterion_id]: evaluation_item }
 const levelsMap = reactive({})  // { [scale_id]: levels[] }
 const loading = ref(true)
@@ -47,39 +48,22 @@ onMounted(async () => {
     work.value = workRes.data.data
     logger.debug('Лист и работа загружены', { sheet: sheet.value, work: work.value })
 
-    // 2. Загружаем критерии по scorecard_id
+    // 2. Критерии + оценка жюри параллельно
     const scorecardId = sheet.value.scorecard_id
-    const criteriaRes = await api.get('/contest_scorecard_criteria:list', {
-      params: {
-        filter: JSON.stringify({ scorecard_id: scorecardId }),
-        sort: 'order,id',
-        pageSize: 200,
-      },
-    })
-    criteria.value = criteriaRes.data.data || []
-    logger.debug('Критерии загружены', criteria.value.length)
-
-    // 3. Загружаем уровни для всех шкал критериев
-    const scaleIds = [...new Set(criteria.value.map((c) => c.scale_id).filter(Boolean))]
-    if (scaleIds.length) {
-      const levelsRes = await api.get('/contest_criterion_scale_levels:list', {
-        params: {
-          filter: JSON.stringify({ scale_id: { $in: scaleIds } }),
-          sort: 'order,id',
-          pageSize: 500,
-        },
-      })
-      for (const level of levelsRes.data.data || []) {
-        if (!levelsMap[level.scale_id]) levelsMap[level.scale_id] = []
-        levelsMap[level.scale_id].push(level)
-      }
-    }
-
-    // 4. Находим оценку жюри для этой работы
     const personId = auth.personId
     logger.debug('personId жюри', personId)
+
+    const round2 = [
+      api.get('/contest_scorecard_criteria:list', {
+        params: {
+          filter: JSON.stringify({ scorecard_id: scorecardId }),
+          sort: 'order,id',
+          pageSize: 200,
+        },
+      }),
+    ]
     if (personId) {
-      const evalRes = await api.get('/contest_evaluations:list', {
+      round2.push(api.get('/contest_evaluations:list', {
         params: {
           filter: JSON.stringify({
             sheet_work_id: Number(props.workId),
@@ -87,10 +71,15 @@ onMounted(async () => {
           }),
           pageSize: 1,
         },
-      })
+      }))
+    }
+    const [criteriaRes, evalRes] = await Promise.all(round2)
+    criteria.value = criteriaRes.data.data || []
+    logger.debug('Критерии загружены', criteria.value.length)
+
+    if (evalRes) {
       evaluation.value = evalRes.data.data?.[0] || null
     }
-
     if (!evaluation.value) {
       error.value = 'Оценка для данного жюри не найдена'
       logger.warn('Оценка не найдена для жюри')
@@ -99,14 +88,47 @@ onMounted(async () => {
     }
     logger.debug('Evaluation найдена', evaluation.value.id)
 
-    // 5. Загружаем существующие evaluation_items
-    const itemsRes = await api.get('/contest_evaluation_items:list', {
+    // 3. Категории + уровни + items параллельно
+    const categoryIds = [...new Set(criteria.value.map((c) => c.category_id).filter(Boolean))]
+    const scaleIds = [...new Set(criteria.value.map((c) => c.scale_id).filter(Boolean))]
+
+    const parallelRequests = []
+    const requestKeys = []
+
+    if (categoryIds.length) {
+      parallelRequests.push(api.get('/contest_criterion_categories:list', {
+        params: { filter: JSON.stringify({ id: { $in: categoryIds } }), pageSize: 200 },
+      }))
+      requestKeys.push('categories')
+    }
+    if (scaleIds.length) {
+      parallelRequests.push(api.get('/contest_criterion_scale_levels:list', {
+        params: { filter: JSON.stringify({ scale_id: { $in: scaleIds } }), sort: 'order,id', pageSize: 500 },
+      }))
+      requestKeys.push('levels')
+    }
+    parallelRequests.push(api.get('/contest_evaluation_items:list', {
       params: {
         filter: JSON.stringify({ evaluation_id: evaluation.value.id }),
         pageSize: 200,
       },
-    })
-    for (const item of itemsRes.data.data || []) {
+    }))
+    requestKeys.push('items')
+
+    const parallelResults = await Promise.all(parallelRequests)
+    const resultMap = {}
+    requestKeys.forEach((key, i) => { resultMap[key] = parallelResults[i] })
+
+    if (resultMap.categories) {
+      categories.value = resultMap.categories.data.data || []
+    }
+    if (resultMap.levels) {
+      for (const level of resultMap.levels.data.data || []) {
+        if (!levelsMap[level.scale_id]) levelsMap[level.scale_id] = []
+        levelsMap[level.scale_id].push(level)
+      }
+    }
+    for (const item of resultMap.items.data.data || []) {
       items[item.criterion_id] = item
     }
     logger.log('Данные оценки загружены, items:', Object.keys(items).length)
@@ -140,6 +162,44 @@ const totalScore = computed(() => {
     return sum + (item?.score ? Number(item.score) : 0)
   }, 0)
 })
+
+const hasCategories = computed(() => categories.value.length > 0)
+
+const categoriesMap = computed(() => {
+  const map = {}
+  for (const cat of categories.value) map[cat.id] = cat
+  return map
+})
+
+// Группирует критерии по категориям: [{ category, criteria }], без категории — в конце
+const groupedCriteria = computed(() => {
+  if (!hasCategories.value) return [{ category: null, criteria: criteria.value }]
+
+  const groups = {}
+  const uncategorized = []
+
+  for (const c of criteria.value) {
+    if (c.category_id && categoriesMap.value[c.category_id]) {
+      if (!groups[c.category_id]) groups[c.category_id] = []
+      groups[c.category_id].push(c)
+    } else {
+      uncategorized.push(c)
+    }
+  }
+
+  const result = categories.value
+    .filter((cat) => groups[cat.id])
+    .map((cat) => ({ category: cat, criteria: groups[cat.id] }))
+
+  if (uncategorized.length) result.push({ category: null, criteria: uncategorized })
+  return result
+})
+
+function categoryScore(categoryId) {
+  return criteria.value
+    .filter((c) => c.category_id === categoryId)
+    .reduce((sum, c) => sum + (items[c.id]?.score ? Number(items[c.id].score) : 0), 0)
+}
 
 async function selectLevel(criterion, level) {
   saving.value = criterion.id
@@ -377,12 +437,29 @@ async function deleteGeneralComment() {
         </transition>
       </div>
 
-      <!-- Criteria list -->
+      <!-- Criteria list (grouped by categories if available) -->
       <div class="flex flex-col gap-3">
-        <div v-for="criterion in criteria" :key="criterion.id" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+        <template v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'">
+          <!-- Category block wrapper (styled only when categories exist) -->
+          <div :class="hasCategories ? 'mt-2 overflow-hidden rounded-xl border border-primary/20' : ''">
+            <!-- Category header -->
+            <div v-if="hasCategories && group.category" class="flex items-center justify-between bg-primary/10 px-4 py-2.5 dark:bg-primary/20">
+              <h2 class="m-0 text-sm font-bold text-primary">{{ group.category.title }}</h2>
+              <span class="rounded-full bg-primary-light px-3 py-0.5 text-sm font-semibold text-primary">{{ categoryScore(group.category.id) }}</span>
+            </div>
+            <div v-else-if="hasCategories && !group.category" class="flex items-center justify-between bg-gray-100 px-4 py-2.5 dark:bg-gray-700/50">
+              <h2 class="m-0 text-sm font-bold text-gray-700 dark:text-gray-200">Без категории</h2>
+            </div>
+            <!-- Criteria inside -->
+            <div :class="hasCategories ? 'flex flex-col gap-3 p-3' : 'flex flex-col gap-3'">
+
+        <div v-for="criterion in group.criteria" :key="criterion.id" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
           <!-- Header -->
           <div class="mb-3 flex items-start justify-between gap-4">
-            <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ criterion.title }}</h3>
+            <div>
+              <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ criterion.title }}</h3>
+              <p v-if="criterion.description" class="m-0 mt-1 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}</p>
+            </div>
             <div class="flex shrink-0 items-center gap-2">
               <span class="rounded-full bg-primary-light px-2.5 py-0.5 text-sm font-semibold text-primary">
                 {{ items[criterion.id]?.score ?? '—' }}
@@ -469,6 +546,9 @@ async function deleteGeneralComment() {
             </template>
           </div>
         </div>
+            </div><!-- end criteria list -->
+          </div><!-- end category block -->
+        </template>
       </div>
 
       <!-- General comment -->
