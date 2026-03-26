@@ -10,20 +10,23 @@ const error = ref('')
 
 onMounted(async () => {
   try {
-    // Загружаем оценочные листы с привязанными жюри и конкурсом
     const { data } = await api.get('/contest_evaluation_sheets:list', {
       params: {
         appends: 'judges,contest,stage',
         pageSize: 200,
       },
     })
-    // Фильтруем на клиенте — оставляем только листы, где текущий пользователь в жюри
+    // Фильтруем архивные листы (is_archived !== true)
+    const allSheets = (data.data || []).filter((s) => !s.is_archived)
     const personId = auth.personId
-    sheets.value = (data.data || []).filter((sheet) => {
-      if (!personId) return true // Нет person-записи (admin) — показываем все
-      if (!sheet.judges || !Array.isArray(sheet.judges)) return true
-      return sheet.judges.some((j) => j.id === personId)
-    })
+    if (auth.isJudge && personId) {
+      sheets.value = allSheets.filter((sheet) => {
+        if (!sheet.judges || !Array.isArray(sheet.judges)) return false
+        return sheet.judges.some((j) => j.id === personId)
+      })
+    } else {
+      sheets.value = allSheets
+    }
   } catch (e) {
     error.value = 'Не удалось загрузить оценочные листы'
   } finally {

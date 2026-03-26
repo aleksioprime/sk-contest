@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../api'
 
+const JUDGE_ROLE = 'r_33jle168sny'
+const VIEWER_ROLE = 'r_wrjkkito308'
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const person = ref(null)
@@ -9,6 +12,22 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
   const personId = computed(() => person.value?.id ?? null)
+
+  const userRoleNames = computed(() => {
+    if (!user.value?.roles) return []
+    return user.value.roles.map((r) => r.name)
+  })
+
+  const isJudge = computed(() => userRoleNames.value.includes(JUDGE_ROLE))
+  const isViewer = computed(() => userRoleNames.value.includes(VIEWER_ROLE) || userRoleNames.value.includes('admin'))
+  const hasAccess = computed(() => isJudge.value || isViewer.value)
+
+  const roleName = computed(() => {
+    if (isJudge.value) return 'Judge'
+    if (userRoleNames.value.includes('admin')) return 'Admin'
+    if (userRoleNames.value.includes(VIEWER_ROLE)) return 'Viewer'
+    return null
+  })
 
   async function login(account, password) {
     const { data } = await api.post('/auth:signIn', { account, password }, {
@@ -50,5 +69,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
   }
 
-  return { user, person, personId, token, isAuthenticated, login, fetchUser, logout }
+  return { user, person, personId, token, isAuthenticated, isJudge, isViewer, hasAccess, roleName, login, fetchUser, logout }
 })

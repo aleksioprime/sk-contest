@@ -21,7 +21,10 @@ async function logout() {
       Оценка конкурсов
     </router-link>
     <div class="flex items-center gap-3" v-if="auth.user">
-      <span class="text-sm text-gray-500 dark:text-gray-400">{{ auth.user.nickname || auth.user.email }}</span>
+      <span class="text-sm text-gray-500 dark:text-gray-400">
+        {{ auth.user.nickname || auth.user.email }}
+        <span v-if="auth.roleName" class="ml-1 inline-block rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary">{{ auth.roleName }}</span>
+      </span>
       <button
         class="cursor-pointer rounded-lg border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
         @click="logout"
