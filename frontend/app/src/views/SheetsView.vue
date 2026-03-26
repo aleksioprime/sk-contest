@@ -16,15 +16,27 @@ onMounted(async () => {
         pageSize: 200,
       },
     })
-    // Фильтруем архивные листы (is_archived !== true)
-    const allSheets = (data.data || []).filter((s) => !s.is_archived)
+    // Фильтрация по статусу листа и роли пользователя
+    // status: active | inactive | archived (если отсутствует — считаем inactive)
+    const allSheets = data.data || []
     const personId = auth.personId
+
     if (auth.isJudge && personId) {
+      // Жюри видит только active листы, в которых состоит
       sheets.value = allSheets.filter((sheet) => {
+        const status = sheet.status || 'inactive'
+        if (status !== 'active') return false
         if (!sheet.judges || !Array.isArray(sheet.judges)) return false
         return sheet.judges.some((j) => j.id === personId)
       })
+    } else if (auth.isViewer) {
+      // Viewer видит active и inactive (не archived)
+      sheets.value = allSheets.filter((sheet) => {
+        const status = sheet.status || 'inactive'
+        return status === 'active' || status === 'inactive'
+      })
     } else {
+      // Admin видит всё
       sheets.value = allSheets
     }
   } catch (e) {
@@ -59,8 +71,15 @@ onMounted(async () => {
       >
         <h3 class="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">{{ sheet.title }}</h3>
         <p v-if="sheet.contest?.title" class="mb-3 text-sm text-gray-500 dark:text-gray-400">{{ sheet.contest.title }}</p>
-        <div v-if="sheet.stage?.title">
-          <span class="inline-block rounded-full bg-primary-light px-3 py-0.5 text-xs font-medium text-primary">{{ sheet.stage.title }}</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span v-if="sheet.stage?.title" class="inline-block rounded-full bg-primary-light px-3 py-0.5 text-xs font-medium text-primary">{{ sheet.stage.title }}</span>
+          <span
+            v-if="!auth.isJudge && (sheet.status || 'inactive') !== 'active'"
+            class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
+            :class="(sheet.status || 'inactive') === 'archived' ? 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'"
+          >
+            {{ (sheet.status || 'inactive') === 'archived' ? 'Архивный' : 'Неактивный' }}
+          </span>
         </div>
       </router-link>
     </div>

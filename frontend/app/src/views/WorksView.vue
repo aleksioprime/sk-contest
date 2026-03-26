@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 
@@ -7,6 +8,7 @@ const AUTO_REFRESH_INTERVAL = 30000
 
 const props = defineProps({ sheetId: [String, Number] })
 const auth = useAuthStore()
+const router = useRouter()
 
 const sheet = ref(null)
 const works = ref([])
@@ -50,6 +52,17 @@ async function loadData(isRefresh = false) {
     ])
     sheet.value = sheetRes.data.data
     works.value = worksRes.data.data || []
+
+    // Проверяем доступ по статусу листа
+    const status = sheet.value.status || 'inactive'
+    if (status === 'archived' && !auth.isViewer) {
+      router.replace('/')
+      return
+    }
+    if (status !== 'active' && auth.isJudge) {
+      router.replace('/')
+      return
+    }
 
     // Загружаем количество критериев для scorecard
     const scorecardId = sheet.value.scorecard_id
