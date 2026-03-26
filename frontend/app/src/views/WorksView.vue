@@ -1,9 +1,21 @@
+<!--
+  Список работ в оценочном листе.
+
+  Judge-режим: карточки работ со статусом оценки («Оценено» / «Не оценено»).
+  Viewer-режим: карточки с результатами (баллы, место, баллы по категориям),
+               сортировка, автообновление каждые 30 секунд.
+
+  API-загрузка выполняется в 2 параллельных раунда:
+    1) Лист + работы
+    2) Критерии + оценки + категории + items
+-->
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 
+/** Интервал автообновления данных для Viewer (мс) */
 const AUTO_REFRESH_INTERVAL = 30000
 
 const props = defineProps({ sheetId: [String, Number] })
@@ -12,21 +24,25 @@ const router = useRouter()
 
 const sheet = ref(null)
 const works = ref([])
-const evaluationsMap = ref({}) // { sheet_work_id: evaluation }
+const evaluationsMap = ref({}) // { sheet_work_id: evaluation } — оценки текущего судьи
 const criteriaCount = ref(0)
-const criteriaList = ref([])    // all criteria for this scorecard
-const categories = ref([])      // criterion categories
-const allEvaluations = ref([])  // all evaluations for all works (viewer mode)
-const allItems = ref([])        // all evaluation_items (viewer mode)
-const itemsCountMap = ref({}) // { evaluation_id: count of items with level_id }
+const criteriaList = ref([])    // все критерии оценочного листа
+const categories = ref([])      // категории критериев
+const allEvaluations = ref([])  // все оценки всех судей (режим Viewer)
+const allItems = ref([])        // все evaluation_items (режим Viewer)
+const itemsCountMap = ref({})   // { evaluation_id: кол-во items с level_id } — для проверки полноты оценки
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
-const sortBy = ref('total')     // 'total' | 'rank' | category_id
+const sortBy = ref('total')     // 'total' | 'rank' | category_id — текущая сортировка
 let refreshTimer = null
 
 const hasCategories = computed(() => categories.value.length > 0)
 
+/**
+ * Опции сортировки: по общему баллу, по каждой категории, по месту.
+ * Категории добавляются динамически на основе загруженных данных.
+ */
 const sortOptions = computed(() => {
   const opts = [{ value: 'total', label: 'По общему баллу' }]
   if (hasCategories.value) {
@@ -38,7 +54,11 @@ const sortOptions = computed(() => {
   return opts
 })
 
-// Предвычисленная карта: { workId: { categoryId: avgScore } }
+/**
+ * Предвычисленная карта средних баллов по категориям.
+ * Структура: { workId: { categoryId: среднийБалл } }.
+ * Средний балл = сумма оценок всех судей по критериям категории / кол-во судей.
+ */
 const categoryScoresCache = computed(() => {
   if (!hasCategories.value || !allItems.value.length) return {}
 
@@ -92,11 +112,12 @@ const categoryScoresCache = computed(() => {
   return result
 })
 
+/** Получить средний балл работы по категории (из кэша) */
 function workCategoryScore(workId, categoryId) {
   return categoryScoresCache.value[workId]?.[categoryId] ?? 0
 }
 
-// Кэш category scores для текущей сортировки
+// Кэш баллов по выбранной категории для сортировки
 const workCategoryScores = computed(() => {
   if (sortBy.value === 'total' || sortBy.value === 'rank' || !hasCategories.value) return {}
   const catId = sortBy.value
@@ -138,6 +159,13 @@ const sortedWorks = computed(() => {
   })
 })
 
+/**
+ * Загрузка данных страницы.
+ * Выполняет параллельные API-запросы в 2 раунда:
+ *   1) Оценочный лист + работы
+ *   2) Критерии, оценки, категории, evaluation_items
+ * @param {boolean} isRefresh — true при фоновом обновлении (не показывает спиннер)
+ */
 async function loadData(isRefresh = false) {
   if (isRefresh) refreshing.value = true
   else loading.value = true
@@ -159,7 +187,7 @@ async function loadData(isRefresh = false) {
     sheet.value = sheetRes.data.data
     works.value = worksRes.data.data || []
 
-    // Проверяем доступ по статусу листа
+    // Проверяем доступ по статусу листа (архивные — только Viewer, неактивные — не для Judge)
     const status = sheet.value.status || 'inactive'
     if (status === 'archived' && !auth.isViewer) {
       router.replace('/')
@@ -335,6 +363,7 @@ function getJudgeEvaluation(work) {
   return evaluationsMap.value[work.id] || null
 }
 
+/** Проверка, оценены ли все критерии для данной работы текущим судьёй */
 function isFullyEvaluated(work) {
   const ev = evaluationsMap.value[work.id]
   if (!ev || !criteriaCount.value) return false

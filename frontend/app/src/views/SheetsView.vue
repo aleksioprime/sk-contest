@@ -1,3 +1,10 @@
+<!--
+  Список оценочных листов.
+  Фильтрация по роли и статусу листа (active/inactive/archived):
+    - Judge: только active листы, в которых пользователь числится в судьях.
+    - Viewer: active + inactive листы (без архивных).
+    - Admin: все листы.
+-->
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api'

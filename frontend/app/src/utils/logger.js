@@ -1,3 +1,8 @@
+/**
+ * Условный логгер для отладки.
+ * Вывод в консоль включается переменной окружения VITE_LOGGING=1.
+ * Ошибки (logger.error) выводятся всегда, независимо от настройки.
+ */
 const isEnabled = import.meta.env.VITE_LOGGING === '1'
 
 const logger = {

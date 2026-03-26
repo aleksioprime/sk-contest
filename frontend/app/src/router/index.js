@@ -1,3 +1,19 @@
+/**
+ * Маршрутизатор приложения с защитой маршрутов.
+ *
+ * Маршруты:
+ *   /login          — страница входа (публичная)
+ *   /no-access      — заглушка при отсутствии роли
+ *   /               — список оценочных листов
+ *   /sheets/:id     — список работ в листе
+ *   /sheets/:id/works/:id       — оценка работы (только Judge)
+ *   /sheets/:id/works/:id/view  — просмотр оценок (только Viewer)
+ *
+ * Навигационный гард (beforeEach):
+ *   1. Редиректит авторизованного пользователя со страницы логина
+ *   2. Проверяет наличие токена и загружает профиль пользователя
+ *   3. Проверяет роль (Judge/Viewer) и перенаправляет при несоответствии
+ */
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import LoginView from '../views/LoginView.vue'
@@ -6,6 +22,7 @@ import WorksView from '../views/WorksView.vue'
 import EvaluationView from '../views/EvaluationView.vue'
 import ViewerEvaluationView from '../views/ViewerEvaluationView.vue'
 
+/** Заглушка для пользователей без роли Judge или Viewer */
 const NoAccessView = {
   template: `<div class="flex min-h-[60vh] items-center justify-center"><div class="text-center"><h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">Доступ закрыт</h1><p class="text-gray-500 dark:text-gray-400">У вас нет роли для работы с этим приложением.</p><p class="mt-1 text-sm text-gray-400">Обратитесь к администратору для назначения роли Judge или Viewer.</p></div></div>`,
 }

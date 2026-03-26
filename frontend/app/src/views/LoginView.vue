@@ -1,3 +1,8 @@
+<!--
+  Страница входа в систему.
+  Авторизация через логин/email + пароль.
+  При успехе редиректит на главную страницу.
+-->
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'

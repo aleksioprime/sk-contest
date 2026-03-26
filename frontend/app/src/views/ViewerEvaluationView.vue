@@ -1,7 +1,20 @@
+<!--
+  Просмотр оценок всех судей по работе (Viewer).
+
+  Отображает карточки судей с раскрывающимися оценками по критериям,
+  сгруппированными по категориям (со сворачиванием).
+  Автообновление каждые 30 секунд.
+
+  API-загрузка в 3 параллельных раунда:
+    1) Лист + работа
+    2) Критерии + оценки (с данными судьи)
+    3) Категории + уровни + evaluation_items
+-->
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import api from '../api'
 
+/** Интервал автообновления (мс) */
 const AUTO_REFRESH_INTERVAL = 30000 // 30 секунд
 
 const props = defineProps({
@@ -11,17 +24,17 @@ const props = defineProps({
 
 const sheet = ref(null)
 const work = ref(null)
-const criteria = ref([])
-const categories = ref([])      // categories from contest_criterion_categories
-const levelsMap = reactive({})  // { [scale_id]: levels[] }
-const judges = ref([])          // [{ judge, evaluation, items: { [criterion_id]: item } }]
+const criteria = ref([])          // критерии оценочного листа
+const categories = ref([])        // категории критериев
+const levelsMap = reactive({})    // { scale_id: levels[] } — уровни шкал
+const judges = ref([])            // [{ judge, evaluation, items }] — данные по каждому судье
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
-const expandedComments = reactive({}) // { 'judge_id-criterion_id': true }
-const expandedGeneralComments = reactive({}) // { judge_id: true }
-const expandedCriteria = reactive({}) // { evaluation_id: true }
-const collapsedCategories = reactive({}) // { 'evalId-catKey': true }
+const expandedComments = reactive({})        // { 'evalId-criterionId': true } — раскрытые комментарии
+const expandedGeneralComments = reactive({})  // { evalId: true } — раскрытые общие комментарии
+const expandedCriteria = reactive({})         // { evalId: true } — раскрытые блоки критериев
+const collapsedCategories = reactive({})      // { 'evalId-catKey': true } — свёрнутые категории
 let refreshTimer = null
 
 async function loadData(isRefresh = false) {
@@ -185,6 +198,7 @@ const groupedCriteria = computed(() => {
   return result
 })
 
+/** Балл судьи по категории (сумма оценок критериев категории) */
 function judgeCategoryScore(judgeData, categoryId) {
   return criteria.value
     .filter((c) => c.category_id === categoryId)

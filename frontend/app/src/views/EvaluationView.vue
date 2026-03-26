@@ -1,3 +1,18 @@
+<!--
+  Страница оценки работы судьёй (Judge).
+
+  Критерии сгруппированы по категориям с возможностью сворачивания.
+  Для каждого критерия отображаются кнопки уровней оценки (сетка 3 столбца на мобильных).
+  Оценка сохраняется оптимистично, с откатом при ошибке.
+
+  Внизу страницы — sticky-панель с итоговым баллом и раскладкой по категориям.
+  IntersectionObserver отслеживает состояние «прилипания» для динамического скругления углов.
+
+  API-загрузка в 3 параллельных раунда:
+    1) Лист + работа
+    2) Критерии + оценка судьи
+    3) Категории + уровни шкал + evaluation_items
+-->
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import api from '../api'
@@ -14,23 +29,28 @@ const auth = useAuthStore()
 const sheet = ref(null)
 const work = ref(null)
 const evaluation = ref(null)
-const criteria = ref([])
-const categories = ref([])      // categories from contest_criterion_categories
-const items = reactive({})      // { [criterion_id]: evaluation_item }
-const levelsMap = reactive({})  // { [scale_id]: levels[] }
+const criteria = ref([])          // критерии оценочного листа
+const categories = ref([])        // категории критериев
+const items = reactive({})        // { criterion_id: evaluation_item } — текущие оценки
+const levelsMap = reactive({})    // { scale_id: levels[] } — уровни шкал оценивания
 const loading = ref(true)
 const saving = ref(null)
 const error = ref('')
 const saved = ref(false)
 const collapsedCategories = reactive({}) // { categoryKey: true } — свёрнутые категории
-const totalBarStuck = ref(false)
-const sentinelRef = ref(null)
+const totalBarStuck = ref(false)         // true, когда панель итогов «прилипла» к низу экрана
+const sentinelRef = ref(null)            // ref-элемент для IntersectionObserver
 let stickyObserver = null
 
 onUnmounted(() => {
   if (stickyObserver) stickyObserver.disconnect()
 })
 
+/**
+ * IntersectionObserver для определения, прилипла ли панель итогов к низу.
+ * Когда sentinel-элемент уходит за viewport — панель «прилипает»,
+ * меняется скругление (rounded-xl → rounded-t-xl).
+ */
 function initStickyObserver() {
   if (!sentinelRef.value) return
   stickyObserver = new IntersectionObserver(
@@ -40,8 +60,8 @@ function initStickyObserver() {
   stickyObserver.observe(sentinelRef.value)
 }
 
-const editingComment = ref(null)   // criterion.id для которого открыт ввод комментария
-const commentDraft = ref('')       // черновик комментария критерия
+const editingComment = ref(null)   // criterion.id, для которого открыт редактор комментария
+const commentDraft = ref('')       // черновик комментария к критерию
 const savingItemComment = ref(null)
 const editingGeneralComment = ref(false)
 const generalCommentDraft = ref('')
@@ -191,7 +211,7 @@ const categoriesMap = computed(() => {
   return map
 })
 
-// Группирует критерии по категориям: [{ category, criteria }], без категории — в конце
+/** Группировка критериев по категориям: [{ category, criteria }]. Без категории — в конце. */
 const groupedCriteria = computed(() => {
   if (!hasCategories.value) return [{ category: null, criteria: criteria.value }]
 
@@ -221,6 +241,12 @@ function categoryScore(categoryId) {
     .reduce((sum, c) => sum + (items[c.id]?.score ? Number(items[c.id].score) : 0), 0)
 }
 
+/**
+ * Выбор уровня оценки для критерия.
+ * Применяет оптимистичное обновление UI, затем сохраняет на сервере.
+ * При ошибке — откат к предыдущему состоянию.
+ * После успешного сохранения синхронизирует итоговый балл на сервере.
+ */
 async function selectLevel(criterion, level) {
   saving.value = criterion.id
   saved.value = false
@@ -281,6 +307,7 @@ async function selectLevel(criterion, level) {
 const savingComment = ref(false)
 const resetting = ref(null)
 
+/** Сброс выбранного уровня оценки для критерия */
 async function resetLevel(criterion) {
   const existing = items[criterion.id]
   if (!existing?.id) return
@@ -305,6 +332,7 @@ async function resetLevel(criterion) {
   }
 }
 
+/** Отправка актуального итогового балла на сервер (contest_evaluations:update) */
 async function syncTotalScore() {
   if (!evaluation.value) return
   try {

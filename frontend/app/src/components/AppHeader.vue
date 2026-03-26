@@ -1,3 +1,8 @@
+<!--
+  Шапка приложения.
+  Содержит логотип, меню пользователя с ролью, переключатель режима
+  Judge/Viewer (для пользователей с двумя ролями) и кнопку выхода.
+-->
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -15,6 +20,7 @@ function closeMenu() {
   menuOpen.value = false
 }
 
+/** Переключение режима и редирект на главную для обновления контента */
 function toggleMode() {
   auth.switchMode()
   closeMenu()

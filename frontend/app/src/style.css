@@ -1,6 +1,12 @@
+/**
+ * Глобальные стили приложения.
+ * Подключает Tailwind CSS и определяет кастомную палитру цветов,
+ * используемую во всех компонентах через утилитарные классы (text-primary, bg-score и т.д.).
+ */
 @import "tailwindcss";
 
 @theme {
+  /* Основной фиолетовый цвет брендинга */
   --color-primary: #7c3aed;
   --color-primary-light: rgba(124, 58, 237, 0.1);
   --color-primary-hover: #6d28d9;
@@ -8,6 +14,7 @@
   --color-surface-dark: #1e1e2e;
   --color-border: #e5e7eb;
   --color-border-dark: #374151;
+  /* Янтарный цвет для баллов и оценок */
   --color-score: #d97706;
   --color-score-light: rgba(217, 119, 6, 0.12);
   --color-success: #16a34a;

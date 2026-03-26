@@ -1,3 +1,7 @@
+<!--
+  Корневой компонент приложения.
+  Задаёт общий layout: шапка (скрывается на странице входа), контентная область и footer.
+-->
 <script setup>
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
