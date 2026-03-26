@@ -39,6 +39,11 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
+  // Редирект авторизованных пользователей со страницы логина
+  if (to.name === 'login' && auth.isAuthenticated) {
+    return { name: 'sheets' }
+  }
+
   if (to.meta.public) return
 
   if (!auth.isAuthenticated) return '/login'

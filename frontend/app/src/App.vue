@@ -11,7 +11,7 @@ const route = useRoute()
     <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
       <router-view />
     </main>
-    <footer class="border-t border-gray-200 bg-white py-4 text-center text-xs text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
+    <footer class="border-t border-gray-200 bg-white px-4 py-4 text-center text-xs text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
       Сервисы автоматизации Гимназии Сколково · © 2026 Алексей Семочкин
     </footer>
   </div>
