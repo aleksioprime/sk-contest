@@ -21,6 +21,7 @@ const error = ref('')
 const expandedComments = reactive({}) // { 'judge_id-criterion_id': true }
 const expandedGeneralComments = reactive({}) // { judge_id: true }
 const expandedCriteria = reactive({}) // { evaluation_id: true }
+const collapsedCategories = reactive({}) // { 'evalId-catKey': true }
 let refreshTimer = null
 
 async function loadData(isRefresh = false) {
@@ -260,7 +261,7 @@ function toggleCriteria(evalId) {
             <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
               {{ j.judge?.full_name || j.judge?.short_name || 'Судья' }}
             </h3>
-            <span class="rounded-full bg-primary-light px-3 py-0.5 text-sm font-semibold text-primary">
+            <span class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">
               Итого: {{ j.evaluation.score ?? '—' }}
             </span>
           </div>
@@ -283,14 +284,20 @@ function toggleCriteria(evalId) {
             <template v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'">
               <!-- Category block wrapper (styled only when categories exist) -->
               <div :class="hasCategories ? 'mt-1 overflow-hidden rounded-lg border border-primary/20' : ''">
-                <div v-if="hasCategories && group.category" class="flex items-center justify-between bg-primary/10 px-3 py-1.5 dark:bg-primary/20">
-                  <span class="text-xs font-bold text-primary">{{ group.category.title }}</span>
-                  <span class="rounded-full bg-primary-light px-2 py-0.5 text-xs font-semibold text-primary">{{ judgeCategoryScore(j, group.category.id) }}</span>
-                </div>
-                <div v-else-if="hasCategories && !group.category" class="flex items-center justify-between bg-gray-200/60 px-3 py-1.5 dark:bg-gray-600/40">
-                  <span class="text-xs font-bold text-gray-600 dark:text-gray-300">Без категории</span>
-                </div>
-                <div :class="hasCategories ? 'flex flex-col gap-2 p-2' : 'flex flex-col gap-2'">
+                <button v-if="hasCategories && group.category" class="flex w-full cursor-pointer items-center justify-between border-none bg-primary/10 px-3 py-1.5 font-sans dark:bg-primary/20" @click="collapsedCategories[`${j.evaluation.id}-${group.category.id}`] = !collapsedCategories[`${j.evaluation.id}-${group.category.id}`]">
+                  <div class="flex items-center gap-1.5">
+                    <svg class="h-3.5 w-3.5 text-primary transition-transform" :class="collapsedCategories[`${j.evaluation.id}-${group.category.id}`] ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                    <span class="text-xs font-bold text-primary">{{ group.category.title }}</span>
+                  </div>
+                  <span class="rounded-full bg-score-light px-2 py-0.5 text-xs font-semibold text-score">{{ judgeCategoryScore(j, group.category.id) }}</span>
+                </button>
+                <button v-else-if="hasCategories && !group.category" class="flex w-full cursor-pointer items-center justify-between border-none bg-gray-200/60 px-3 py-1.5 font-sans dark:bg-gray-600/40" @click="collapsedCategories[`${j.evaluation.id}-uncategorized`] = !collapsedCategories[`${j.evaluation.id}-uncategorized`]">
+                  <div class="flex items-center gap-1.5">
+                    <svg class="h-3.5 w-3.5 text-gray-500 transition-transform" :class="collapsedCategories[`${j.evaluation.id}-uncategorized`] ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                    <span class="text-xs font-bold text-gray-600 dark:text-gray-300">Без категории</span>
+                  </div>
+                </button>
+                <div v-show="!hasCategories || !collapsedCategories[`${j.evaluation.id}-${group.category?.id ?? 'uncategorized'}`]" :class="hasCategories ? 'flex flex-col gap-2 p-2' : 'flex flex-col gap-2'">
             <div
               v-for="criterion in group.criteria"
               :key="criterion.id"
@@ -305,7 +312,7 @@ function toggleCriteria(evalId) {
                   <span
                     class="rounded-full px-2 py-0.5 text-sm font-semibold"
                     :class="j.items[criterion.id]?.level_id != null
-                      ? 'bg-primary-light text-primary'
+                      ? 'bg-score-light text-score'
                       : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'"
                   >
                     {{ j.items[criterion.id]?.score ?? '—' }}

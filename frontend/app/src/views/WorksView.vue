@@ -404,18 +404,20 @@ function isFullyEvaluated(work) {
             <span
               v-for="cat in categories"
               :key="cat.id"
-              class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400"
-              :class="sortBy === String(cat.id) ? 'ring-1 ring-primary bg-primary-light text-primary dark:bg-primary/20 dark:text-primary' : ''"
+              class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
+              :class="sortBy === String(cat.id)
+                ? 'ring-1 ring-score bg-score-light text-score'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
             >
-              <span class="max-w-24 truncate">{{ cat.title }}</span>
+              <span>{{ cat.title }}</span>
               <strong>{{ workCategoryScore(work.id, cat.id) }}</strong>
             </span>
           </div>
         </div>
         <!-- Viewer: баллы и ранг -->
         <template v-if="!auth.isJudge">
-          <span v-if="work.score != null" class="shrink-0 text-sm font-medium text-gray-600 dark:text-gray-400">
-            {{ work.score }} б.
+          <span v-if="work.score != null" class="shrink-0 rounded-full bg-score-light px-3 py-1 text-sm font-bold text-score">
+            {{ work.score }}
           </span>
           <span v-if="work.rank" class="shrink-0 rounded-full bg-primary-light px-3 py-0.5 text-xs font-medium text-primary">
             {{ work.rank }} место

@@ -8,6 +8,8 @@
   --color-surface-dark: #1e1e2e;
   --color-border: #e5e7eb;
   --color-border-dark: #374151;
+  --color-score: #d97706;
+  --color-score-light: rgba(217, 119, 6, 0.12);
   --color-success: #16a34a;
   --color-danger: #dc2626;
   --color-text-secondary: #6b7280;

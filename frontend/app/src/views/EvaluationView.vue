@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 import logger from '../utils/logger'
@@ -22,6 +22,24 @@ const loading = ref(true)
 const saving = ref(null)
 const error = ref('')
 const saved = ref(false)
+const collapsedCategories = reactive({}) // { categoryKey: true } — свёрнутые категории
+const totalBarStuck = ref(false)
+const sentinelRef = ref(null)
+let stickyObserver = null
+
+onUnmounted(() => {
+  if (stickyObserver) stickyObserver.disconnect()
+})
+
+function initStickyObserver() {
+  if (!sentinelRef.value) return
+  stickyObserver = new IntersectionObserver(
+    ([entry]) => { totalBarStuck.value = !entry.isIntersecting },
+    { threshold: 0.1 }
+  )
+  stickyObserver.observe(sentinelRef.value)
+}
+
 const editingComment = ref(null)   // criterion.id для которого открыт ввод комментария
 const commentDraft = ref('')       // черновик комментария критерия
 const savingItemComment = ref(null)
@@ -137,6 +155,8 @@ onMounted(async () => {
     error.value = 'Не удалось загрузить данные оценки'
   } finally {
     loading.value = false
+    await nextTick()
+    initStickyObserver()
   }
 })
 
@@ -428,14 +448,6 @@ async function deleteGeneralComment() {
     <p v-else-if="error && !criteria.length" class="py-12 text-center text-red-600">{{ error }}</p>
 
     <template v-else>
-      <!-- Total bar -->
-      <div class="sticky top-14 z-5 mb-5 flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3.5 text-base dark:border-gray-700 dark:bg-gray-800">
-        <span>Итого:</span>
-        <strong>{{ totalScore }}</strong>
-        <transition name="fade">
-          <span v-if="saved" class="ml-auto text-sm font-medium text-green-600">Сохранено</span>
-        </transition>
-      </div>
 
       <!-- Criteria list (grouped by categories if available) -->
       <div class="flex flex-col gap-3">
@@ -443,25 +455,28 @@ async function deleteGeneralComment() {
           <!-- Category block wrapper (styled only when categories exist) -->
           <div :class="hasCategories ? 'mt-2 overflow-hidden rounded-xl border border-primary/20' : ''">
             <!-- Category header -->
-            <div v-if="hasCategories && group.category" class="flex items-center justify-between bg-primary/10 px-4 py-2.5 dark:bg-primary/20">
-              <h2 class="m-0 text-sm font-bold text-primary">{{ group.category.title }}</h2>
-              <span class="rounded-full bg-primary-light px-3 py-0.5 text-sm font-semibold text-primary">{{ categoryScore(group.category.id) }}</span>
-            </div>
-            <div v-else-if="hasCategories && !group.category" class="flex items-center justify-between bg-gray-100 px-4 py-2.5 dark:bg-gray-700/50">
-              <h2 class="m-0 text-sm font-bold text-gray-700 dark:text-gray-200">Без категории</h2>
-            </div>
+            <button v-if="hasCategories && group.category" class="flex w-full cursor-pointer items-center justify-between border-none bg-primary/10 px-4 py-2.5 font-sans dark:bg-primary/20" @click="collapsedCategories[group.category.id] = !collapsedCategories[group.category.id]">
+              <div class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-primary transition-transform" :class="collapsedCategories[group.category.id] ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                <h2 class="m-0 text-sm font-bold text-primary">{{ group.category.title }}</h2>
+              </div>
+              <span class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">{{ categoryScore(group.category.id) }}</span>
+            </button>
+            <button v-else-if="hasCategories && !group.category" class="flex w-full cursor-pointer items-center justify-between border-none bg-gray-100 px-4 py-2.5 font-sans dark:bg-gray-700/50" @click="collapsedCategories['uncategorized'] = !collapsedCategories['uncategorized']">
+              <div class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-gray-500 transition-transform" :class="collapsedCategories['uncategorized'] ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                <h2 class="m-0 text-sm font-bold text-gray-700 dark:text-gray-200">Без категории</h2>
+              </div>
+            </button>
             <!-- Criteria inside -->
-            <div :class="hasCategories ? 'flex flex-col gap-3 p-3' : 'flex flex-col gap-3'">
+            <div v-show="!hasCategories || !collapsedCategories[group.category?.id ?? 'uncategorized']" :class="hasCategories ? 'flex flex-col gap-3 p-3' : 'flex flex-col gap-3'">
 
         <div v-for="criterion in group.criteria" :key="criterion.id" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
           <!-- Header -->
-          <div class="mb-3 flex items-start justify-between gap-4">
-            <div>
-              <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ criterion.title }}</h3>
-              <p v-if="criterion.description" class="m-0 mt-1 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}</p>
-            </div>
+          <div class="mb-1 flex items-start justify-between gap-4">
+            <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ criterion.title }}</h3>
             <div class="flex shrink-0 items-center gap-2">
-              <span class="rounded-full bg-primary-light px-2.5 py-0.5 text-sm font-semibold text-primary">
+              <span class="rounded-full bg-score-light px-2.5 py-0.5 text-sm font-semibold text-score">
                 {{ items[criterion.id]?.score ?? '—' }}
               </span>
               <button
@@ -474,13 +489,15 @@ async function deleteGeneralComment() {
               </button>
             </div>
           </div>
+          <p v-if="criterion.description" class="m-0 mb-3 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}</p>
+          <div v-else class="mb-2"></div>
 
           <!-- Level buttons -->
-          <div class="flex flex-wrap gap-2">
+          <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
             <button
               v-for="level in getLevels(criterion)"
               :key="level.id"
-              class="flex min-w-12 cursor-pointer flex-col items-center gap-0.5 rounded-lg border-2 bg-white px-3 py-2 transition dark:bg-gray-800"
+              class="flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border-2 bg-white px-3 py-2 transition sm:min-w-12 dark:bg-gray-800"
               :class="[
                 getSelectedLevel(criterion) === level.id
                   ? 'border-primary bg-primary! text-white dark:bg-primary!'
@@ -492,7 +509,7 @@ async function deleteGeneralComment() {
               :disabled="saving === criterion.id"
             >
               <span class="text-base font-bold">{{ level.point }}</span>
-              <span v-if="level.title" class="max-w-20 truncate text-center text-[11px] opacity-80">{{ level.title }}</span>
+              <span v-if="level.title" class="text-center text-[11px] leading-tight opacity-80">{{ level.title }}</span>
             </button>
           </div>
 
@@ -602,6 +619,27 @@ async function deleteGeneralComment() {
       </div>
 
       <p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p>
+
+      <!-- Sentinel for sticky detection -->
+      <div ref="sentinelRef" class="h-px"></div>
+      <!-- Total bar (sticky bottom) -->
+      <div
+        class="sticky bottom-0 z-30 -mx-4 mt-4 border-t border-score/30 bg-score px-5 py-3 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)] transition-[border-radius] duration-200 sm:-mx-6"
+        :class="totalBarStuck ? 'rounded-t-xl' : 'rounded-xl'"
+      >
+        <div class="flex items-center gap-2 text-base">
+          <span class="font-medium">Итого:</span>
+          <strong class="text-lg">{{ totalScore }}</strong>
+          <transition name="fade">
+            <span v-if="saved" class="ml-auto text-sm font-medium text-green-200">Сохранено ✓</span>
+          </transition>
+        </div>
+        <div v-if="hasCategories" class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category" class="text-xs text-white/70">
+            {{ group.category?.title }}: <strong class="text-white">{{ categoryScore(group.category?.id) }}</strong>
+          </span>
+        </div>
+      </div>
     </template>
   </div>
 </template>
