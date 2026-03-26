@@ -20,12 +20,14 @@ const routes = [
     name: 'evaluation',
     component: EvaluationView,
     props: true,
+    meta: { requiresJudge: true },
   },
   {
     path: '/sheets/:sheetId/works/:workId/view',
     name: 'viewer-evaluation',
     component: ViewerEvaluationView,
     props: true,
+    meta: { requiresViewer: true },
   },
 ]
 
@@ -52,6 +54,14 @@ router.beforeEach(async (to) => {
 
   // Проверка доступа по роли
   if (!auth.hasAccess) return { name: 'no-access' }
+
+  // Редирект при неверном режиме
+  if (to.meta.requiresJudge && !auth.isJudge) {
+    return { name: 'viewer-evaluation', params: to.params }
+  }
+  if (to.meta.requiresViewer && !auth.isViewer) {
+    return { name: 'evaluation', params: to.params }
+  }
 })
 
 export default router

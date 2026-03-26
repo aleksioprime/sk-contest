@@ -5,6 +5,11 @@ import { useAuthStore } from '../stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 
+function toggleMode() {
+  auth.switchMode()
+  router.push('/')
+}
+
 async function logout() {
   await auth.logout()
   router.push('/login')
@@ -25,6 +30,13 @@ async function logout() {
         {{ auth.user.nickname || auth.user.email }}
         <span v-if="auth.roleName" class="ml-1 inline-block rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary">{{ auth.roleName }}</span>
       </span>
+      <button
+        v-if="auth.isBothRoles"
+        class="cursor-pointer rounded-lg border border-primary bg-transparent px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-primary-light dark:border-primary dark:hover:bg-primary-light"
+        @click="toggleMode"
+      >
+        {{ auth.activeMode === 'judge' ? 'Режим Viewer' : 'Режим Judge' }}
+      </button>
       <button
         class="cursor-pointer rounded-lg border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
         @click="logout"

@@ -26,7 +26,7 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center p-6">
+  <div class="flex flex-1 items-start justify-center p-6 pt-24">
     <form class="w-full max-w-md rounded-xl bg-white p-10 shadow-lg dark:bg-gray-800" @submit.prevent="handleLogin">
       <div class="mb-4 flex justify-center text-primary">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
