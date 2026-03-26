@@ -1,4 +1,4 @@
-const isEnabled = import.meta.env.VITE_LOGGER === 'true'
+const isEnabled = import.meta.env.VITE_LOGGING === '1'
 
 const logger = {
   log(...args) {

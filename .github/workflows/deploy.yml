@@ -1,0 +1,39 @@
+name: Deploy to Coolify
+
+run-name: "Coolify deploy for ${{ github.ref_name }} by ${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force deploy"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Trigger Coolify deploy
+      continue-on-error: true
+      env:
+        COOLIFY_API: ${{ secrets.COOLIFY_API }}
+        COOLIFY_APP: ${{ secrets.COOLIFY_APP }}
+        COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        FORCE_DEPLOY: ${{ inputs.force }}
+      run: |
+        if [ -z "$COOLIFY_API" ] || [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_APP" ]; then
+          echo "::warning::COOLIFY_API/COOLIFY_TOKEN/COOLIFY_APP not configured. Skipping deploy trigger."
+          exit 0
+        fi
+
+        echo "Triggering Coolify deploy... ($COOLIFY_API/deploy?uuid=$COOLIFY_APP&force=$FORCE_DEPLOY)"
+        curl -sS -X POST \
+          "$COOLIFY_API/deploy?uuid=$COOLIFY_APP&force=$FORCE_DEPLOY" \
+          -H "Authorization: Bearer $COOLIFY_TOKEN" \
+        || echo "::warning::Coolify deploy trigger failed"

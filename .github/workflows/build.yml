@@ -1,0 +1,82 @@
+name: Build Contest to GHCR
+
+run-name: "Build and push Contest image for ${{ github.ref_name }} by ${{ github.actor }}"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run Frontend tests
+      run: |
+        echo "Тесты фронтенда пока отключены. Возвращаем успешный статус."
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Login to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
+    - name: Build and push Contest image
+      run: |
+        docker build --target prod \
+          --build-arg VITE_LOGGING=0 \
+          --build-arg VITE_API_URL="https://contest.skeducator.ru" \
+          -t $IMAGE-frontend:latest \
+          -t ${IMAGE}-frontend:${{ github.sha }} \
+          ./frontend
+
+        docker push $IMAGE-frontend:latest
+        docker push ${IMAGE}-frontend:${{ github.sha }}
+
+    - name: Set FRONTEND_IMAGE_TAG in Coolify
+      if: github.ref == 'refs/heads/main'
+      continue-on-error: true
+      env:
+        COOLIFY_API: ${{ secrets.COOLIFY_API }}
+        COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        COOLIFY_APP: ${{ secrets.COOLIFY_APP }}
+      run: |
+        if [ -z "$COOLIFY_API" ] || [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_APP" ]; then
+          echo "::warning::COOLIFY_API/COOLIFY_TOKEN/COOLIFY_APP not configured. Skipping FRONTEND_IMAGE_TAG update."
+          exit 0
+        fi
+
+        curl -sS -X PATCH \
+          -H "Authorization: Bearer $COOLIFY_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          -H "Content-Type: application/json" \
+          "$COOLIFY_API/applications/$COOLIFY_APP/envs/bulk" \
+          -d "{\"data\":[{\"key\":\"FRONTEND_IMAGE_TAG\",\"value\":\"${{ github.sha }}\"}]}" \
+        || echo "::warning::Coolify FRONTEND_IMAGE_TAG update failed"
