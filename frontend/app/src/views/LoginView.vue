@@ -34,8 +34,8 @@ async function handleLogin() {
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
         </svg>
       </div>
-      <h1 class="mb-1 text-center text-xl font-semibold text-gray-900 dark:text-gray-100">Вход в систему</h1>
-      <p class="mb-7 text-center text-sm text-gray-500 dark:text-gray-400">Оценка конкурсных работ</p>
+      <h1 class="mb-1 text-center text-xl font-semibold text-gray-900 dark:text-gray-100">Жюри SK</h1>
+      <p class="mb-7 text-center text-sm text-gray-400">Вход в систему</p>
 
       <div class="mb-4">
         <label for="account" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Логин или email</label>
