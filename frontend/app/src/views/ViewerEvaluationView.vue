@@ -128,7 +128,7 @@ async function loadData(isRefresh = false) {
       itemsByEval[item.evaluation_id][item.criterion_id] = item
     }
 
-    // Собираем данные по судьям
+    // Собираем данные по судьям из оценок (contest_evaluations → judge)
     judges.value = evaluations.map((ev) => ({
       judge: ev.judge,
       evaluation: ev,
@@ -205,6 +205,11 @@ function judgeCategoryScore(judgeData, categoryId) {
     .reduce((sum, c) => sum + (judgeData.items[c.id]?.score ? Number(judgeData.items[c.id].score) : 0), 0)
 }
 
+/** Проверяет, выставил ли судья хотя бы одну оценку */
+function hasJudgeScored(judgeData) {
+  return Object.values(judgeData.items).some((item) => item.level_id != null)
+}
+
 function toggleComment(judgeId, criterionId) {
   const key = `${judgeId}-${criterionId}`
   expandedComments[key] = !expandedComments[key]
@@ -271,15 +276,20 @@ function toggleCriteria(evalId) {
           class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
         >
           <!-- Judge header -->
-          <div class="mb-3 flex items-center justify-between">
+          <div class="flex items-center justify-between" :class="hasJudgeScored(j) ? 'mb-3' : ''">
             <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
               {{ j.judge?.full_name || j.judge?.short_name || 'Судья' }}
             </h3>
-            <span class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">
+            <span v-if="hasJudgeScored(j)" class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">
               Итого: {{ j.evaluation.score ?? '—' }}
+            </span>
+            <span v-else class="rounded-full bg-gray-100 px-3 py-0.5 text-sm font-medium text-gray-400 dark:bg-gray-700 dark:text-gray-500">
+              Оценки не выставлены
             </span>
           </div>
 
+          <!-- Content: criteria & comments (only if judge has scored) -->
+          <template v-if="hasJudgeScored(j)">
           <!-- Toggle criteria -->
           <button
             class="mb-2 flex w-full cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 font-sans text-sm font-medium text-primary hover:underline"
@@ -377,6 +387,7 @@ function toggleCriteria(evalId) {
               {{ j.evaluation.comment }}
             </p>
           </div>
+          </template><!-- end v-if evaluation -->
         </div>
       </div>
     </template>
