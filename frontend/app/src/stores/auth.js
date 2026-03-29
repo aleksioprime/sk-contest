@@ -4,7 +4,8 @@
  * Логика ролей:
  *   - Judge (JUDGE_ROLE) — может оценивать работы.
  *   - Viewer (VIEWER_ROLE или admin) — может просматривать оценки всех судей.
- *   - Пользователь с обеими ролями может переключаться через switchMode().
+ *   - Пользователь может иметь обе роли одновременно:
+ *     по умолчанию открывается оценка, а просмотр результатов доступен через меню.
  *
  * Важно: judge_id в таблице оценок ссылается на person.id (не user.id),
  * поэтому после авторизации загружаем person-запись через fetchPerson().
@@ -21,7 +22,6 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const person = ref(null)
   const token = ref(localStorage.getItem('token') || '')
-  const activeMode = ref(localStorage.getItem('activeMode') || null) // 'judge' | 'viewer' | null — режим для пользователей с двумя ролями
 
   const isAuthenticated = computed(() => !!token.value)
   const personId = computed(() => person.value?.id ?? null) // ID персоны = judge_id в оценках
@@ -35,44 +35,18 @@ export const useAuthStore = defineStore('auth', () => {
   const hasViewerRole = computed(() => userRoleNames.value.includes(VIEWER_ROLE) || userRoleNames.value.includes('admin')) // Admin имеет права Viewer
   const isBothRoles = computed(() => hasJudgeRole.value && hasViewerRole.value)
 
-  // Если у пользователя обе роли — роль определяется текущим activeMode
-  const isJudge = computed(() => {
-    if (isBothRoles.value) return activeMode.value === 'judge'
-    return hasJudgeRole.value
-  })
-  const isViewer = computed(() => {
-    if (isBothRoles.value) return activeMode.value === 'viewer'
-    return hasViewerRole.value
-  })
+  // Роли независимы: пользователь может быть одновременно и Judge, и Viewer
+  const isJudge = computed(() => hasJudgeRole.value)
+  const isViewer = computed(() => hasViewerRole.value)
   const hasAccess = computed(() => hasJudgeRole.value || hasViewerRole.value)
 
   const roleName = computed(() => {
-    if (isBothRoles.value) {
-      return activeMode.value === 'judge' ? 'Judge' : 'Viewer'
-    }
-    if (hasJudgeRole.value) return 'Judge'
-    if (userRoleNames.value.includes('admin')) return 'Admin'
-    if (userRoleNames.value.includes(VIEWER_ROLE)) return 'Viewer'
-    return null
+    const roles = []
+    if (hasJudgeRole.value) roles.push('Judge')
+    if (userRoleNames.value.includes('admin')) roles.push('Admin')
+    else if (userRoleNames.value.includes(VIEWER_ROLE)) roles.push('Viewer')
+    return roles.join(' / ') || null
   })
-
-  /**
-   * Переключение режима Judge ↔ Viewer.
-   * Сохраняет выбор в localStorage для персистентности между сессиями.
-   */
-  function switchMode() {
-    if (!isBothRoles.value) return
-    activeMode.value = activeMode.value === 'judge' ? 'viewer' : 'judge'
-    localStorage.setItem('activeMode', activeMode.value)
-  }
-
-  /** Устанавливает режим по умолчанию (judge) при первом входе пользователя с двумя ролями */
-  function ensureActiveMode() {
-    if (isBothRoles.value && !['judge', 'viewer'].includes(activeMode.value)) {
-      activeMode.value = 'judge'
-      localStorage.setItem('activeMode', 'judge')
-    }
-  }
 
   /** Авторизация через NocoBase Basic Auth */
   async function login(account, password) {
@@ -88,7 +62,6 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchUser() {
     const { data } = await api.get('/auth:check')
     user.value = data.data
-    ensureActiveMode()
     await fetchPerson()
   }
 
@@ -118,5 +91,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
   }
 
-  return { user, person, personId, token, isAuthenticated, isJudge, isViewer, isBothRoles, hasAccess, roleName, activeMode, switchMode, login, fetchUser, logout }
+  return { user, person, personId, token, isAuthenticated, isJudge, isViewer, isBothRoles, hasAccess, roleName, login, fetchUser, logout }
 })

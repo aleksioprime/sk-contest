@@ -4,15 +4,17 @@
  * Маршруты:
  *   /login          — страница входа (публичная)
  *   /no-access      — заглушка при отсутствии роли
- *   /               — список оценочных листов
- *   /sheets/:id     — список работ в листе
+ *   /               — список оценочных листов (Judge); перенаправляет на /results для Viewer-only
+ *   /sheets/:id     — список работ в листе (Judge)
  *   /sheets/:id/works/:id       — оценка работы (только Judge)
- *   /sheets/:id/works/:id/view  — просмотр оценок (только Viewer)
+ *   /results        — список оценочных листов (Viewer/Admin)
+ *   /results/sheets/:id         — список работ (Viewer/Admin)
+ *   /results/sheets/:id/works/:id — просмотр оценок (Viewer/Admin)
  *
  * Навигационный гард (beforeEach):
  *   1. Редиректит авторизованного пользователя со страницы логина
  *   2. Проверяет наличие токена и загружает профиль пользователя
- *   3. Проверяет роль (Judge/Viewer) и перенаправляет при несоответствии
+ *   3. Проверяет роль и перенаправляет при несоответствии
  */
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -30,6 +32,7 @@ const NoAccessView = {
 const routes = [
   { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
   { path: '/no-access', name: 'no-access', component: NoAccessView, meta: { public: true } },
+  // Judge routes
   { path: '/', name: 'sheets', component: SheetsView },
   { path: '/sheets/:sheetId', name: 'works', component: WorksView, props: true },
   {
@@ -39,12 +42,26 @@ const routes = [
     props: true,
     meta: { requiresJudge: true },
   },
+  // Viewer/Admin routes (просмотр результатов)
   {
-    path: '/sheets/:sheetId/works/:workId/view',
-    name: 'viewer-evaluation',
+    path: '/results',
+    name: 'results-sheets',
+    component: SheetsView,
+    meta: { viewerMode: true, requiresViewer: true },
+  },
+  {
+    path: '/results/sheets/:sheetId',
+    name: 'results-works',
+    component: WorksView,
+    props: true,
+    meta: { viewerMode: true, requiresViewer: true },
+  },
+  {
+    path: '/results/sheets/:sheetId/works/:workId',
+    name: 'results-evaluation',
     component: ViewerEvaluationView,
     props: true,
-    meta: { requiresViewer: true },
+    meta: { viewerMode: true, requiresViewer: true },
   },
 ]
 
@@ -77,12 +94,18 @@ router.beforeEach(async (to) => {
   // Проверка доступа по роли
   if (!auth.hasAccess) return { name: 'no-access' }
 
-  // Редирект при неверном режиме
+  // Если нет роли Judge — перенаправляем с judge-маршрутов на просмотр результатов
+  if (!auth.isJudge && (to.name === 'sheets' || to.name === 'works')) {
+    if (to.name === 'sheets') return { name: 'results-sheets' }
+    if (to.name === 'works') return { name: 'results-works', params: to.params }
+  }
+
+  // Проверка ролевых требований маршрута
   if (to.meta.requiresJudge && !auth.isJudge) {
-    return { name: 'viewer-evaluation', params: to.params }
+    return { name: 'sheets' }
   }
   if (to.meta.requiresViewer && !auth.isViewer) {
-    return { name: 'evaluation', params: to.params }
+    return { name: 'sheets' }
   }
 })
 

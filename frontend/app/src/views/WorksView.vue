@@ -11,7 +11,7 @@
 -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 
@@ -21,6 +21,8 @@ const AUTO_REFRESH_INTERVAL = 30000
 const props = defineProps({ sheetId: [String, Number] })
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+const viewerMode = computed(() => !!route.meta.viewerMode)
 
 const sheet = ref(null)
 const works = ref([])
@@ -129,7 +131,7 @@ const workCategoryScores = computed(() => {
 })
 
 const sortedWorks = computed(() => {
-  if (auth.isJudge) return works.value
+  if (!viewerMode.value) return works.value
 
   const sorted = [...works.value]
   if (sortBy.value === 'rank') {
@@ -187,13 +189,13 @@ async function loadData(isRefresh = false) {
     sheet.value = sheetRes.data.data
     works.value = worksRes.data.data || []
 
-    // Проверяем доступ по статусу листа (архивные — только Viewer, неактивные — не для Judge)
+    // Проверяем доступ по статусу листа
     const status = sheet.value.status || 'inactive'
-    if (status === 'archived' && !auth.isViewer) {
+    if (status === 'archived' && !viewerMode.value) {
       router.replace('/')
       return
     }
-    if (status !== 'active' && auth.isJudge) {
+    if (status !== 'active' && !viewerMode.value) {
       router.replace('/')
       return
     }
@@ -217,7 +219,7 @@ async function loadData(isRefresh = false) {
     }
 
     // Для жюри — оценки текущего пользователя
-    if (auth.isJudge) {
+    if (!viewerMode.value && auth.isJudge) {
       const personId = auth.personId
       if (personId && workIds.length) {
         parallelRequests.push(
@@ -232,7 +234,7 @@ async function loadData(isRefresh = false) {
     }
 
     // Для viewer — все оценки
-    if (!auth.isJudge && workIds.length) {
+    if (viewerMode.value && workIds.length) {
       parallelRequests.push(
         api.get('/contest_evaluations:list', {
           params: {
@@ -276,7 +278,7 @@ async function loadData(isRefresh = false) {
     }
 
     // Evaluation items для viewer (подсчёт по категориям)
-    if (!auth.isJudge && allEvaluations.value.length && categoryIds.length) {
+    if (viewerMode.value && allEvaluations.value.length && categoryIds.length) {
       const evalIds = allEvaluations.value.map((ev) => ev.id)
       parallelRequests2.push(
         api.get('/contest_evaluation_items:list', {
@@ -289,7 +291,7 @@ async function loadData(isRefresh = false) {
     }
 
     // Evaluation items для жюри (проверка полноты)
-    if (auth.isJudge && judgeEvals.length) {
+    if (!viewerMode.value && judgeEvals.length) {
       const evalIds = judgeEvals.map((ev) => ev.id)
       parallelRequests2.push(
         api.get('/contest_evaluation_items:list', {
@@ -319,12 +321,15 @@ async function loadData(isRefresh = false) {
     }
 
     // Карта оценок жюри
-    if (auth.isJudge) {
+    if (!viewerMode.value) {
       const newEvalsMap = {}
       for (const ev of judgeEvals) {
         newEvalsMap[ev.sheet_work_id] = ev
       }
       evaluationsMap.value = newEvalsMap
+
+      // Показываем судье только работы, к которым он назначен (есть запись в contest_evaluations)
+      works.value = works.value.filter((w) => !!newEvalsMap[w.id])
     }
   } catch (e) {
     if (!isRefresh) error.value = 'Не удалось загрузить работы'
@@ -336,7 +341,7 @@ async function loadData(isRefresh = false) {
 
 onMounted(() => {
   loadData()
-  if (!auth.isJudge) {
+  if (viewerMode.value) {
     refreshTimer = setInterval(() => loadData(true), AUTO_REFRESH_INTERVAL)
   }
 })
@@ -374,9 +379,9 @@ function isFullyEvaluated(work) {
 <template>
   <div>
     <div class="mb-4 flex items-center justify-between">
-      <router-link to="/" class="text-sm text-primary no-underline hover:underline">&larr; К оценочным листам</router-link>
+      <router-link :to="viewerMode ? { name: 'results-sheets' } : '/'" class="text-sm text-primary no-underline hover:underline">&larr; К оценочным листам</router-link>
       <button
-        v-if="!auth.isJudge"
+        v-if="viewerMode"
         @click="loadData(true)"
         :disabled="refreshing"
         class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
@@ -402,7 +407,7 @@ function isFullyEvaluated(work) {
 
     <template v-else>
       <!-- Sort dropdown (viewer only, when categories exist) -->
-      <div v-if="!auth.isJudge && hasCategories" class="mb-3 flex items-center gap-2">
+      <div v-if="viewerMode && hasCategories" class="mb-3 flex items-center gap-2">
         <label for="sort-select" class="text-sm text-gray-600 dark:text-gray-400">Сортировка:</label>
         <select
           id="sort-select"
@@ -417,7 +422,7 @@ function isFullyEvaluated(work) {
       <router-link
         v-for="work in sortedWorks"
         :key="work.id"
-        :to="{ name: auth.isJudge ? 'evaluation' : 'viewer-evaluation', params: { sheetId: props.sheetId, workId: work.id } }"
+        :to="{ name: viewerMode ? 'results-evaluation' : 'evaluation', params: { sheetId: props.sheetId, workId: work.id } }"
         class="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 no-underline shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
       >
         <div class="min-w-0 flex-1">
@@ -429,7 +434,7 @@ function isFullyEvaluated(work) {
             <span class="font-medium">Руководители:</span> {{ getSupervisors(work).map(s => s.full_name || s.short_name).join(', ') }}
           </div>
           <!-- Category scores (viewer only) -->
-          <div v-if="!auth.isJudge && hasCategories && allItems.length" class="mt-1.5 flex flex-wrap gap-2">
+          <div v-if="viewerMode && hasCategories && allItems.length" class="mt-1.5 flex flex-wrap gap-2">
             <span
               v-for="cat in categories"
               :key="cat.id"
@@ -444,7 +449,7 @@ function isFullyEvaluated(work) {
           </div>
         </div>
         <!-- Viewer: баллы и ранг -->
-        <template v-if="!auth.isJudge">
+        <template v-if="viewerMode">
           <span v-if="work.score != null" class="shrink-0 rounded-full bg-score-light px-3 py-1 text-sm font-bold text-score">
             {{ work.score }}
           </span>

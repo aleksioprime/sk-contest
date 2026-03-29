@@ -6,16 +6,22 @@
     - Admin: все листы.
 -->
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
+const viewerMode = computed(() => !!route.meta.viewerMode)
 const sheets = ref([])
 const loading = ref(true)
 const error = ref('')
 
-onMounted(async () => {
+async function loadSheets() {
+  loading.value = true
+  error.value = ''
+  sheets.value = []
   try {
     const { data } = await api.get('/contest_evaluation_sheets:list', {
       params: {
@@ -28,7 +34,7 @@ onMounted(async () => {
     const allSheets = data.data || []
     const personId = auth.personId
 
-    if (auth.isJudge && personId) {
+    if (!viewerMode.value && auth.isJudge && personId) {
       // Жюри видит только active листы, в которых состоит
       sheets.value = allSheets.filter((sheet) => {
         const status = sheet.status || 'inactive'
@@ -36,14 +42,14 @@ onMounted(async () => {
         if (!sheet.judges || !Array.isArray(sheet.judges)) return false
         return sheet.judges.some((j) => j.id === personId)
       })
-    } else if (auth.isViewer) {
+    } else if (viewerMode.value && auth.isViewer) {
       // Viewer видит active и inactive (не archived)
       sheets.value = allSheets.filter((sheet) => {
         const status = sheet.status || 'inactive'
         return status === 'active' || status === 'inactive'
       })
     } else {
-      // Admin видит всё
+      // Fallback: показать все
       sheets.value = allSheets
     }
   } catch (e) {
@@ -51,7 +57,10 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+// Перезагружаем данные при смене режима (judge ↔ viewer) — компонент переиспользуется
+watch(() => route.name, loadSheets, { immediate: true })
 </script>
 
 <template>
@@ -73,7 +82,7 @@ onMounted(async () => {
       <router-link
         v-for="sheet in sheets"
         :key="sheet.id"
-        :to="{ name: 'works', params: { sheetId: sheet.id } }"
+        :to="{ name: viewerMode ? 'results-works' : 'works', params: { sheetId: sheet.id } }"
         class="block rounded-xl border border-gray-200 bg-white p-5 no-underline shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
       >
         <h3 class="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">{{ sheet.title }}</h3>
@@ -81,7 +90,7 @@ onMounted(async () => {
         <div class="flex flex-wrap items-center gap-2">
           <span v-if="sheet.stage?.title" class="inline-block rounded-full bg-primary-light px-3 py-0.5 text-xs font-medium text-primary">{{ sheet.stage.title }}</span>
           <span
-            v-if="!auth.isJudge && (sheet.status || 'inactive') !== 'active'"
+            v-if="viewerMode && (sheet.status || 'inactive') !== 'active'"
             class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
             :class="(sheet.status || 'inactive') === 'archived' ? 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'"
           >

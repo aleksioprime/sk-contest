@@ -1,16 +1,19 @@
 <!--
   Шапка приложения.
-  Содержит логотип, меню пользователя с ролью, переключатель режима
-  Judge/Viewer (для пользователей с двумя ролями) и кнопку выхода.
+  Содержит логотип, меню пользователя с ролью, ссылки навигации
+  (оценка для Judge, просмотр результатов для Viewer/Admin) и кнопку выхода.
 -->
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const menuOpen = ref(false)
+
+const isOnResultsPage = computed(() => !!route.meta.viewerMode)
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
@@ -20,11 +23,14 @@ function closeMenu() {
   menuOpen.value = false
 }
 
-/** Переключение режима и редирект на главную для обновления контента */
-function toggleMode() {
-  auth.switchMode()
+function goToResults() {
   closeMenu()
-  router.push('/')
+  router.push({ name: 'results-sheets' })
+}
+
+function goToJudge() {
+  closeMenu()
+  router.push({ name: 'sheets' })
 }
 
 async function logout() {
@@ -68,12 +74,20 @@ async function logout() {
           <span v-if="auth.roleName" class="mt-0.5 inline-block rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary">{{ auth.roleName }}</span>
         </div>
         <button
-          v-if="auth.isBothRoles"
+          v-if="auth.isViewer && !isOnResultsPage"
           class="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-          @click="toggleMode"
+          @click="goToResults"
         >
-          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
-          {{ auth.activeMode === 'judge' ? 'Режим Viewer' : 'Режим Judge' }}
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+          Просмотр результатов
+        </button>
+        <button
+          v-if="auth.isJudge && isOnResultsPage"
+          class="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+          @click="goToJudge"
+        >
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+          Оценка работ
         </button>
         <button
           class="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent px-4 py-2 text-left text-sm text-red-600 transition hover:bg-gray-50 dark:text-red-400 dark:hover:bg-gray-700"

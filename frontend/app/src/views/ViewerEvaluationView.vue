@@ -228,7 +228,7 @@ function toggleCriteria(evalId) {
   <div>
     <div class="mb-4 flex items-center justify-between">
       <router-link
-        :to="{ name: 'works', params: { sheetId: props.sheetId } }"
+        :to="{ name: 'results-works', params: { sheetId: props.sheetId } }"
         class="text-sm text-primary no-underline hover:underline"
       >
         &larr; К списку работ
