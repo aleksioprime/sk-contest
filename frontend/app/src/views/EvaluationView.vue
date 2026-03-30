@@ -41,9 +41,19 @@ const collapsedCategories = reactive({}) // { categoryKey: true } — свёрн
 const totalBarStuck = ref(false)         // true, когда панель итогов «прилипла» к низу экрана
 const sentinelRef = ref(null)            // ref-элемент для IntersectionObserver
 let stickyObserver = null
+const showScrollTop = ref(false)
+
+function handleScroll() {
+  showScrollTop.value = window.scrollY > 400
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 onUnmounted(() => {
   if (stickyObserver) stickyObserver.disconnect()
+  window.removeEventListener('scroll', handleScroll)
 })
 
 /**
@@ -177,6 +187,7 @@ onMounted(async () => {
     loading.value = false
     await nextTick()
     initStickyObserver()
+    window.addEventListener('scroll', handleScroll)
   }
 })
 
@@ -668,7 +679,31 @@ async function deleteGeneralComment() {
           </span>
         </div>
       </div>
+
+      <!-- Back to works button -->
+      <div class="mt-6 mb-4 flex justify-center">
+        <router-link
+          :to="{ name: 'works', params: { sheetId: props.sheetId } }"
+          class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 no-underline shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          &larr; К выбору работы
+        </router-link>
+      </div>
     </template>
+
+    <!-- Scroll to top button -->
+    <transition name="fade">
+      <button
+        v-show="showScrollTop"
+        class="fixed bottom-20 right-5 z-50 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-none bg-primary text-white shadow-lg transition hover:bg-primary-hover"
+        @click="scrollToTop"
+        title="Наверх"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+      </button>
+    </transition>
   </div>
 </template>
 
