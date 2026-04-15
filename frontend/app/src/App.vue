@@ -16,7 +16,7 @@ const route = useRoute()
       <router-view />
     </main>
     <footer class="border-t border-gray-200 bg-white px-4 py-4 text-center text-xs text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
-      Сервисы автоматизации Гимназии Сколково · © 2026 Алексей Семочкин
+      Сервисы автоматизации Гимназии Сколково · © {{ new Date().getFullYear() }}  Алексей Семочкин
     </footer>
   </div>
 </template>

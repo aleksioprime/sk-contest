@@ -130,16 +130,26 @@ const workCategoryScores = computed(() => {
   return map
 })
 
-const sortedWorks = computed(() => {
-  if (!viewerMode.value) return works.value
+function getWorkOrderValue(work) {
+  return work?.order != null ? Number(work.order) : Number.POSITIVE_INFINITY
+}
 
-  const sorted = [...works.value]
+function compareBySheetOrder(a, b) {
+  const orderDiff = getWorkOrderValue(a) - getWorkOrderValue(b)
+  if (orderDiff !== 0) return orderDiff
+  return Number(a.id) - Number(b.id)
+}
+
+const sortedWorks = computed(() => {
+  const sorted = [...works.value].sort(compareBySheetOrder)
+  if (!viewerMode.value) return sorted
+
   if (sortBy.value === 'rank') {
     return sorted.sort((a, b) => {
       if (a.rank && b.rank) return a.rank - b.rank
       if (a.rank) return -1
       if (b.rank) return 1
-      return 0
+      return compareBySheetOrder(a, b)
     })
   }
   if (sortBy.value !== 'total' && hasCategories.value) {
@@ -147,7 +157,8 @@ const sortedWorks = computed(() => {
     return sorted.sort((a, b) => {
       const sa = workCategoryScores.value[a.id] ?? 0
       const sb = workCategoryScores.value[b.id] ?? 0
-      return sb - sa
+      const diff = sb - sa
+      return diff !== 0 ? diff : compareBySheetOrder(a, b)
     })
   }
   // По общему баллу
@@ -157,7 +168,8 @@ const sortedWorks = computed(() => {
     if (b.rank) return 1
     const sa = a.score != null ? Number(a.score) : -1
     const sb = b.score != null ? Number(b.score) : -1
-    return sb - sa
+    const diff = sb - sa
+    return diff !== 0 ? diff : compareBySheetOrder(a, b)
   })
 })
 
@@ -182,6 +194,7 @@ async function loadData(isRefresh = false) {
         params: {
           filter: JSON.stringify({ sheet_id: props.sheetId }),
           appends: 'stage_participation,stage_participation.participation,stage_participation.participation.participants,stage_participation.participation.supervisors',
+          sort: 'order,id',
           pageSize: 200,
         },
       }),
