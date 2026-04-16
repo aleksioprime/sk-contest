@@ -8,6 +8,7 @@
  *   /sheets/:id     — список работ в листе (Judge)
  *   /sheets/:id/works/:id       — оценка работы (только Judge)
  *   /results        — список оценочных листов (Viewer/Admin)
+ *   /results/aggregate         — сводный рейтинг по нескольким листам (Viewer/Admin)
  *   /results/sheets/:id         — список работ (Viewer/Admin)
  *   /results/sheets/:id/works/:id — просмотр оценок (Viewer/Admin)
  *
@@ -23,6 +24,7 @@ import SheetsView from '../views/SheetsView.vue'
 import WorksView from '../views/WorksView.vue'
 import EvaluationView from '../views/EvaluationView.vue'
 import ViewerEvaluationView from '../views/ViewerEvaluationView.vue'
+import AggregateResultsView from '../views/AggregateResultsView.vue'
 
 /** Заглушка для пользователей без роли Judge или Viewer */
 const NoAccessView = {
@@ -47,6 +49,12 @@ const routes = [
     path: '/results',
     name: 'results-sheets',
     component: SheetsView,
+    meta: { viewerMode: true, requiresViewer: true },
+  },
+  {
+    path: '/results/aggregate',
+    name: 'results-aggregate',
+    component: AggregateResultsView,
     meta: { viewerMode: true, requiresViewer: true },
   },
   {

@@ -65,7 +65,16 @@ watch(() => route.name, loadSheets, { immediate: true })
 
 <template>
   <div>
-    <h1 class="mb-5 text-2xl font-bold text-gray-900 dark:text-gray-100">Оценочные листы</h1>
+    <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Оценочные листы</h1>
+      <router-link
+        v-if="viewerMode"
+        :to="{ name: 'results-aggregate' }"
+        class="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-white no-underline transition hover:bg-primary-hover"
+      >
+        Сводный рейтинг
+      </router-link>
+    </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-3 py-12 text-gray-500">
       <svg class="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
