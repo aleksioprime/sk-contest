@@ -534,6 +534,7 @@ async function exportToExcel() {
 
     const rawScoreIdx = columns.findIndex((col) => col.key === 'rawScore')
     const normalizedScoreIdx = columns.findIndex((col) => col.key === 'normalizedScore')
+    const centeredColumnIndexes = [rankColIdx, rawScoreIdx, normalizedScoreIdx].filter((idx) => idx >= 0)
     const wrapColumnIndexes = ['workTitle', 'participants', 'supervisors']
       .map((key) => columns.findIndex((col) => col.key === key))
       .filter((idx) => idx >= 0)
@@ -544,7 +545,13 @@ async function exportToExcel() {
 
       for (let col = 0; col < columns.length; col++) {
         const key = columns[col].key
-        const value = rowData[key]
+        let value = rowData[key]
+
+        if (key === 'rawScore' || key === 'normalizedScore') {
+          value = value === '' || value == null ? null : Number(value)
+          if (Number.isNaN(value)) value = null
+        }
+
         const cell = worksheet.getCell(rowNumber, col + 1)
         cell.value = value === '' ? null : value
         cell.border = {
@@ -555,7 +562,7 @@ async function exportToExcel() {
         }
         cell.alignment = {
           vertical: 'top',
-          horizontal: rankColIdx === col ? 'center' : 'left',
+          horizontal: centeredColumnIndexes.includes(col) ? 'center' : 'left',
         }
       }
 
