@@ -7,7 +7,6 @@
 -->
 <script setup>
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
-import * as XLSX from 'xlsx'
 import api from '../api'
 
 const sheets = ref([])
@@ -401,7 +400,7 @@ function getExportColumns() {
   const cols = [
     { key: 'rank', title: 'Место', min: 8, max: 12 },
     { key: 'workTitle', title: 'Работа', min: 28, max: 60 },
-    { key: 'participants', title: 'Участники', min: 30, max: 70 },
+    { key: 'participants', title: 'Участники', min: 22, max: 42 },
     { key: 'supervisors', title: 'Супервайзеры', min: 30, max: 70 },
     { key: 'rawScore', title: 'Балл', min: 10, max: 16 },
   ]
@@ -440,12 +439,8 @@ function buildColumnWidths(columns, rows) {
       if (len > width) width = len
     }
     const padded = width + 2
-    return { wch: Math.max(column.min, Math.min(column.max, padded)) }
+    return Math.max(column.min, Math.min(column.max, padded))
   })
-}
-
-function toExcelCell(rowNumber, colNumber) {
-  return `${XLSX.utils.encode_col(colNumber)}${rowNumber}`
 }
 
 function getExportMetaLine() {
@@ -464,6 +459,17 @@ function getExportFileName() {
   return `svodnyi-reiting-${yyyy}-${mm}-${dd}_${hh}-${min}.xlsx`
 }
 
+function triggerFileDownload(blob, fileName) {
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -479,58 +485,105 @@ async function exportToExcel() {
   await sleep(50)
 
   try {
+    const exceljsModule = await import('exceljs')
+    const ExcelJS = exceljsModule.default || exceljsModule
     const columns = getExportColumns()
     const rows = getExportRows()
+    const colWidths = buildColumnWidths(columns, rows)
     const title = 'Сводный рейтинг конкурсных работ'
     const meta = getExportMetaLine()
     const headerRow = 4
     const dataStartRow = headerRow + 1
     const lastCol = columns.length - 1
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Сводный рейтинг')
+    const rankColIdx = columns.findIndex((col) => col.key === 'rank')
 
-    const worksheet = {}
+    worksheet.columns = columns.map((column, idx) => ({
+      key: column.key,
+      width: colWidths[idx],
+    }))
 
-    XLSX.utils.sheet_add_aoa(worksheet, [[title]], { origin: 'A1' })
-    XLSX.utils.sheet_add_aoa(worksheet, [[meta]], { origin: 'A2' })
-    XLSX.utils.sheet_add_aoa(worksheet, [columns.map((c) => c.title)], { origin: `A${headerRow}` })
-    XLSX.utils.sheet_add_json(worksheet, rows, {
-      origin: `A${dataStartRow}`,
-      skipHeader: true,
-      header: columns.map((c) => c.key),
-    })
+    worksheet.mergeCells(1, 1, 1, lastCol + 1)
+    worksheet.getCell(1, 1).value = title
+    worksheet.getCell(1, 1).font = { bold: true, size: 14 }
+    worksheet.getCell(1, 1).alignment = { vertical: 'top' }
 
-    worksheet['!cols'] = buildColumnWidths(columns, rows)
-    worksheet['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
-    ]
+    worksheet.mergeCells(2, 1, 2, lastCol + 1)
+    worksheet.getCell(2, 1).value = meta
+    worksheet.getCell(2, 1).font = { italic: true, size: 11, color: { argb: 'FF6B7280' } }
+    worksheet.getCell(2, 1).alignment = { vertical: 'top' }
 
-    const lastDataRow = dataStartRow + rows.length - 1
-    const hasDataRows = rows.length > 0
-    if (hasDataRows) {
-      worksheet['!autofilter'] = {
-        ref: `${toExcelCell(headerRow, 0)}:${toExcelCell(lastDataRow, lastCol)}`,
+    for (let col = 0; col < columns.length; col++) {
+      const cell = worksheet.getCell(headerRow, col + 1)
+      cell.value = columns[col].title
+      cell.font = { bold: true, color: { argb: 'FF111827' } }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF3F4F6' },
       }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } },
+      }
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
     }
 
-    // Числовой формат столбцов с баллами
     const rawScoreIdx = columns.findIndex((col) => col.key === 'rawScore')
     const normalizedScoreIdx = columns.findIndex((col) => col.key === 'normalizedScore')
+    const wrapColumnIndexes = ['workTitle', 'participants', 'supervisors']
+      .map((key) => columns.findIndex((col) => col.key === key))
+      .filter((idx) => idx >= 0)
 
     for (let i = 0; i < rows.length; i++) {
-      const excelRow = dataStartRow + i
+      const rowNumber = dataStartRow + i
+      const rowData = rows[i]
+
+      for (let col = 0; col < columns.length; col++) {
+        const key = columns[col].key
+        const value = rowData[key]
+        const cell = worksheet.getCell(rowNumber, col + 1)
+        cell.value = value === '' ? null : value
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } },
+        }
+        cell.alignment = {
+          vertical: 'top',
+          horizontal: rankColIdx === col ? 'center' : 'left',
+        }
+      }
+
+      for (const colIdx of wrapColumnIndexes) {
+        const cell = worksheet.getCell(rowNumber, colIdx + 1)
+        cell.alignment = {
+          ...(cell.alignment || {}),
+          wrapText: true,
+          vertical: 'top',
+        }
+      }
+
       if (rawScoreIdx >= 0) {
-        const cell = worksheet[toExcelCell(excelRow, rawScoreIdx)]
-        if (cell && typeof cell.v === 'number') cell.z = '0.00'
+        const cell = worksheet.getCell(rowNumber, rawScoreIdx + 1)
+        if (typeof cell.value === 'number') cell.numFmt = '0.00'
       }
       if (normalizedScoreIdx >= 0) {
-        const cell = worksheet[toExcelCell(excelRow, normalizedScoreIdx)]
-        if (cell && typeof cell.v === 'number') cell.z = '0.00'
+        const cell = worksheet.getCell(rowNumber, normalizedScoreIdx + 1)
+        if (typeof cell.value === 'number') cell.numFmt = '0.00'
       }
     }
 
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Сводный рейтинг')
-    XLSX.writeFile(workbook, getExportFileName())
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob(
+      [buffer],
+      { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    )
+    triggerFileDownload(blob, getExportFileName())
   } finally {
     // Минимальная длительность показа индикатора, чтобы пользователь успел заметить его
     const elapsed = Date.now() - startedAt
