@@ -8,7 +8,9 @@ on:
       - main
     paths:
       - 'frontend/**'
-      - '.github/workflows/build-frontend.yml'
+      - 'backend/**'
+      - '.github/workflows/build.yml'
+      - 'docker-compose.prod.yaml'
   workflow_dispatch:
 
 permissions:
@@ -25,9 +27,9 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Run Frontend tests
+    - name: Run tests
       run: |
-        echo "Тесты фронтенда пока отключены. Возвращаем успешный статус."
+        echo "Тесты пока отключены. Возвращаем успешный статус."
 
   build:
     runs-on: ubuntu-latest
@@ -48,7 +50,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ github.token }}
 
-    - name: Build and push Contest image
+    - name: Build and push Frontend image
       run: |
         docker build --target prod \
           --build-arg VITE_LOGGING=0 \
@@ -60,7 +62,17 @@ jobs:
         docker push $IMAGE-frontend:latest
         docker push ${IMAGE}-frontend:${{ github.sha }}
 
-    - name: Set FRONTEND_IMAGE_TAG in Coolify
+    - name: Build and push Backend image
+      run: |
+        docker build \
+          -t $IMAGE-backend:latest \
+          -t ${IMAGE}-backend:${{ github.sha }} \
+          ./backend
+
+        docker push $IMAGE-backend:latest
+        docker push ${IMAGE}-backend:${{ github.sha }}
+
+    - name: Set image tags in Coolify
       if: github.ref == 'refs/heads/main'
       continue-on-error: true
       env:
@@ -69,7 +81,7 @@ jobs:
         COOLIFY_APP: ${{ secrets.COOLIFY_APP }}
       run: |
         if [ -z "$COOLIFY_API" ] || [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_APP" ]; then
-          echo "::warning::COOLIFY_API/COOLIFY_TOKEN/COOLIFY_APP not configured. Skipping FRONTEND_IMAGE_TAG update."
+          echo "::warning::COOLIFY_API/COOLIFY_TOKEN/COOLIFY_APP not configured. Skipping image tag update."
           exit 0
         fi
 
@@ -78,5 +90,5 @@ jobs:
           -H "Accept: application/vnd.github+json" \
           -H "Content-Type: application/json" \
           "$COOLIFY_API/applications/$COOLIFY_APP/envs/bulk" \
-          -d "{\"data\":[{\"key\":\"FRONTEND_IMAGE_TAG\",\"value\":\"${{ github.sha }}\"}]}" \
-        || echo "::warning::Coolify FRONTEND_IMAGE_TAG update failed"
+          -d "{\"data\":[{\"key\":\"FRONTEND_IMAGE_TAG\",\"value\":\"${{ github.sha }}\"},{\"key\":\"BACKEND_IMAGE_TAG\",\"value\":\"${{ github.sha }}\"}]}" \
+        || echo "::warning::Coolify image tag update failed"
