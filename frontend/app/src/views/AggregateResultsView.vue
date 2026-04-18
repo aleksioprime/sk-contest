@@ -25,14 +25,17 @@ const selectIndividualWorks = ref(false)
 const selectedWorkIds = ref([])
 const useNormalizedScore = ref(false)
 const includeCriterionScores = ref(false)
+const includeCategoryScores = ref(false)
 const exporting = ref(false)
-const rankingKey = ref('total') // 'total' | `criterion:${criterionId}`
+const rankingKey = ref('total') // 'total' | `category:${categoryId}` | `criterion:${criterionId}`
 
 const worksBySheet = reactive({})      // { [sheetId]: work[] }
 const loadedWorksBySheet = reactive({}) // { [sheetId]: true }
 const loadingSheetWorks = reactive({}) // { [sheetId]: boolean }
 const scorecardMaxScore = reactive({}) // { [scorecardId]: number }
 const criteriaByScorecard = reactive({}) // { [scorecardId]: criteria[] }
+const categoriesByScorecard = reactive({}) // { [scorecardId]: categories[] }
+const categoryScoresByWork = ref({}) // { [workId]: { [categoryId]: avgScore } }
 const criterionScoresByWork = ref({}) // { [workId]: { [criterionId]: avgScore } }
 
 const sheetMap = computed(() => {
@@ -55,6 +58,51 @@ const selectedSheetWorks = computed(() => (
     works: worksBySheet[sheet.id] || [],
   }))
 ))
+
+const categoryColumns = computed(() => {
+  if (!includeCategoryScores.value) return []
+
+  const orderedScorecardIds = []
+  const seenScorecards = new Set()
+  for (const sheet of selectedSheets.value) {
+    const scorecardId = Number(sheet?.scorecard_id)
+    if (!scorecardId || seenScorecards.has(scorecardId)) continue
+    seenScorecards.add(scorecardId)
+    orderedScorecardIds.push(scorecardId)
+  }
+
+  const columns = []
+  const seenCategories = new Set()
+  for (const scorecardId of orderedScorecardIds) {
+    const categories = categoriesByScorecard[scorecardId] || []
+    const sorted = [...categories].sort((a, b) => {
+      const orderA = a?.order != null ? Number(a.order) : Number.POSITIVE_INFINITY
+      const orderB = b?.order != null ? Number(b.order) : Number.POSITIVE_INFINITY
+      if (orderA !== orderB) return orderA - orderB
+      return Number(a.id) - Number(b.id)
+    })
+    for (const category of sorted) {
+      const categoryId = Number(category.id)
+      if (!categoryId || seenCategories.has(categoryId)) continue
+      seenCategories.add(categoryId)
+      columns.push({
+        id: categoryId,
+        title: category.title || `Группа #${categoryId}`,
+        key: `category:${categoryId}`,
+      })
+    }
+  }
+
+  const titleCounts = {}
+  for (const column of columns) {
+    titleCounts[column.title] = (titleCounts[column.title] || 0) + 1
+  }
+
+  return columns.map((column) => ({
+    ...column,
+    displayTitle: titleCounts[column.title] > 1 ? `${column.title} (#${column.id})` : column.title,
+  }))
+})
 
 const criterionColumns = computed(() => {
   if (!includeCriterionScores.value) return []
@@ -119,6 +167,9 @@ const workRows = computed(() => {
 })
 
 const rankedRows = computed(() => {
+  const categoryId = rankingKey.value.startsWith('category:')
+    ? Number(rankingKey.value.split(':')[1])
+    : null
   const criterionId = rankingKey.value.startsWith('criterion:')
     ? Number(rankingKey.value.split(':')[1])
     : null
@@ -129,16 +180,19 @@ const rankedRows = computed(() => {
     const normalizedScore = rawScore != null
       ? (maxScore > 0 ? (rawScore / maxScore) * 100 : rawScore)
       : null
+    const categoryScores = categoryScoresByWork.value[row.id] || {}
     const criterionScores = criterionScoresByWork.value[row.id] || {}
+    const categoryMetric = categoryId != null ? (categoryScores[categoryId] ?? null) : null
     const criterionMetric = criterionId != null ? (criterionScores[criterionId] ?? null) : null
     const metric = criterionId != null
       ? criterionMetric
-      : (useNormalizedScore.value ? normalizedScore : rawScore)
+      : (categoryId != null ? categoryMetric : (useNormalizedScore.value ? normalizedScore : rawScore))
 
     return {
       ...row,
       rawScore,
       normalizedScore,
+      categoryScores,
       criterionScores,
       metric,
       rank: null,
@@ -204,9 +258,32 @@ watch(includeCriterionScores, (enabled) => {
   generated.value = false
   if (!enabled) {
     criterionScoresByWork.value = {}
-    if (rankingKey.value !== 'total') rankingKey.value = 'total'
+    if (rankingKey.value.startsWith('criterion:')) rankingKey.value = 'total'
   }
 })
+
+watch(includeCategoryScores, (enabled) => {
+  generated.value = false
+  if (!enabled) {
+    categoryScoresByWork.value = {}
+    if (rankingKey.value.startsWith('category:')) rankingKey.value = 'total'
+  }
+})
+
+function setScoreDetailsMode(mode) {
+  if (mode === 'category') {
+    includeCriterionScores.value = false
+    includeCategoryScores.value = true
+    return
+  }
+  if (mode === 'criterion') {
+    includeCategoryScores.value = false
+    includeCriterionScores.value = true
+    return
+  }
+  includeCategoryScores.value = false
+  includeCriterionScores.value = false
+}
 
 onMounted(() => {
   loadSheets()
@@ -346,6 +423,10 @@ function setTotalRanking() {
   rankingKey.value = 'total'
 }
 
+function setCategoryRanking(categoryId) {
+  rankingKey.value = `category:${Number(categoryId)}`
+}
+
 function setCriterionRanking(criterionId) {
   rankingKey.value = `criterion:${Number(criterionId)}`
 }
@@ -377,16 +458,56 @@ async function ensureCriteriaDefinitions() {
   }))
 }
 
-async function ensureCriterionScoresData() {
+async function ensureCategoryDefinitions() {
+  const scorecardIds = [
+    ...new Set(
+      selectedSheets.value
+        .map((sheet) => Number(sheet?.scorecard_id))
+        .filter(Boolean),
+    ),
+  ]
+  const toLoad = scorecardIds.filter((id) => !(id in categoriesByScorecard))
+  if (!toLoad.length) return
+
+  await Promise.all(toLoad.map(async (scorecardId) => {
+    const { data } = await api.get('/contest_criterion_categories:list', {
+      params: {
+        filter: JSON.stringify({ scorecard_id: scorecardId }),
+        sort: 'order,id',
+        pageSize: 1000,
+      },
+    })
+    categoriesByScorecard[scorecardId] = data.data || []
+  }))
+}
+
+async function ensureDetailedScoresData() {
   const rows = workRows.value
-  const criterionIds = criterionColumns.value.map((column) => Number(column.id)).filter(Boolean)
-  if (!rows.length || !criterionIds.length) {
+  const categoryIds = includeCategoryScores.value
+    ? categoryColumns.value.map((column) => Number(column.id)).filter(Boolean)
+    : []
+  const criterionIds = includeCriterionScores.value
+    ? criterionColumns.value.map((column) => Number(column.id)).filter(Boolean)
+    : []
+  if (!rows.length || (!categoryIds.length && !criterionIds.length)) {
+    categoryScoresByWork.value = {}
     criterionScoresByWork.value = {}
     return
   }
 
   const workIds = [...new Set(rows.map((row) => Number(row.id)).filter(Boolean))]
+  const categoryIdSet = new Set(categoryIds)
   const criterionIdSet = new Set(criterionIds)
+
+  const categoryIdByCriterionId = {}
+  for (const criteria of Object.values(criteriaByScorecard)) {
+    for (const criterion of criteria || []) {
+      const critId = Number(criterion?.id)
+      if (!critId) continue
+      const catId = criterion?.category_id != null ? Number(criterion.category_id) : null
+      categoryIdByCriterionId[critId] = catId
+    }
+  }
 
   const { data: evalData } = await api.get('/contest_evaluations:list', {
     params: {
@@ -417,34 +538,58 @@ async function ensureCriterionScoresData() {
     items = itemData.data || []
   }
 
+  const categorySumsByWork = {}
   const sumsByWork = {}
   for (const item of items) {
     const criterionId = Number(item.criterion_id)
-    if (!criterionIdSet.has(criterionId)) continue
     const score = item.score != null ? Number(item.score) : NaN
     if (Number.isNaN(score)) continue
     const workId = workIdByEvaluationId[Number(item.evaluation_id)]
     if (!workId) continue
-    if (!sumsByWork[workId]) sumsByWork[workId] = {}
-    sumsByWork[workId][criterionId] = (sumsByWork[workId][criterionId] || 0) + score
+
+    if (criterionIdSet.has(criterionId)) {
+      if (!sumsByWork[workId]) sumsByWork[workId] = {}
+      sumsByWork[workId][criterionId] = (sumsByWork[workId][criterionId] || 0) + score
+    }
+
+    const categoryId = categoryIdByCriterionId[criterionId]
+    if (categoryIdSet.has(categoryId)) {
+      if (!categorySumsByWork[workId]) categorySumsByWork[workId] = {}
+      categorySumsByWork[workId][categoryId] = (categorySumsByWork[workId][categoryId] || 0) + score
+    }
   }
 
-  const result = {}
+  const categoryResult = {}
+  const criterionResult = {}
   for (const workId of workIds) {
     const judgeCount = judgeCountByWork[workId] || 0
-    const scores = {}
+    const categoryScores = {}
+    const criterionScores = {}
+
+    for (const categoryId of categoryIds) {
+      if (!judgeCount) {
+        categoryScores[categoryId] = null
+      } else {
+        const sum = categorySumsByWork[workId]?.[categoryId] || 0
+        categoryScores[categoryId] = +(sum / judgeCount).toFixed(2)
+      }
+    }
+
     for (const criterionId of criterionIds) {
       if (!judgeCount) {
-        scores[criterionId] = null
-        continue
+        criterionScores[criterionId] = null
+      } else {
+        const sum = sumsByWork[workId]?.[criterionId] || 0
+        criterionScores[criterionId] = +(sum / judgeCount).toFixed(2)
       }
-      const sum = sumsByWork[workId]?.[criterionId] || 0
-      scores[criterionId] = +(sum / judgeCount).toFixed(2)
     }
-    result[workId] = scores
+
+    categoryResult[workId] = categoryScores
+    criterionResult[workId] = criterionScores
   }
 
-  criterionScoresByWork.value = result
+  categoryScoresByWork.value = categoryResult
+  criterionScoresByWork.value = criterionResult
 }
 
 async function generateRanking() {
@@ -463,11 +608,19 @@ async function generateRanking() {
     if (useNormalizedScore.value) {
       await ensureNormalizationData()
     }
-    if (includeCriterionScores.value) {
+    if (includeCriterionScores.value || includeCategoryScores.value) {
       await ensureCriteriaDefinitions()
-      await ensureCriterionScoresData()
+      await ensureCategoryDefinitions()
+      await ensureDetailedScoresData()
     } else {
+      categoryScoresByWork.value = {}
       criterionScoresByWork.value = {}
+    }
+    if (
+      rankingKey.value.startsWith('category:')
+      && !categoryColumns.value.some((column) => column.key === rankingKey.value)
+    ) {
+      rankingKey.value = 'total'
     }
     if (
       rankingKey.value.startsWith('criterion:')
@@ -611,6 +764,16 @@ function getExportColumns() {
     { key: 'supervisors', title: 'Супервайзеры', min: 30, max: 70 },
     { key: 'rawScore', title: 'Балл', min: 10, max: 16 },
   ]
+  if (includeCategoryScores.value && categoryColumns.value.length) {
+    for (const column of categoryColumns.value) {
+      cols.push({
+        key: column.key,
+        title: column.displayTitle,
+        min: 12,
+        max: 24,
+      })
+    }
+  }
   if (includeCriterionScores.value && criterionColumns.value.length) {
     for (const column of criterionColumns.value) {
       cols.push({
@@ -642,6 +805,14 @@ function getExportRows() {
     if (includeCriterionScores.value && criterionColumns.value.length) {
       for (const column of criterionColumns.value) {
         const value = row.criterionScores?.[column.id]
+        exportRow[column.key] = value != null && !Number.isNaN(Number(value))
+          ? Number(Number(value).toFixed(2))
+          : ''
+      }
+    }
+    if (includeCategoryScores.value && categoryColumns.value.length) {
+      for (const column of categoryColumns.value) {
+        const value = row.categoryScores?.[column.id]
         exportRow[column.key] = value != null && !Number.isNaN(Number(value))
           ? Number(Number(value).toFixed(2))
           : ''
@@ -762,10 +933,13 @@ async function exportToExcel() {
 
     const rawScoreIdx = columns.findIndex((col) => col.key === 'rawScore')
     const normalizedScoreIdx = columns.findIndex((col) => col.key === 'normalizedScore')
+    const categoryColumnIndexes = columns
+      .map((column, idx) => (String(column.key).startsWith('category:') ? idx : -1))
+      .filter((idx) => idx >= 0)
     const criterionColumnIndexes = columns
       .map((column, idx) => (String(column.key).startsWith('criterion:') ? idx : -1))
       .filter((idx) => idx >= 0)
-    const centeredColumnIndexes = [rankColIdx, rawScoreIdx, normalizedScoreIdx, ...criterionColumnIndexes]
+    const centeredColumnIndexes = [rankColIdx, rawScoreIdx, normalizedScoreIdx, ...categoryColumnIndexes, ...criterionColumnIndexes]
       .filter((idx) => idx >= 0)
     const wrapColumnIndexes = ['workTitle', 'participants', 'supervisors']
       .map((key) => columns.findIndex((col) => col.key === key))
@@ -779,7 +953,12 @@ async function exportToExcel() {
         const key = columns[col].key
         let value = rowData[key]
 
-        if (key === 'rawScore' || key === 'normalizedScore' || String(key).startsWith('criterion:')) {
+        if (
+          key === 'rawScore'
+          || key === 'normalizedScore'
+          || String(key).startsWith('category:')
+          || String(key).startsWith('criterion:')
+        ) {
           value = value === '' || value == null ? null : Number(value)
           if (Number.isNaN(value)) value = null
         }
@@ -813,6 +992,10 @@ async function exportToExcel() {
       }
       if (normalizedScoreIdx >= 0) {
         const cell = worksheet.getCell(rowNumber, normalizedScoreIdx + 1)
+        if (typeof cell.value === 'number') cell.numFmt = '0.00'
+      }
+      for (const colIdx of categoryColumnIndexes) {
+        const cell = worksheet.getCell(rowNumber, colIdx + 1)
         if (typeof cell.value === 'number') cell.numFmt = '0.00'
       }
       for (const colIdx of criterionColumnIndexes) {
@@ -945,15 +1128,46 @@ async function exportToExcel() {
           <input v-model="useNormalizedScore" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
           Нормализовать баллы к 100 (для листов с разными шкалами)
         </label>
-        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input v-model="includeCriterionScores" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
-          Добавить данные по отдельным критериям
-        </label>
+        <div class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+          <div class="mb-1 font-medium">Детализация баллов:</div>
+          <div class="flex flex-wrap items-center gap-4">
+            <label class="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                name="score-details-mode"
+                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                :checked="!includeCategoryScores && !includeCriterionScores"
+                @change="setScoreDetailsMode('none')"
+              >
+              Без детализации
+            </label>
+            <label class="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                name="score-details-mode"
+                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                :checked="includeCategoryScores"
+                @change="setScoreDetailsMode('category')"
+              >
+              По группам критериев
+            </label>
+            <label class="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                name="score-details-mode"
+                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                :checked="includeCriterionScores"
+                @change="setScoreDetailsMode('criterion')"
+              >
+              По отдельным критериям
+            </label>
+          </div>
+        </div>
         <p v-if="useNormalizedScore" class="text-xs text-gray-500 dark:text-gray-400">
           Итоговый ранг считается по нормализованному баллу.
         </p>
-        <p v-if="includeCriterionScores" class="text-xs text-gray-500 dark:text-gray-400">
-          После формирования можно кликнуть по заголовку критерия для ранжирования по нему.
+        <p v-if="includeCriterionScores || includeCategoryScores" class="text-xs text-gray-500 dark:text-gray-400">
+          После формирования можно кликнуть по заголовку нужного столбца для ранжирования по нему.
         </p>
       </div>
 
@@ -1053,6 +1267,15 @@ async function exportToExcel() {
                   Балл <span class="ml-1">{{ rankingMarker('total') }}</span>
                 </th>
                 <th
+                  v-for="category in categoryColumns"
+                  :key="category.id"
+                  class="cursor-pointer px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide select-none"
+                  :class="rankingKey === category.key ? 'text-primary' : 'text-gray-500'"
+                  @click="setCategoryRanking(category.id)"
+                >
+                  {{ category.displayTitle }} <span class="ml-1">{{ rankingMarker(category.key) }}</span>
+                </th>
+                <th
                   v-for="criterion in criterionColumns"
                   :key="criterion.id"
                   class="cursor-pointer px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide select-none"
@@ -1100,6 +1323,14 @@ async function exportToExcel() {
                 </td>
                 <td class="px-3 py-2 text-center text-sm font-semibold text-score">
                   {{ formatScore(row.rawScore) }}
+                </td>
+                <td
+                  v-for="category in categoryColumns"
+                  :key="`category-${row.sheetId}-${row.id}-${category.id}`"
+                  class="px-3 py-2 text-center text-sm font-semibold"
+                  :class="rankingKey === category.key ? 'text-primary' : 'text-gray-600 dark:text-gray-300'"
+                >
+                  {{ formatScore(row.categoryScores?.[category.id]) }}
                 </td>
                 <td
                   v-for="criterion in criterionColumns"

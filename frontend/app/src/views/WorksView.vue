@@ -34,24 +34,26 @@ const allItems = ref([])        // все evaluation_items (режим Viewer)
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
-const sortBy = ref('total')     // 'total' | 'rank' | category_id — текущая сортировка
+const sortBy = ref('total')     // 'total' | 'order' | category_id — текущая сортировка
 let refreshTimer = null
 
 const hasCategories = computed(() => categories.value.length > 0)
 const hasUnscoredWorks = computed(() => works.value.some((work) => !work.is_scored))
 
 /**
- * Опции сортировки: по общему баллу, по каждой категории, по месту.
+ * Опции сортировки: по общему баллу, по порядку, по каждой категории.
  * Категории добавляются динамически на основе загруженных данных.
  */
 const sortOptions = computed(() => {
-  const opts = [{ value: 'total', label: 'По общему баллу' }]
+  const opts = [
+    { value: 'total', label: 'По общему баллу' },
+    { value: 'order', label: 'По порядку' },
+  ]
   if (hasCategories.value) {
     for (const cat of categories.value) {
       opts.push({ value: String(cat.id), label: cat.title })
     }
   }
-  opts.push({ value: 'rank', label: 'По месту' })
   return opts
 })
 
@@ -120,7 +122,7 @@ function workCategoryScore(workId, categoryId) {
 
 // Кэш баллов по выбранной категории для сортировки
 const workCategoryScores = computed(() => {
-  if (sortBy.value === 'total' || sortBy.value === 'rank' || !hasCategories.value) return {}
+  if (sortBy.value === 'total' || sortBy.value === 'order' || !hasCategories.value) return {}
   const catId = sortBy.value
   const map = {}
   for (const w of works.value) {
@@ -189,17 +191,9 @@ const sortedWorks = computed(() => {
   const sorted = [...works.value].sort(compareBySheetOrder)
   if (!viewerMode.value) return sorted
 
-  if (sortBy.value === 'rank') {
-    return sorted.sort((a, b) => {
-      const ra = getLiveRank(a)
-      const rb = getLiveRank(b)
-      if (ra != null && rb != null) return ra - rb || compareBySheetOrder(a, b)
-      if (ra != null) return -1
-      if (rb != null) return 1
-      return compareBySheetOrder(a, b)
-    })
-  }
-  if (sortBy.value !== 'total' && hasCategories.value) {
+  if (sortBy.value === 'order') return sorted
+
+  if (sortBy.value !== 'total' && sortBy.value !== 'order' && hasCategories.value) {
     // Сортировка по категории
     return sorted.sort((a, b) => {
       const sa = workCategoryScores.value[a.id] ?? 0
@@ -488,8 +482,8 @@ function isFullyEvaluated(work) {
     </p>
 
     <template v-else>
-      <!-- Sort dropdown (viewer only, when categories exist) -->
-      <div v-if="viewerMode && hasCategories" class="mb-3 flex items-center gap-2">
+      <!-- Sort dropdown (viewer only) -->
+      <div v-if="viewerMode" class="mb-3 flex items-center gap-2">
         <label for="sort-select" class="text-sm text-gray-600 dark:text-gray-400">Сортировка:</label>
         <select
           id="sort-select"
