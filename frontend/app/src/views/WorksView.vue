@@ -2,21 +2,22 @@
   Список работ в оценочном листе.
 
   Judge-режим: карточки работ со статусом оценки («Оценено» / «Не оценено»).
-  Viewer-режим: карточки с результатами (баллы, место, баллы по категориям),
+  Viewer-режим: карточки с результатами (баллы, место),
                сортировка, автообновление каждые 30 секунд.
 
-  API-загрузка выполняется в 2 параллельных раунда:
+  API-загрузка:
     1) Лист + работы
-    2) Критерии + оценки + категории + items
+    2) Для Judge — оценки текущего пользователя
 -->
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 
 /** Интервал автообновления данных для Viewer (мс) */
 const AUTO_REFRESH_INTERVAL = 30000
+const WORKS_SORT_STORAGE_KEY = 'sk-contest.works.sortBy'
 
 const props = defineProps({ sheetId: [String, Number] })
 const auth = useAuthStore()
@@ -27,109 +28,38 @@ const viewerMode = computed(() => !!route.meta.viewerMode)
 const sheet = ref(null)
 const works = ref([])
 const evaluationsMap = ref({}) // { sheet_work_id: evaluation } — оценки текущего судьи
-const criteriaList = ref([])    // все критерии оценочного листа
-const categories = ref([])      // категории критериев
-const allEvaluations = ref([])  // все оценки всех судей (режим Viewer)
-const allItems = ref([])        // все evaluation_items (режим Viewer)
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
-const sortBy = ref('total')     // 'total' | 'order' | category_id — текущая сортировка
+const sortBy = ref('total')     // 'total' | 'order' — текущая сортировка
 let refreshTimer = null
 
-const hasCategories = computed(() => categories.value.length > 0)
 const hasUnscoredWorks = computed(() => works.value.some((work) => !work.is_scored))
 
 /**
- * Опции сортировки: по общему баллу, по порядку, по каждой категории.
- * Категории добавляются динамически на основе загруженных данных.
+ * Опции сортировки: по общему баллу и по порядку.
  */
 const sortOptions = computed(() => {
-  const opts = [
+  return [
     { value: 'total', label: 'По общему баллу' },
     { value: 'order', label: 'По порядку' },
   ]
-  if (hasCategories.value) {
-    for (const cat of categories.value) {
-      opts.push({ value: String(cat.id), label: cat.title })
-    }
-  }
-  return opts
 })
 
-/**
- * Предвычисленная карта средних баллов по категориям.
- * Структура: { workId: { categoryId: среднийБалл } }.
- * Средний балл = сумма оценок всех судей по критериям категории / кол-во судей.
- */
-const categoryScoresCache = computed(() => {
-  if (!hasCategories.value || !allItems.value.length) return {}
-
-  // Группируем criteria по category_id
-  const critByCat = {}
-  for (const c of criteriaList.value) {
-    if (c.category_id) {
-      if (!critByCat[c.category_id]) critByCat[c.category_id] = new Set()
-      critByCat[c.category_id].add(c.id)
-    }
+function restoreSortPreference() {
+  if (typeof window === 'undefined') return
+  const stored = window.localStorage.getItem(WORKS_SORT_STORAGE_KEY)
+  if (stored === 'total' || stored === 'order') {
+    sortBy.value = stored
   }
-
-  // Индексируем items по evaluation_id
-  const itemsByEval = {}
-  for (const item of allItems.value) {
-    if (!itemsByEval[item.evaluation_id]) itemsByEval[item.evaluation_id] = []
-    itemsByEval[item.evaluation_id].push(item)
-  }
-
-  // Группируем evaluations по sheet_work_id
-  const evalsByWork = {}
-  for (const ev of allEvaluations.value) {
-    if (!evalsByWork[ev.sheet_work_id]) evalsByWork[ev.sheet_work_id] = []
-    evalsByWork[ev.sheet_work_id].push(ev)
-  }
-
-  const result = {}
-  for (const w of works.value) {
-    const workEvals = evalsByWork[w.id] || []
-    if (!workEvals.length) continue
-    const catScores = {}
-    for (const catId of Object.keys(critByCat)) {
-      const criterionIds = critByCat[catId]
-      let total = 0
-      let judgeCount = 0
-      for (const ev of workEvals) {
-        const evItems = itemsByEval[ev.id] || []
-        let judgeSum = 0
-        for (const item of evItems) {
-          if (criterionIds.has(item.criterion_id) && item.score != null) {
-            judgeSum += Number(item.score)
-          }
-        }
-        total += judgeSum
-        judgeCount++
-      }
-      catScores[catId] = judgeCount ? +(total / judgeCount).toFixed(2) : 0
-    }
-    result[w.id] = catScores
-  }
-  return result
-})
-
-/** Получить средний балл работы по категории (из кэша) */
-function workCategoryScore(workId, categoryId) {
-  return categoryScoresCache.value[workId]?.[categoryId] ?? 0
 }
 
-// Кэш баллов по выбранной категории для сортировки
-const workCategoryScores = computed(() => {
-  if (sortBy.value === 'total' || sortBy.value === 'order' || !hasCategories.value) return {}
-  const catId = sortBy.value
-  const map = {}
-  for (const w of works.value) {
-    map[w.id] = categoryScoresCache.value[w.id]?.[catId] ?? 0
+function persistSortPreference(value) {
+  if (typeof window === 'undefined') return
+  if (value === 'total' || value === 'order') {
+    window.localStorage.setItem(WORKS_SORT_STORAGE_KEY, value)
   }
-  return map
-})
+}
 
 function getWorkOrderValue(work) {
   return work?.order != null ? Number(work.order) : Number.POSITIVE_INFINITY
@@ -192,16 +122,6 @@ const sortedWorks = computed(() => {
   if (!viewerMode.value) return sorted
 
   if (sortBy.value === 'order') return sorted
-
-  if (sortBy.value !== 'total' && sortBy.value !== 'order' && hasCategories.value) {
-    // Сортировка по категории
-    return sorted.sort((a, b) => {
-      const sa = workCategoryScores.value[a.id] ?? 0
-      const sb = workCategoryScores.value[b.id] ?? 0
-      const diff = sb - sa
-      return diff !== 0 ? diff : compareBySheetOrder(a, b)
-    })
-  }
   // По общему баллу
   return sorted.sort((a, b) => {
     const ra = getLiveRank(a)
@@ -215,9 +135,9 @@ const sortedWorks = computed(() => {
 
 /**
  * Загрузка данных страницы.
- * Выполняет параллельные API-запросы в 2 раунда:
+ * Выполняет загрузку в 2 этапа:
  *   1) Оценочный лист + работы
- *   2) Критерии, оценки, категории, evaluation_items
+ *   2) Для Judge: оценки текущего пользователя
  * @param {boolean} isRefresh — true при фоновом обновлении (не показывает спиннер)
  */
 async function loadData(isRefresh = false) {
@@ -226,8 +146,6 @@ async function loadData(isRefresh = false) {
   error.value = ''
 
   try {
-    allEvaluations.value = []
-    allItems.value = []
     evaluationsMap.value = {}
 
     const [sheetRes, worksRes] = await Promise.all([
@@ -275,100 +193,21 @@ async function loadData(isRefresh = false) {
       return
     }
 
-    // Загружаем критерии + оценки параллельно (после получения sheet и works)
-    const scorecardId = sheet.value.scorecard_id
+    // Загружаем оценки текущего судьи (для Judge)
     const workIds = works.value.map((w) => w.id)
 
-    const parallelRequests = []
-
-    // Критерии (нужны всем)
-    if (scorecardId) {
-      parallelRequests.push(
-        api.get('/contest_scorecard_criteria:list', {
-          params: {
-            filter: JSON.stringify({ scorecard_id: scorecardId }),
-            pageSize: 200,
-          },
-        }).then((res) => ({ type: 'criteria', data: res.data.data || [] }))
-      )
-    }
-
     // Для жюри — оценки текущего пользователя
+    let judgeEvals = []
     if (!viewerMode.value && auth.isJudge) {
       const personId = auth.personId
       if (personId && workIds.length) {
-        parallelRequests.push(
-          api.get('/contest_evaluations:list', {
-            params: {
-              filter: JSON.stringify({ sheet_work_id: { $in: workIds }, judge_id: personId }),
-              pageSize: 200,
-            },
-          }).then((res) => ({ type: 'judgeEvals', data: res.data.data || [] }))
-        )
-      }
-    }
-
-    // Для viewer — все оценки
-    if (viewerMode.value && workIds.length) {
-      parallelRequests.push(
-        api.get('/contest_evaluations:list', {
+        const { data } = await api.get('/contest_evaluations:list', {
           params: {
-            filter: JSON.stringify({ sheet_work_id: { $in: workIds } }),
-            pageSize: 500,
-          },
-        }).then((res) => ({ type: 'allEvals', data: res.data.data || [] }))
-      )
-    }
-
-    const parallelResults = await Promise.all(parallelRequests)
-
-    let loadedCriteria = []
-    let judgeEvals = []
-
-    for (const r of parallelResults) {
-      if (r.type === 'criteria') loadedCriteria = r.data
-      else if (r.type === 'judgeEvals') judgeEvals = r.data
-      else if (r.type === 'allEvals') allEvaluations.value = r.data
-    }
-
-    criteriaList.value = loadedCriteria
-
-    // Второй параллельный раунд: категории + evaluation_items
-    const parallelRequests2 = []
-
-    // Категории критериев
-    const categoryIds = [...new Set(loadedCriteria.map((c) => c.category_id).filter(Boolean))]
-    if (categoryIds.length) {
-      parallelRequests2.push(
-        api.get('/contest_criterion_categories:list', {
-          params: {
-            filter: JSON.stringify({ id: { $in: categoryIds } }),
+            filter: JSON.stringify({ sheet_work_id: { $in: workIds }, judge_id: personId }),
             pageSize: 200,
           },
-        }).then((res) => ({ type: 'categories', data: res.data.data || [] }))
-      )
-    } else {
-      categories.value = []
-    }
-
-    // Evaluation items для viewer (подсчёт по категориям)
-    if (viewerMode.value && allEvaluations.value.length && categoryIds.length) {
-      const evalIds = allEvaluations.value.map((ev) => ev.id)
-      parallelRequests2.push(
-        api.get('/contest_evaluation_items:list', {
-          params: {
-            filter: JSON.stringify({ evaluation_id: { $in: evalIds } }),
-            pageSize: 5000,
-          },
-        }).then((res) => ({ type: 'allItems', data: res.data.data || [] }))
-      )
-    }
-
-    if (parallelRequests2.length) {
-      const results2 = await Promise.all(parallelRequests2)
-      for (const r of results2) {
-        if (r.type === 'categories') categories.value = r.data
-        else if (r.type === 'allItems') allItems.value = r.data
+        })
+        judgeEvals = data.data || []
       }
     }
 
@@ -392,6 +231,9 @@ async function loadData(isRefresh = false) {
 }
 
 onMounted(() => {
+  if (viewerMode.value) {
+    restoreSortPreference()
+  }
   loadData()
   if (viewerMode.value) {
     refreshTimer = setInterval(() => loadData(true), AUTO_REFRESH_INTERVAL)
@@ -400,6 +242,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
+})
+
+watch(sortBy, (value) => {
+  if (viewerMode.value) {
+    persistSortPreference(value)
+  }
 })
 
 function getWorkTitle(work) {
@@ -516,20 +364,6 @@ function isFullyEvaluated(work) {
           </div>
           <div v-if="getSupervisors(work).length" class="text-sm text-gray-500 dark:text-gray-400">
             <span class="font-medium">Руководители:</span> {{ getSupervisors(work).map(s => s.full_name || s.short_name).join(', ') }}
-          </div>
-          <!-- Category scores (viewer only) -->
-          <div v-if="viewerMode && hasCategories && allItems.length" class="mt-1.5 flex flex-wrap gap-2">
-            <span
-              v-for="cat in categories"
-              :key="cat.id"
-              class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
-              :class="sortBy === String(cat.id)
-                ? 'ring-1 ring-score bg-score-light text-score'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
-            >
-              <span>{{ cat.title }}</span>
-              <strong>{{ workCategoryScore(work.id, cat.id) }}</strong>
-            </span>
           </div>
         </div>
         <!-- Viewer: баллы и ранг -->
