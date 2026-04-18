@@ -34,6 +34,8 @@ const savingItemComment = ref(null)
 const editingGeneralComment = ref(false)
 const generalCommentDraft = ref('')
 const savingComment = ref(false)
+const anonymousNameDraft = ref('')
+const savingAnonymousName = ref(false)
 
 function completionStorageKey(token) {
   return `${COMPLETION_STORAGE_KEY_PREFIX}${token}`
@@ -139,6 +141,7 @@ function applyBundle(bundle) {
   sheet.value = bundle.sheet || null
   work.value = bundle.work || null
   evaluation.value = bundle.evaluation || null
+  anonymousNameDraft.value = bundle?.evaluation?.anonymous_name || ''
   criteria.value = bundle.criteria || []
   categories.value = bundle.categories || []
 
@@ -267,11 +270,21 @@ const allCriteriaScored = computed(() => {
   if (!criteria.value.length) return false
   return criteria.value.every((criterion) => items[criterion.id]?.level_id != null)
 })
+function normalizeAnonymousName(value) {
+  if (typeof value !== 'string') return ''
+  return value.trim().replace(/\s+/g, ' ')
+}
+const hasAnonymousName = computed(() => normalizeAnonymousName(anonymousNameDraft.value).length > 0)
+const normalizedSavedAnonymousName = computed(() => normalizeAnonymousName(evaluation.value?.anonymous_name || ''))
+const isAnonymousNameDirty = computed(() => normalizeAnonymousName(anonymousNameDraft.value) !== normalizedSavedAnonymousName.value)
+const isAnonymousNameSaved = computed(() => hasAnonymousName.value && !isAnonymousNameDirty.value)
+const canScore = computed(() => isAnonymousNameSaved.value)
 const hasPendingWrites = computed(() => (
   saving.value != null
   || resetting.value != null
   || savingComment.value
   || savingItemComment.value != null
+  || savingAnonymousName.value
 ))
 
 const hasCategories = computed(() => categories.value.length > 0)
@@ -314,6 +327,11 @@ function categoryScore(categoryId) {
 }
 
 async function selectLevel(criterion, level) {
+  if (!canScore.value) {
+    error.value = 'Сначала введите и сохраните ваше полное имя'
+    return
+  }
+
   saving.value = criterion.id
   error.value = ''
 
@@ -350,6 +368,11 @@ async function selectLevel(criterion, level) {
 }
 
 async function resetLevel(criterion) {
+  if (!canScore.value) {
+    error.value = 'Сначала введите и сохраните ваше полное имя'
+    return
+  }
+
   const existing = items[criterion.id]
   if (!existing?.id) return
 
@@ -506,11 +529,52 @@ async function deleteGeneralComment() {
   }
 }
 
+async function saveAnonymousName() {
+  if (!evaluation.value) return false
+
+  const normalizedName = normalizeAnonymousName(anonymousNameDraft.value)
+  savingAnonymousName.value = true
+  error.value = ''
+
+  try {
+    const { data } = await publicApi.patch(`/public/evaluations/${props.token}/anonymous-name`, {
+      anonymous_name: normalizedName || null,
+    })
+
+    evaluation.value = {
+      ...(evaluation.value || {}),
+      ...(data.evaluation || {}),
+      anonymous_name: normalizedName || null,
+    }
+    anonymousNameDraft.value = evaluation.value?.anonymous_name || ''
+    setSaved()
+    return true
+  } catch (e) {
+    error.value = e?.response?.data?.detail || 'Ошибка сохранения имени судьи'
+    return false
+  } finally {
+    savingAnonymousName.value = false
+  }
+}
+
 async function finishEvaluation() {
+  if (!hasAnonymousName.value) {
+    error.value = 'Укажите ваше полное имя перед завершением оценки'
+    return
+  }
+
   if (!allCriteriaScored.value) {
     error.value = 'Перед завершением выставьте оценки по всем критериям'
     return
   }
+
+  const currentName = normalizeAnonymousName(evaluation.value?.anonymous_name || '')
+  const draftName = normalizeAnonymousName(anonymousNameDraft.value)
+  if (draftName !== currentName) {
+    const saveOk = await saveAnonymousName()
+    if (!saveOk) return
+  }
+
   markEvaluationCompletedLocally(props.token, evaluation.value?.id ?? null)
   await router.replace({ name: 'anonymous-evaluation-complete', params: { token: props.token } })
 }
@@ -523,21 +587,16 @@ async function finishEvaluation() {
         <div class="min-w-0">
           <div class="mb-1 flex flex-wrap items-center gap-2">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
-            <span
-              v-if="isExternalWork()"
-              class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-            >
+            <span v-if="isExternalWork()"
+              class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
               Внешний участник
             </span>
           </div>
           <p v-if="sheet?.title" class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.title }}</p>
         </div>
-        <span
-          class="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
-          :class="allCriteriaScored
-            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'"
-        >
+        <span class="shrink-0 rounded-full px-3 py-1 text-xs font-semibold" :class="allCriteriaScored
+          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'">
           {{ allCriteriaScored ? 'Все оценки выставлены' : 'Не все оценки выставлены' }}
         </span>
       </div>
@@ -548,138 +607,184 @@ async function finishEvaluation() {
         <div v-if="getSupervisors().length" class="text-sm text-gray-500 dark:text-gray-400">
           <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
         </div>
-        <div v-if="getWorkNotes()" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
+        <div v-if="getWorkNotes()"
+          class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
           <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
         </div>
       </div>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-3 py-12 text-gray-500">
-      <svg class="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+      <svg class="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+      </svg>
       <span>Загрузка...</span>
     </div>
 
     <div v-else-if="fatalState" class="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center">
-      <div class="w-full rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm dark:border-amber-900/50 dark:bg-amber-900/20">
-        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+      <div
+        class="w-full rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm dark:border-amber-900/50 dark:bg-amber-900/20">
+        <div
+          class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.981-1.742 2.981H4.42c-1.53 0-2.492-1.647-1.742-2.98l5.58-9.921ZM11 13a1 1 0 1 0-2 0 1 1 0 0 0 2 0Zm-1-7a1 1 0 0 0-1 1v3a1 1 0 1 0 2 0V7a1 1 0 0 0-1-1Z" clip-rule="evenodd" />
+            <path fill-rule="evenodd"
+              d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.981-1.742 2.981H4.42c-1.53 0-2.492-1.647-1.742-2.98l5.58-9.921ZM11 13a1 1 0 1 0-2 0 1 1 0 0 0 2 0Zm-1-7a1 1 0 0 0-1 1v3a1 1 0 1 0 2 0V7a1 1 0 0 0-1-1Z"
+              clip-rule="evenodd" />
           </svg>
         </div>
         <h2 class="mb-2 text-xl font-semibold text-amber-900 dark:text-amber-200">{{ fatalState.title }}</h2>
-        <p class="mx-auto mb-6 max-w-xl text-sm leading-relaxed text-amber-800 dark:text-amber-300">{{ fatalState.description }}</p>
+        <p class="mx-auto mb-6 max-w-xl text-sm leading-relaxed text-amber-800 dark:text-amber-300">{{
+          fatalState.description }}</p>
         <button
           class="inline-flex cursor-pointer items-center rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/40"
-          @click="loadBundle"
-        >
+          @click="loadBundle">
           Попробовать снова
         </button>
       </div>
     </div>
 
     <template v-else>
+      <div class="my-3 rounded-xl border p-5 transition-colors" :class="isAnonymousNameSaved
+        ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800/70 dark:bg-emerald-950/20'
+        : 'border-amber-300 bg-amber-50 dark:border-amber-800/70 dark:bg-amber-950/20'">
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">
+            Ваше полное имя <span class="text-red-500">*</span>
+          </h3>
+          <span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium" :class="isAnonymousNameSaved
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'">
+            {{ isAnonymousNameSaved ? 'ФИО сохранено' : (hasAnonymousName ? 'Требуется сохранить' : 'Не заполнено') }}
+          </span>
+        </div>
+        <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">Пока ФИО не сохранено, выставление баллов
+          заблокировано.</p>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input v-model="anonymousNameDraft" type="text" maxlength="150" placeholder="Введите ФИО"
+            class="w-full rounded-lg bg-gray-50 px-3 py-2.5 font-sans text-sm text-gray-800 transition focus:outline-none dark:bg-gray-700 dark:text-gray-200"
+            :class="isAnonymousNameSaved
+              ? 'border border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-emerald-700 dark:focus:border-emerald-500 dark:focus:ring-emerald-900/50'
+              : 'border border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:border-amber-700 dark:focus:border-amber-500 dark:focus:ring-amber-900/50'"
+            @keyup.enter="saveAnonymousName" />
+          <button
+            class="cursor-pointer rounded-md bg-primary px-3 py-2 text-sm text-white transition hover:bg-primary-hover disabled:opacity-50"
+            :disabled="savingAnonymousName || !hasAnonymousName || !isAnonymousNameDirty" @click="saveAnonymousName">
+            {{ savingAnonymousName ? 'Сохранение...' : 'Сохранить' }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="!canScore"
+        class="my-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
+        Сначала введите и сохраните ваше полное имя.
+      </p>
+
       <div class="flex flex-col gap-3">
         <template v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'">
           <div :class="hasCategories ? 'mt-2 overflow-hidden rounded-xl border border-primary/20' : ''">
-            <button v-if="hasCategories && group.category" class="flex w-full cursor-pointer items-center justify-between border-none bg-primary/10 px-4 py-2.5 font-sans dark:bg-primary/20" @click="collapsedCategories[group.category.id] = !collapsedCategories[group.category.id]">
+            <button v-if="hasCategories && group.category"
+              class="flex w-full cursor-pointer items-center justify-between border-none bg-primary/10 px-4 py-2.5 font-sans dark:bg-primary/20"
+              @click="collapsedCategories[group.category.id] = !collapsedCategories[group.category.id]">
               <div class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-primary transition-transform" :class="collapsedCategories[group.category.id] ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                <svg class="h-4 w-4 text-primary transition-transform"
+                  :class="collapsedCategories[group.category.id] ? '' : 'rotate-90'" viewBox="0 0 20 20"
+                  fill="currentColor">
+                  <path fill-rule="evenodd"
+                    d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                    clip-rule="evenodd" />
+                </svg>
                 <h2 class="m-0 text-sm font-bold text-primary">{{ group.category.title }}</h2>
               </div>
-              <span class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">{{ categoryScore(group.category.id) }}</span>
+              <span class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">{{
+                categoryScore(group.category.id) }}</span>
             </button>
-            <button v-else-if="hasCategories && !group.category" class="flex w-full cursor-pointer items-center justify-between border-none bg-gray-100 px-4 py-2.5 font-sans dark:bg-gray-700/50" @click="collapsedCategories.uncategorized = !collapsedCategories.uncategorized">
+            <button v-else-if="hasCategories && !group.category"
+              class="flex w-full cursor-pointer items-center justify-between border-none bg-gray-100 px-4 py-2.5 font-sans dark:bg-gray-700/50"
+              @click="collapsedCategories.uncategorized = !collapsedCategories.uncategorized">
               <div class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-gray-500 transition-transform" :class="collapsedCategories.uncategorized ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                <svg class="h-4 w-4 text-gray-500 transition-transform"
+                  :class="collapsedCategories.uncategorized ? '' : 'rotate-90'" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd"
+                    d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                    clip-rule="evenodd" />
+                </svg>
                 <h2 class="m-0 text-sm font-bold text-gray-700 dark:text-gray-200">Без категории</h2>
               </div>
             </button>
 
-            <div v-show="!hasCategories || !collapsedCategories[group.category?.id ?? 'uncategorized']" :class="hasCategories ? 'flex flex-col gap-3 p-3' : 'flex flex-col gap-3'">
-              <div v-for="criterion in group.criteria" :key="criterion.id" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+            <div v-show="!hasCategories || !collapsedCategories[group.category?.id ?? 'uncategorized']"
+              :class="hasCategories ? 'flex flex-col gap-3 p-3' : 'flex flex-col gap-3'">
+              <div v-for="criterion in group.criteria" :key="criterion.id"
+                class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
                 <div class="mb-1 flex items-start justify-between gap-4">
                   <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ criterion.title }}</h3>
                   <div class="flex shrink-0 items-center gap-2">
                     <span class="rounded-full bg-score-light px-2.5 py-0.5 text-sm font-semibold text-score">
                       {{ items[criterion.id]?.score ?? '—' }}
                     </span>
-                    <button
-                      v-if="items[criterion.id]?.id && items[criterion.id]?.level_id != null"
+                    <button v-if="items[criterion.id]?.id && items[criterion.id]?.level_id != null"
                       class="cursor-pointer rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
-                      :disabled="resetting === criterion.id || saving === criterion.id"
-                      @click.prevent="resetLevel(criterion)"
-                    >
+                      :disabled="resetting === criterion.id || saving === criterion.id || !canScore"
+                      @click.prevent="resetLevel(criterion)">
                       {{ resetting === criterion.id ? '...' : 'Удалить оценку' }}
                     </button>
                   </div>
                 </div>
 
-                <p v-if="criterion.description" class="m-0 mb-3 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}</p>
+                <p v-if="criterion.description"
+                  class="m-0 mb-3 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}
+                </p>
                 <div v-else class="mb-2"></div>
 
                 <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-                  <button
-                    v-for="level in getLevels(criterion)"
-                    :key="level.id"
+                  <button v-for="level in getLevels(criterion)" :key="level.id"
                     class="flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border-2 bg-white px-3 py-2 transition sm:min-w-12 dark:bg-gray-800"
                     :class="[
                       getSelectedLevel(criterion) === level.id
                         ? 'border-primary bg-primary! text-white dark:bg-primary!'
                         : 'border-gray-200 hover:border-primary hover:bg-primary-light dark:border-gray-600',
-                      saving === criterion.id ? 'cursor-wait opacity-60' : ''
-                    ]"
-                    :title="level.title"
-                    @click="selectLevel(criterion, level)"
-                    :disabled="saving === criterion.id"
-                  >
+                      saving === criterion.id ? 'cursor-wait opacity-60' : '',
+                      !canScore ? 'cursor-not-allowed opacity-50' : ''
+                    ]" :title="level.title" @click="selectLevel(criterion, level)"
+                    :disabled="saving === criterion.id || !canScore">
                     <span class="text-base font-bold">{{ level.point }}</span>
-                    <span v-if="level.title" class="text-center text-[11px] leading-tight opacity-80">{{ level.title }}</span>
+                    <span v-if="level.title" class="text-center text-[11px] leading-tight opacity-80">{{ level.title
+                      }}</span>
                   </button>
                 </div>
 
                 <div class="mt-2.5 border-t border-gray-200 pt-2.5 dark:border-gray-700">
                   <template v-if="editingComment === criterion.id">
-                    <textarea
-                      v-model="commentDraft"
-                      rows="2"
-                      placeholder="Комментарий к оценке..."
-                      class="mb-2 w-full resize-y rounded-md border border-gray-300 bg-gray-50 px-2.5 py-2 font-sans text-sm text-gray-800 transition focus:border-primary focus:ring-2 focus:ring-primary-light focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                    />
+                    <textarea v-model="commentDraft" rows="2" placeholder="Комментарий к оценке..."
+                      class="mb-2 w-full resize-y rounded-md border border-gray-300 bg-gray-50 px-2.5 py-2 font-sans text-sm text-gray-800 transition focus:border-primary focus:ring-2 focus:ring-primary-light focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                     <div class="flex gap-2">
                       <button
                         class="cursor-pointer rounded-md bg-primary px-3 py-1 text-sm text-white transition hover:bg-primary-hover disabled:opacity-50"
-                        @click="saveItemComment(criterion)"
-                        :disabled="savingItemComment === criterion.id"
-                      >
+                        @click="saveItemComment(criterion)" :disabled="savingItemComment === criterion.id">
                         {{ savingItemComment === criterion.id ? 'Сохранение...' : 'Сохранить' }}
                       </button>
                       <button
                         class="cursor-pointer rounded-md border border-gray-200 bg-white px-3 py-1 text-sm text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                        @click="cancelItemComment"
-                        :disabled="savingItemComment === criterion.id"
-                      >
+                        @click="cancelItemComment" :disabled="savingItemComment === criterion.id">
                         Отмена
                       </button>
                     </div>
                   </template>
                   <template v-else>
-                    <p v-if="items[criterion.id]?.comment" class="mb-1.5 whitespace-pre-wrap text-sm text-gray-500 dark:text-gray-400">
+                    <p v-if="items[criterion.id]?.comment"
+                      class="mb-1.5 whitespace-pre-wrap text-sm text-gray-500 dark:text-gray-400">
                       {{ items[criterion.id].comment }}
                     </p>
                     <div class="flex gap-3">
-                      <button
-                        v-if="items[criterion.id]?.id"
+                      <button v-if="items[criterion.id]?.id"
                         class="cursor-pointer border-none bg-transparent p-0 font-sans text-sm text-primary hover:underline"
-                        @click="openItemComment(criterion)"
-                      >
+                        @click="openItemComment(criterion)">
                         {{ items[criterion.id]?.comment ? 'Изменить комментарий' : 'Добавить комментарий' }}
                       </button>
-                      <button
-                        v-if="items[criterion.id]?.comment"
+                      <button v-if="items[criterion.id]?.comment"
                         class="cursor-pointer border-none bg-transparent p-0 font-sans text-sm text-red-500 hover:underline disabled:opacity-50"
-                        :disabled="savingItemComment === criterion.id"
-                        @click="deleteItemComment(criterion)"
-                      >
+                        :disabled="savingItemComment === criterion.id" @click="deleteItemComment(criterion)">
                         Удалить комментарий
                       </button>
                     </div>
@@ -694,25 +799,17 @@ async function finishEvaluation() {
       <div class="mt-6 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
         <h3 class="m-0 mb-2 text-sm font-semibold text-gray-800 dark:text-gray-200">Общий комментарий</h3>
         <template v-if="editingGeneralComment">
-          <textarea
-            v-model="generalCommentDraft"
-            rows="3"
-            placeholder="Общий комментарий к работе..."
-            class="mb-2 w-full resize-y rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 font-sans text-sm text-gray-800 transition focus:border-primary focus:ring-2 focus:ring-primary-light focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-          />
+          <textarea v-model="generalCommentDraft" rows="3" placeholder="Общий комментарий к работе..."
+            class="mb-2 w-full resize-y rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 font-sans text-sm text-gray-800 transition focus:border-primary focus:ring-2 focus:ring-primary-light focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
           <div class="flex gap-2">
             <button
               class="cursor-pointer rounded-md bg-primary px-3 py-1 text-sm text-white transition hover:bg-primary-hover disabled:opacity-50"
-              @click="saveGeneralComment"
-              :disabled="savingComment"
-            >
+              @click="saveGeneralComment" :disabled="savingComment">
               {{ savingComment ? 'Сохранение...' : 'Сохранить' }}
             </button>
             <button
               class="cursor-pointer rounded-md border border-gray-200 bg-white px-3 py-1 text-sm text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-              @click="cancelGeneralComment"
-              :disabled="savingComment"
-            >
+              @click="cancelGeneralComment" :disabled="savingComment">
               Отмена
             </button>
           </div>
@@ -722,18 +819,13 @@ async function finishEvaluation() {
             {{ evaluation.comment }}
           </p>
           <div class="flex gap-3">
-            <button
-              class="cursor-pointer border-none bg-transparent p-0 font-sans text-sm text-primary hover:underline"
-              @click="openGeneralComment"
-            >
+            <button class="cursor-pointer border-none bg-transparent p-0 font-sans text-sm text-primary hover:underline"
+              @click="openGeneralComment">
               {{ evaluation?.comment ? 'Изменить комментарий' : 'Добавить комментарий' }}
             </button>
-            <button
-              v-if="evaluation?.comment"
+            <button v-if="evaluation?.comment"
               class="cursor-pointer border-none bg-transparent p-0 font-sans text-sm text-red-500 hover:underline disabled:opacity-50"
-              :disabled="savingComment"
-              @click="deleteGeneralComment"
-            >
+              :disabled="savingComment" @click="deleteGeneralComment">
               Удалить комментарий
             </button>
           </div>
@@ -746,8 +838,7 @@ async function finishEvaluation() {
         class="sticky bottom-0 z-30 -mx-4 mt-4 overflow-hidden rounded-t-xl border-t px-5 py-3 text-white shadow-[0_-6px_20px_rgba(0,0,0,0.22)] transition-[background-color,border-color] duration-200 sm:-mx-6"
         :class="allCriteriaScored
           ? 'border-emerald-300/50 bg-emerald-600'
-          : 'border-amber-300/50 bg-amber-600'"
-      >
+          : 'border-amber-300/50 bg-amber-600'">
         <div class="relative flex items-center gap-2 text-base">
           <span class="font-medium">Итого:</span>
           <strong class="text-lg">{{ totalScore }}</strong>
@@ -756,16 +847,15 @@ async function finishEvaluation() {
               <span v-if="saved" class="text-sm font-medium text-green-100">Сохранено ✓</span>
             </transition>
             <button
-              class="cursor-pointer rounded-lg border border-white/35 bg-white/18 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/28 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="!allCriteriaScored || hasPendingWrites"
-              @click="finishEvaluation"
-            >
+              class="cursor-pointer rounded-lg border border-white/80 bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-black/5 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="!allCriteriaScored || hasPendingWrites || !canScore" @click="finishEvaluation">
               Завершить оценку
             </button>
           </div>
         </div>
         <div v-if="hasCategories" class="relative mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category" class="text-xs text-white/75">
+          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category"
+            class="text-xs text-white/75">
             {{ group.category?.title }}: <strong class="text-white">{{ categoryScore(group.category?.id) }}</strong>
           </span>
         </div>
@@ -779,6 +869,7 @@ async function finishEvaluation() {
 .fade-leave-active {
   transition: opacity 0.3s;
 }
+
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;

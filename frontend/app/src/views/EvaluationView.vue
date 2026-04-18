@@ -736,7 +736,7 @@ async function deleteGeneralComment() {
             </transition>
             <router-link
               :to="{ name: 'works', params: { sheetId: props.sheetId } }"
-              class="inline-flex items-center rounded-lg border border-white/35 bg-white/18 px-3 py-1.5 text-sm font-semibold text-white no-underline backdrop-blur-sm transition hover:bg-white/28"
+              class="inline-flex items-center rounded-lg border border-white/80 bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 no-underline shadow-sm ring-1 ring-black/5 transition hover:bg-gray-100"
               :class="hasPendingWrites ? 'pointer-events-none opacity-70' : ''"
             >
               К выбору работ

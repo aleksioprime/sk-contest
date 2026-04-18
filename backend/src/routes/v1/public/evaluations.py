@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.schemas import CommentPayload, LevelPayload
+from src.schemas import AnonymousNamePayload, CommentPayload, LevelPayload
 from src.services.anonymous_evaluation_service import anonymous_evaluation_service
 
 router = APIRouter()
@@ -24,3 +24,8 @@ async def set_item_comment(token: str, criterion_id: int, payload: CommentPayloa
 @router.patch('/{token}/comment')
 async def set_evaluation_comment(token: str, payload: CommentPayload):
     return await anonymous_evaluation_service.set_evaluation_comment(token, payload.comment)
+
+
+@router.patch('/{token}/anonymous-name')
+async def set_anonymous_name(token: str, payload: AnonymousNamePayload):
+    return await anonymous_evaluation_service.set_anonymous_name(token, payload.anonymous_name)

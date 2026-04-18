@@ -88,6 +88,7 @@
 - Работа оценочного листа (sheet_work_id)
 - Судья (judge_id)
 - Анонимная оценка (is_anonymous)
+- Анонимное имя (anonymous_name)
 - Баллы (score)
 - Комментарий (comment)
 - Оценено (is_scored)

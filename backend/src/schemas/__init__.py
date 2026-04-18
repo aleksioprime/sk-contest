@@ -1,3 +1,3 @@
-from src.schemas.evaluations import CommentPayload, LevelPayload
+from src.schemas.evaluations import AnonymousNamePayload, CommentPayload, LevelPayload
 
-__all__ = ['LevelPayload', 'CommentPayload']
+__all__ = ['LevelPayload', 'CommentPayload', 'AnonymousNamePayload']

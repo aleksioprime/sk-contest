@@ -7,3 +7,7 @@ class LevelPayload(BaseModel):
 
 class CommentPayload(BaseModel):
     comment: str | None = None
+
+
+class AnonymousNamePayload(BaseModel):
+    anonymous_name: str | None = None

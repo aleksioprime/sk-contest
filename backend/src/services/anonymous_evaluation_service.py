@@ -447,5 +447,27 @@ class AnonymousEvaluationService:
         self._save_cached_context(token, context)
         return {'evaluation': context['evaluation']}
 
+    async def set_anonymous_name(self, token: str, anonymous_name: str | None) -> dict:
+        context = await self._ensure_context(token)
+
+        normalized_name = None
+        if isinstance(anonymous_name, str):
+            normalized_name = anonymous_name.strip()
+            if not normalized_name:
+                normalized_name = None
+
+        if normalized_name and len(normalized_name) > 150:
+            raise HTTPException(status_code=400, detail='Слишком длинное имя (максимум 150 символов)')
+
+        updated_evaluation = await nocobase.update(
+            'contest_evaluations',
+            context['evaluation']['id'],
+            {'anonymous_name': normalized_name},
+        )
+
+        context['evaluation'] = {**context['evaluation'], **updated_evaluation, 'anonymous_name': normalized_name}
+        self._save_cached_context(token, context)
+        return {'evaluation': context['evaluation']}
+
 
 anonymous_evaluation_service = AnonymousEvaluationService()
