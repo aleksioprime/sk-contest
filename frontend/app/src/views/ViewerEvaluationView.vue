@@ -328,6 +328,27 @@ function isJudgeFullyScored(judgeData) {
   return !!judgeData.evaluation?.is_scored
 }
 
+function normalizeAnonymousName(name) {
+  return typeof name === 'string' ? name.trim() : ''
+}
+
+function isAnonymousJudge(judgeData) {
+  if (judgeData?.evaluation?.is_anonymous === true) return true
+  const hasJudgeObject = !!(judgeData?.judge?.id != null || judgeData?.judge?.full_name || judgeData?.judge?.short_name)
+  const judgeId = judgeData?.evaluation?.judge_id
+  return !hasJudgeObject && (judgeId == null || judgeId === '')
+}
+
+function getJudgeDisplayName(judgeData) {
+  if (isAnonymousJudge(judgeData)) {
+    const anonymousName = normalizeAnonymousName(judgeData?.evaluation?.anonymous_name)
+    return anonymousName || 'Анонимный судья'
+  }
+  const judgeName = judgeData?.judge?.full_name || judgeData?.judge?.short_name
+  if (judgeName) return judgeName
+  return 'Судья без имени'
+}
+
 function toggleComment(judgeId, criterionId) {
   const key = `${judgeId}-${criterionId}`
   expandedComments[key] = !expandedComments[key]
@@ -422,8 +443,22 @@ function toggleCriteria(evalId) {
           class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
           <!-- Judge header -->
           <div class="flex items-center gap-2" :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-              {{ j.judge?.full_name || j.judge?.short_name || j.evaluation?.anonymous_name || 'Анонимный судья' }}
+            <h3 class="flex items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-gray-100">
+              <svg
+                v-if="isAnonymousJudge(j)"
+                class="h-4 w-4 text-gray-500 dark:text-gray-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M10 2.5a4.25 4.25 0 0 0-4.25 4.25V8a2.75 2.75 0 0 0-1.2 5.225A5.75 5.75 0 0 0 10 17.5a5.75 5.75 0 0 0 5.45-4.275A2.75 2.75 0 0 0 14.25 8V6.75A4.25 4.25 0 0 0 10 2.5Zm-2.75 6a2.75 2.75 0 1 1 5.5 0V8h-5.5v.5Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <span>{{ getJudgeDisplayName(j) }}</span>
             </h3>
             <div class="ml-auto flex shrink-0 items-center gap-2">
               <span class="rounded-full px-3 py-0.5 text-sm font-medium"
