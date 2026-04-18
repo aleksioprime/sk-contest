@@ -24,12 +24,16 @@ const selectedSheetIds = ref([])
 const selectIndividualWorks = ref(false)
 const selectedWorkIds = ref([])
 const useNormalizedScore = ref(false)
+const includeCriterionScores = ref(false)
 const exporting = ref(false)
+const rankingKey = ref('total') // 'total' | `criterion:${criterionId}`
 
 const worksBySheet = reactive({})      // { [sheetId]: work[] }
 const loadedWorksBySheet = reactive({}) // { [sheetId]: true }
 const loadingSheetWorks = reactive({}) // { [sheetId]: boolean }
 const scorecardMaxScore = reactive({}) // { [scorecardId]: number }
+const criteriaByScorecard = reactive({}) // { [scorecardId]: criteria[] }
+const criterionScoresByWork = ref({}) // { [workId]: { [criterionId]: avgScore } }
 
 const sheetMap = computed(() => {
   const map = {}
@@ -52,6 +56,51 @@ const selectedSheetWorks = computed(() => (
   }))
 ))
 
+const criterionColumns = computed(() => {
+  if (!includeCriterionScores.value) return []
+
+  const orderedScorecardIds = []
+  const seenScorecards = new Set()
+  for (const sheet of selectedSheets.value) {
+    const scorecardId = Number(sheet?.scorecard_id)
+    if (!scorecardId || seenScorecards.has(scorecardId)) continue
+    seenScorecards.add(scorecardId)
+    orderedScorecardIds.push(scorecardId)
+  }
+
+  const columns = []
+  const seenCriteria = new Set()
+  for (const scorecardId of orderedScorecardIds) {
+    const criteria = criteriaByScorecard[scorecardId] || []
+    const sorted = [...criteria].sort((a, b) => {
+      const orderA = a?.order != null ? Number(a.order) : Number.POSITIVE_INFINITY
+      const orderB = b?.order != null ? Number(b.order) : Number.POSITIVE_INFINITY
+      if (orderA !== orderB) return orderA - orderB
+      return Number(a.id) - Number(b.id)
+    })
+    for (const criterion of sorted) {
+      const criterionId = Number(criterion.id)
+      if (!criterionId || seenCriteria.has(criterionId)) continue
+      seenCriteria.add(criterionId)
+      columns.push({
+        id: criterionId,
+        title: criterion.title || `Критерий #${criterionId}`,
+        key: `criterion:${criterionId}`,
+      })
+    }
+  }
+
+  const titleCounts = {}
+  for (const column of columns) {
+    titleCounts[column.title] = (titleCounts[column.title] || 0) + 1
+  }
+
+  return columns.map((column) => ({
+    ...column,
+    displayTitle: titleCounts[column.title] > 1 ? `${column.title} (#${column.id})` : column.title,
+  }))
+})
+
 const workRows = computed(() => {
   const rows = []
   for (const sheet of selectedSheets.value) {
@@ -70,27 +119,34 @@ const workRows = computed(() => {
 })
 
 const rankedRows = computed(() => {
+  const criterionId = rankingKey.value.startsWith('criterion:')
+    ? Number(rankingKey.value.split(':')[1])
+    : null
+
   const rows = workRows.value.map((row) => {
     const rawScore = row.work.score != null ? Number(row.work.score) : null
     const maxScore = getSheetMaxScore(row.sheet)
     const normalizedScore = rawScore != null
       ? (maxScore > 0 ? (rawScore / maxScore) * 100 : rawScore)
       : null
-    const metric = useNormalizedScore.value
-      ? (normalizedScore != null ? normalizedScore : Number.NEGATIVE_INFINITY)
-      : (rawScore != null ? rawScore : Number.NEGATIVE_INFINITY)
+    const criterionScores = criterionScoresByWork.value[row.id] || {}
+    const criterionMetric = criterionId != null ? (criterionScores[criterionId] ?? null) : null
+    const metric = criterionId != null
+      ? criterionMetric
+      : (useNormalizedScore.value ? normalizedScore : rawScore)
 
     return {
       ...row,
       rawScore,
       normalizedScore,
+      criterionScores,
       metric,
       rank: null,
     }
   })
 
   const scoredRows = rows
-    .filter((row) => row.rawScore != null && !Number.isNaN(row.rawScore))
+    .filter((row) => row.metric != null && !Number.isNaN(Number(row.metric)))
     .sort((a, b) => {
       const diff = b.metric - a.metric
       if (diff !== 0) return diff
@@ -111,7 +167,7 @@ const rankedRows = computed(() => {
   }
 
   const unscoredRows = rows
-    .filter((row) => row.rawScore == null || Number.isNaN(row.rawScore))
+    .filter((row) => row.metric == null || Number.isNaN(Number(row.metric)))
     .sort((a, b) => getWorkTitle(a.work).localeCompare(getWorkTitle(b.work), 'ru'))
 
   return [...scoredRows, ...unscoredRows]
@@ -142,6 +198,14 @@ watch(selectIndividualWorks, (enabled) => {
 
 watch(useNormalizedScore, () => {
   generated.value = false
+})
+
+watch(includeCriterionScores, (enabled) => {
+  generated.value = false
+  if (!enabled) {
+    criterionScoresByWork.value = {}
+    if (rankingKey.value !== 'total') rankingKey.value = 'total'
+  }
 })
 
 onMounted(() => {
@@ -278,6 +342,111 @@ function toggleAllWorksInSheet(sheetId) {
   selectedWorkIds.value = [...selected]
 }
 
+function setTotalRanking() {
+  rankingKey.value = 'total'
+}
+
+function setCriterionRanking(criterionId) {
+  rankingKey.value = `criterion:${Number(criterionId)}`
+}
+
+function rankingMarker(columnKey) {
+  return rankingKey.value === columnKey ? '↓' : ''
+}
+
+async function ensureCriteriaDefinitions() {
+  const scorecardIds = [
+    ...new Set(
+      selectedSheets.value
+        .map((sheet) => Number(sheet?.scorecard_id))
+        .filter(Boolean),
+    ),
+  ]
+  const toLoad = scorecardIds.filter((id) => !(id in criteriaByScorecard))
+  if (!toLoad.length) return
+
+  await Promise.all(toLoad.map(async (scorecardId) => {
+    const { data } = await api.get('/contest_scorecard_criteria:list', {
+      params: {
+        filter: JSON.stringify({ scorecard_id: scorecardId }),
+        sort: 'order,id',
+        pageSize: 1000,
+      },
+    })
+    criteriaByScorecard[scorecardId] = data.data || []
+  }))
+}
+
+async function ensureCriterionScoresData() {
+  const rows = workRows.value
+  const criterionIds = criterionColumns.value.map((column) => Number(column.id)).filter(Boolean)
+  if (!rows.length || !criterionIds.length) {
+    criterionScoresByWork.value = {}
+    return
+  }
+
+  const workIds = [...new Set(rows.map((row) => Number(row.id)).filter(Boolean))]
+  const criterionIdSet = new Set(criterionIds)
+
+  const { data: evalData } = await api.get('/contest_evaluations:list', {
+    params: {
+      filter: JSON.stringify({ sheet_work_id: { $in: workIds } }),
+      pageSize: 10000,
+    },
+  })
+  const evaluations = evalData.data || []
+  const evalIds = evaluations.map((ev) => Number(ev.id)).filter(Boolean)
+
+  const judgeCountByWork = {}
+  const workIdByEvaluationId = {}
+  for (const evaluation of evaluations) {
+    const workId = Number(evaluation.sheet_work_id)
+    if (!workId) continue
+    judgeCountByWork[workId] = (judgeCountByWork[workId] || 0) + 1
+    workIdByEvaluationId[Number(evaluation.id)] = workId
+  }
+
+  let items = []
+  if (evalIds.length) {
+    const { data: itemData } = await api.get('/contest_evaluation_items:list', {
+      params: {
+        filter: JSON.stringify({ evaluation_id: { $in: evalIds } }),
+        pageSize: 50000,
+      },
+    })
+    items = itemData.data || []
+  }
+
+  const sumsByWork = {}
+  for (const item of items) {
+    const criterionId = Number(item.criterion_id)
+    if (!criterionIdSet.has(criterionId)) continue
+    const score = item.score != null ? Number(item.score) : NaN
+    if (Number.isNaN(score)) continue
+    const workId = workIdByEvaluationId[Number(item.evaluation_id)]
+    if (!workId) continue
+    if (!sumsByWork[workId]) sumsByWork[workId] = {}
+    sumsByWork[workId][criterionId] = (sumsByWork[workId][criterionId] || 0) + score
+  }
+
+  const result = {}
+  for (const workId of workIds) {
+    const judgeCount = judgeCountByWork[workId] || 0
+    const scores = {}
+    for (const criterionId of criterionIds) {
+      if (!judgeCount) {
+        scores[criterionId] = null
+        continue
+      }
+      const sum = sumsByWork[workId]?.[criterionId] || 0
+      scores[criterionId] = +(sum / judgeCount).toFixed(2)
+    }
+    result[workId] = scores
+  }
+
+  criterionScoresByWork.value = result
+}
+
 async function generateRanking() {
   if (!canGenerate.value) return
 
@@ -293,6 +462,18 @@ async function generateRanking() {
     await ensureWorksLoaded(selectedSheetIds.value)
     if (useNormalizedScore.value) {
       await ensureNormalizationData()
+    }
+    if (includeCriterionScores.value) {
+      await ensureCriteriaDefinitions()
+      await ensureCriterionScoresData()
+    } else {
+      criterionScoresByWork.value = {}
+    }
+    if (
+      rankingKey.value.startsWith('criterion:')
+      && !criterionColumns.value.some((column) => column.key === rankingKey.value)
+    ) {
+      rankingKey.value = 'total'
     }
     generated.value = true
   } catch {
@@ -409,13 +590,10 @@ function getSheetSubtitle(sheet) {
 }
 
 function getParticipantNames(work) {
-  const names = getParticipants(work)
+  return getParticipants(work)
     .map((p) => p.full_name || p.short_name)
     .filter(Boolean)
     .join(', ')
-  if (!isExternalWork(work)) return names
-  if (!names) return 'Внешний участник'
-  return `${names} (Внешний участник)`
 }
 
 function getSupervisorNames(work) {
@@ -433,6 +611,16 @@ function getExportColumns() {
     { key: 'supervisors', title: 'Супервайзеры', min: 30, max: 70 },
     { key: 'rawScore', title: 'Балл', min: 10, max: 16 },
   ]
+  if (includeCriterionScores.value && criterionColumns.value.length) {
+    for (const column of criterionColumns.value) {
+      cols.push({
+        key: column.key,
+        title: column.displayTitle,
+        min: 12,
+        max: 24,
+      })
+    }
+  }
   if (useNormalizedScore.value) {
     cols.push({ key: 'normalizedScore', title: 'Нормализованный балл (0-100)', min: 20, max: 30 })
   }
@@ -440,16 +628,27 @@ function getExportColumns() {
 }
 
 function getExportRows() {
-  return rankedRows.value.map((row) => ({
-    rank: row.rank ?? '',
-    workTitle: getWorkTitle(row.work),
-    participants: getParticipantNames(row.work) || '—',
-    supervisors: getSupervisorNames(row.work) || '—',
-    rawScore: row.rawScore != null ? Number(row.rawScore.toFixed(2)) : '',
-    normalizedScore: useNormalizedScore.value && row.normalizedScore != null
-      ? Number(row.normalizedScore.toFixed(2))
-      : '',
-  }))
+  return rankedRows.value.map((row) => {
+    const exportRow = {
+      rank: row.rank ?? '',
+      workTitle: getWorkTitle(row.work),
+      participants: getParticipantNames(row.work) || '—',
+      supervisors: getSupervisorNames(row.work) || '—',
+      rawScore: row.rawScore != null ? Number(row.rawScore.toFixed(2)) : '',
+      normalizedScore: useNormalizedScore.value && row.normalizedScore != null
+        ? Number(row.normalizedScore.toFixed(2))
+        : '',
+    }
+    if (includeCriterionScores.value && criterionColumns.value.length) {
+      for (const column of criterionColumns.value) {
+        const value = row.criterionScores?.[column.id]
+        exportRow[column.key] = value != null && !Number.isNaN(Number(value))
+          ? Number(Number(value).toFixed(2))
+          : ''
+      }
+    }
+    return exportRow
+  })
 }
 
 function longestCellLength(value) {
@@ -563,7 +762,11 @@ async function exportToExcel() {
 
     const rawScoreIdx = columns.findIndex((col) => col.key === 'rawScore')
     const normalizedScoreIdx = columns.findIndex((col) => col.key === 'normalizedScore')
-    const centeredColumnIndexes = [rankColIdx, rawScoreIdx, normalizedScoreIdx].filter((idx) => idx >= 0)
+    const criterionColumnIndexes = columns
+      .map((column, idx) => (String(column.key).startsWith('criterion:') ? idx : -1))
+      .filter((idx) => idx >= 0)
+    const centeredColumnIndexes = [rankColIdx, rawScoreIdx, normalizedScoreIdx, ...criterionColumnIndexes]
+      .filter((idx) => idx >= 0)
     const wrapColumnIndexes = ['workTitle', 'participants', 'supervisors']
       .map((key) => columns.findIndex((col) => col.key === key))
       .filter((idx) => idx >= 0)
@@ -576,7 +779,7 @@ async function exportToExcel() {
         const key = columns[col].key
         let value = rowData[key]
 
-        if (key === 'rawScore' || key === 'normalizedScore') {
+        if (key === 'rawScore' || key === 'normalizedScore' || String(key).startsWith('criterion:')) {
           value = value === '' || value == null ? null : Number(value)
           if (Number.isNaN(value)) value = null
         }
@@ -610,6 +813,10 @@ async function exportToExcel() {
       }
       if (normalizedScoreIdx >= 0) {
         const cell = worksheet.getCell(rowNumber, normalizedScoreIdx + 1)
+        if (typeof cell.value === 'number') cell.numFmt = '0.00'
+      }
+      for (const colIdx of criterionColumnIndexes) {
+        const cell = worksheet.getCell(rowNumber, colIdx + 1)
         if (typeof cell.value === 'number') cell.numFmt = '0.00'
       }
     }
@@ -738,8 +945,15 @@ async function exportToExcel() {
           <input v-model="useNormalizedScore" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
           Нормализовать баллы к 100 (для листов с разными шкалами)
         </label>
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input v-model="includeCriterionScores" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+          Добавить данные по отдельным критериям
+        </label>
         <p v-if="useNormalizedScore" class="text-xs text-gray-500 dark:text-gray-400">
           Итоговый ранг считается по нормализованному баллу.
+        </p>
+        <p v-if="includeCriterionScores" class="text-xs text-gray-500 dark:text-gray-400">
+          После формирования можно кликнуть по заголовку критерия для ранжирования по нему.
         </p>
       </div>
 
@@ -796,15 +1010,17 @@ async function exportToExcel() {
                   class="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 >
                 <div class="min-w-0">
-                  <div class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ getWorkTitle(work) }}</div>
-                  <div class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    <span>Участники: {{ getParticipantNames(work) || '—' }}</span>
+                  <div class="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+                    <span>{{ getWorkTitle(work) }}</span>
                     <span
                       v-if="isExternalWork(work)"
                       class="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
                     >
                       Внешний участник
                     </span>
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">
+                    Участники: {{ getParticipantNames(work) || '—' }}
                   </div>
                   <div class="text-xs text-score">Балл: {{ formatScore(work.score) }}</div>
                 </div>
@@ -825,14 +1041,29 @@ async function exportToExcel() {
           <table class="min-w-full border-collapse">
             <thead class="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/30">
               <tr>
-                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Место</th>
-                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Работа</th>
+                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Место</th>
+                <th class="min-w-[36rem] w-[36rem] px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Работа</th>
                 <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Супервайзеры</th>
                 <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Лист</th>
-                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Балл</th>
+                <th
+                  class="cursor-pointer px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide select-none"
+                  :class="rankingKey === 'total' ? 'text-primary' : 'text-gray-500'"
+                  @click="setTotalRanking"
+                >
+                  Балл <span class="ml-1">{{ rankingMarker('total') }}</span>
+                </th>
+                <th
+                  v-for="criterion in criterionColumns"
+                  :key="criterion.id"
+                  class="cursor-pointer px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide select-none"
+                  :class="rankingKey === criterion.key ? 'text-primary' : 'text-gray-500'"
+                  @click="setCriterionRanking(criterion.id)"
+                >
+                  {{ criterion.displayTitle }} <span class="ml-1">{{ rankingMarker(criterion.key) }}</span>
+                </th>
                 <th
                   v-if="useNormalizedScore"
-                  class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                  class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500"
                 >
                   Норм. балл
                 </th>
@@ -844,19 +1075,21 @@ async function exportToExcel() {
                 :key="`${row.sheetId}-${row.id}`"
                 class="border-b border-gray-100 last:border-b-0 dark:border-gray-700"
               >
-                <td class="px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                <td class="px-3 py-2 text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
                   {{ row.rank ?? '—' }}
                 </td>
-                <td class="px-3 py-2">
-                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ getWorkTitle(row.work) }}</div>
-                  <div class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    <span>{{ getParticipantNames(row.work) || '—' }}</span>
+                <td class="min-w-[36rem] w-[36rem] px-3 py-2">
+                  <div class="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <span>{{ getWorkTitle(row.work) }}</span>
                     <span
                       v-if="isExternalWork(row.work)"
                       class="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
                     >
                       Внешний участник
                     </span>
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ getParticipantNames(row.work) || '—' }}
                   </div>
                 </td>
                 <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
@@ -865,10 +1098,18 @@ async function exportToExcel() {
                 <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
                   {{ row.sheet.title }}
                 </td>
-                <td class="px-3 py-2 text-sm font-semibold text-score">
+                <td class="px-3 py-2 text-center text-sm font-semibold text-score">
                   {{ formatScore(row.rawScore) }}
                 </td>
-                <td v-if="useNormalizedScore" class="px-3 py-2 text-sm font-semibold text-primary">
+                <td
+                  v-for="criterion in criterionColumns"
+                  :key="`criterion-${row.sheetId}-${row.id}-${criterion.id}`"
+                  class="px-3 py-2 text-center text-sm font-semibold"
+                  :class="rankingKey === criterion.key ? 'text-primary' : 'text-gray-600 dark:text-gray-300'"
+                >
+                  {{ formatScore(row.criterionScores?.[criterion.id]) }}
+                </td>
+                <td v-if="useNormalizedScore" class="px-3 py-2 text-center text-sm font-semibold text-primary">
                   {{ formatScore(row.normalizedScore) }}
                 </td>
               </tr>
