@@ -1,10 +1,14 @@
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import publicApi from '../api/public'
 
 const props = defineProps({
   token: { type: String, required: true },
 })
+const router = useRouter()
+
+const COMPLETION_STORAGE_KEY_PREFIX = 'sk_contest_anonymous_completed_'
 
 const sheet = ref(null)
 const work = ref(null)
@@ -30,6 +34,56 @@ const savingItemComment = ref(null)
 const editingGeneralComment = ref(false)
 const generalCommentDraft = ref('')
 const savingComment = ref(false)
+
+function completionStorageKey(token) {
+  return `${COMPLETION_STORAGE_KEY_PREFIX}${token}`
+}
+
+function getCompletionMarker(token) {
+  try {
+    const raw = window.localStorage.getItem(completionStorageKey(token))
+    if (!raw) return null
+
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') {
+        return parsed
+      }
+    } catch {
+      // legacy plain-string marker
+    }
+
+    return {
+      completed_at: raw,
+      evaluation_id: null,
+      legacy: true,
+    }
+  } catch {
+    return null
+  }
+}
+
+function clearEvaluationCompletedLocally(token) {
+  try {
+    window.localStorage.removeItem(completionStorageKey(token))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function markEvaluationCompletedLocally(token, evaluationId = null) {
+  try {
+    window.localStorage.setItem(
+      completionStorageKey(token),
+      JSON.stringify({
+        completed_at: new Date().toISOString(),
+        evaluation_id: evaluationId,
+      }),
+    )
+  } catch {
+    // ignore storage failures
+  }
+}
 
 function setSaved() {
   saved.value = true
@@ -98,25 +152,62 @@ function applyBundle(bundle) {
   }
 }
 
-async function loadBundle() {
+async function loadBundle(token = props.token) {
   loading.value = true
   error.value = ''
   fatalState.value = null
   resetData()
 
   try {
-    const { data } = await publicApi.get(`/public/evaluations/${props.token}`)
+    const { data } = await publicApi.get(`/public/evaluations/${token}`)
     applyBundle(data)
+    return data
   } catch (e) {
     fatalState.value = resolveFatalState(e)
+    return null
   } finally {
     loading.value = false
     await nextTick()
   }
 }
 
-onMounted(loadBundle)
-watch(() => props.token, loadBundle)
+async function loadOrRedirectIfCompleted(token) {
+  const marker = getCompletionMarker(token)
+  const bundle = await loadBundle(token)
+  if (!bundle || !marker) return
+
+  const criteriaList = Array.isArray(bundle.criteria) ? bundle.criteria : []
+  const itemsList = Array.isArray(bundle.items) ? bundle.items : []
+  const scoredCriterionIds = new Set(
+    itemsList
+      .filter((item) => item?.level_id != null && item?.criterion_id != null)
+      .map((item) => String(item.criterion_id)),
+  )
+
+  const allScoredOnServer = criteriaList.length > 0
+    && criteriaList.every((criterion) => scoredCriterionIds.has(String(criterion.id)))
+
+  const markerEvaluationId = marker?.evaluation_id
+  const currentEvaluationId = bundle?.evaluation?.id
+  const sameEvaluation = markerEvaluationId == null
+    || currentEvaluationId == null
+    || String(markerEvaluationId) === String(currentEvaluationId)
+
+  if (allScoredOnServer && sameEvaluation) {
+    await router.replace({ name: 'anonymous-evaluation-complete', params: { token } })
+    return
+  }
+
+  clearEvaluationCompletedLocally(token)
+}
+
+onMounted(() => {
+  loadOrRedirectIfCompleted(props.token)
+})
+
+watch(() => props.token, (token) => {
+  loadOrRedirectIfCompleted(token)
+})
 
 function getWorkTitle() {
   if (!work.value) return ''
@@ -176,6 +267,12 @@ const allCriteriaScored = computed(() => {
   if (!criteria.value.length) return false
   return criteria.value.every((criterion) => items[criterion.id]?.level_id != null)
 })
+const hasPendingWrites = computed(() => (
+  saving.value != null
+  || resetting.value != null
+  || savingComment.value
+  || savingItemComment.value != null
+))
 
 const hasCategories = computed(() => categories.value.length > 0)
 
@@ -408,11 +505,20 @@ async function deleteGeneralComment() {
     savingComment.value = false
   }
 }
+
+async function finishEvaluation() {
+  if (!allCriteriaScored.value) {
+    error.value = 'Перед завершением выставьте оценки по всем критериям'
+    return
+  }
+  markEvaluationCompletedLocally(props.token, evaluation.value?.id ?? null)
+  await router.replace({ name: 'anonymous-evaluation-complete', params: { token: props.token } })
+}
 </script>
 
 <template>
   <div>
-    <div class="mb-2" v-if="work">
+    <div class="my-5" v-if="work">
       <div class="mb-1 flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="mb-1 flex flex-wrap items-center gap-2">
@@ -435,14 +541,16 @@ async function deleteGeneralComment() {
           {{ allCriteriaScored ? 'Все оценки выставлены' : 'Не все оценки выставлены' }}
         </span>
       </div>
-      <div v-if="getParticipants().length" class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-        <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
-      </div>
-      <div v-if="getSupervisors().length" class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-        <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
-      </div>
-      <div v-if="getWorkNotes()" class="mt-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
-        <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
+      <div class="mt-3 space-y-1.5">
+        <div v-if="getParticipants().length" class="text-sm text-gray-600 dark:text-gray-400">
+          <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
+        </div>
+        <div v-if="getSupervisors().length" class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
+        </div>
+        <div v-if="getWorkNotes()" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
+          <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
+        </div>
       </div>
     </div>
 
@@ -635,18 +743,29 @@ async function deleteGeneralComment() {
       <p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p>
 
       <div
-        class="sticky bottom-0 z-30 -mx-4 mt-4 rounded-t-xl border-t px-5 py-3 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)] transition-[background-color,border-color] duration-200 sm:-mx-6"
-        :class="allCriteriaScored ? 'border-green-500/40 bg-green-600' : 'border-score/30 bg-score'"
+        class="sticky bottom-0 z-30 -mx-4 mt-4 overflow-hidden rounded-t-xl border-t px-5 py-3 text-white shadow-[0_-6px_20px_rgba(0,0,0,0.22)] transition-[background-color,border-color] duration-200 sm:-mx-6"
+        :class="allCriteriaScored
+          ? 'border-emerald-300/50 bg-emerald-600'
+          : 'border-amber-300/50 bg-amber-600'"
       >
-        <div class="flex items-center gap-2 text-base">
+        <div class="relative flex items-center gap-2 text-base">
           <span class="font-medium">Итого:</span>
           <strong class="text-lg">{{ totalScore }}</strong>
-          <transition name="fade">
-            <span v-if="saved" class="ml-auto text-sm font-medium text-green-200">Сохранено ✓</span>
-          </transition>
+          <div class="ml-auto flex items-center gap-2">
+            <transition name="fade">
+              <span v-if="saved" class="text-sm font-medium text-green-100">Сохранено ✓</span>
+            </transition>
+            <button
+              class="cursor-pointer rounded-lg border border-white/35 bg-white/18 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/28 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="!allCriteriaScored || hasPendingWrites"
+              @click="finishEvaluation"
+            >
+              Завершить оценку
+            </button>
+          </div>
         </div>
-        <div v-if="hasCategories" class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category" class="text-xs text-white/70">
+        <div v-if="hasCategories" class="relative mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category" class="text-xs text-white/75">
             {{ group.category?.title }}: <strong class="text-white">{{ categoryScore(group.category?.id) }}</strong>
           </span>
         </div>

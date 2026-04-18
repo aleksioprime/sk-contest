@@ -75,6 +75,12 @@ const commentDraft = ref('')       // черновик комментария к
 const savingItemComment = ref(null)
 const editingGeneralComment = ref(false)
 const generalCommentDraft = ref('')
+const hasPendingWrites = computed(() => (
+  saving.value != null
+  || resetting.value != null
+  || savingComment.value
+  || savingItemComment.value != null
+))
 
 onMounted(async () => {
   try {
@@ -493,7 +499,7 @@ async function deleteGeneralComment() {
       &larr; К списку работ
     </router-link>
 
-    <div class="mb-2" v-if="work">
+    <div class="my-5" v-if="work">
       <div class="mb-1 flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="mb-1 flex flex-wrap items-center gap-2">
@@ -516,14 +522,16 @@ async function deleteGeneralComment() {
           {{ allCriteriaScored ? 'Все оценки выставлены' : 'Не все оценки выставлены' }}
         </span>
       </div>
-      <div v-if="getParticipants().length" class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-        <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
-      </div>
-      <div v-if="getSupervisors().length" class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-        <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
-      </div>
-      <div v-if="getWorkNotes()" class="mt-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
-        <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
+      <div class="mt-3 space-y-1.5">
+        <div v-if="getParticipants().length" class="text-sm text-gray-600 dark:text-gray-400">
+          <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
+        </div>
+        <div v-if="getSupervisors().length" class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
+        </div>
+        <div v-if="getWorkNotes()" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
+          <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
+        </div>
       </div>
     </div>
 
@@ -711,34 +719,35 @@ async function deleteGeneralComment() {
       <div ref="sentinelRef" class="h-px"></div>
       <!-- Total bar (sticky bottom) -->
       <div
-        class="sticky bottom-0 z-30 -mx-4 mt-4 border-t px-5 py-3 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)] transition-[border-radius,background-color,border-color] duration-200 sm:-mx-6"
+        class="sticky bottom-0 z-30 -mx-4 mt-4 overflow-hidden border-t px-5 py-3 text-white shadow-[0_-6px_20px_rgba(0,0,0,0.22)] transition-[border-radius,background-color,border-color] duration-200 sm:-mx-6"
         :class="[
           totalBarStuck ? 'rounded-t-xl' : 'rounded-xl',
-          allCriteriaScored ? 'border-green-500/40 bg-green-600' : 'border-score/30 bg-score'
+          allCriteriaScored
+            ? 'border-emerald-300/50 bg-emerald-600'
+            : 'border-amber-300/50 bg-amber-600'
         ]"
       >
-        <div class="flex items-center gap-2 text-base">
+        <div class="relative flex items-center gap-2 text-base">
           <span class="font-medium">Итого:</span>
           <strong class="text-lg">{{ totalScore }}</strong>
-          <transition name="fade">
-            <span v-if="saved" class="ml-auto text-sm font-medium text-green-200">Сохранено ✓</span>
-          </transition>
+          <div class="ml-auto flex items-center gap-2">
+            <transition name="fade">
+              <span v-if="saved" class="text-sm font-medium text-green-100">Сохранено ✓</span>
+            </transition>
+            <router-link
+              :to="{ name: 'works', params: { sheetId: props.sheetId } }"
+              class="inline-flex items-center rounded-lg border border-white/35 bg-white/18 px-3 py-1.5 text-sm font-semibold text-white no-underline backdrop-blur-sm transition hover:bg-white/28"
+              :class="hasPendingWrites ? 'pointer-events-none opacity-70' : ''"
+            >
+              К выбору работ
+            </router-link>
+          </div>
         </div>
-        <div v-if="hasCategories" class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category" class="text-xs text-white/70">
+        <div v-if="hasCategories" class="relative mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+          <span v-for="group in groupedCriteria" :key="group.category?.id ?? 'uncategorized'" v-show="group.category" class="text-xs text-white/75">
             {{ group.category?.title }}: <strong class="text-white">{{ categoryScore(group.category?.id) }}</strong>
           </span>
         </div>
-      </div>
-
-      <!-- Back to works button -->
-      <div class="mt-6 mb-4 flex justify-center">
-        <router-link
-          :to="{ name: 'works', params: { sheetId: props.sheetId } }"
-          class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 no-underline shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-        >
-          &larr; К выбору работы
-        </router-link>
       </div>
     </template>
 

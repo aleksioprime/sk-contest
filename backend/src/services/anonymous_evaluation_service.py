@@ -10,6 +10,7 @@ from src.core.nocobase import nocobase
 
 class AnonymousEvaluationService:
     CACHE_TTL_SECONDS = 300.0
+    EVALUATION_CHECK_INTERVAL_SECONDS = 10.0
 
     def __init__(self):
         self._context_cache: dict[str, dict] = {}
@@ -120,23 +121,71 @@ class AnonymousEvaluationService:
             raise last_error
         raise HTTPException(status_code=500, detail='Не удалось создать анонимную оценку')
 
-    async def _ensure_context(self, token: str) -> dict:
+    async def _resolve_anonymous_evaluation(self, sheet_work_id: int | str) -> dict:
+        evaluation = await self._get_anonymous_evaluation(sheet_work_id)
+        if evaluation:
+            return evaluation
+        return await self._create_anonymous_evaluation(sheet_work_id)
+
+    async def _get_existing_evaluation_or_none(self, evaluation_id: int | str) -> dict | None:
+        try:
+            evaluation = await nocobase.get_by_id('contest_evaluations', evaluation_id)
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                return None
+            raise
+        if not evaluation or evaluation.get('id') is None:
+            return None
+        return evaluation
+
+    async def _ensure_cached_evaluation_exists(self, token: str, context: dict, *, force_check: bool = False):
+        now = time.monotonic()
+        current_evaluation = context.get('evaluation') or {}
+        current_evaluation_id = current_evaluation.get('id')
+        last_checked_at = context.get('_evaluation_checked_at')
+
+        if (
+            not force_check
+            and
+            current_evaluation_id is not None
+            and isinstance(last_checked_at, (int, float))
+            and now - last_checked_at < self.EVALUATION_CHECK_INTERVAL_SECONDS
+        ):
+            return
+
+        existing_evaluation = None
+        if current_evaluation_id is not None:
+            existing_evaluation = await self._get_existing_evaluation_or_none(current_evaluation_id)
+
+        if existing_evaluation:
+            context['evaluation'] = {**current_evaluation, **existing_evaluation}
+            context['_evaluation_checked_at'] = now
+            self._save_cached_context(token, context)
+            return
+
+        replacement = await self._resolve_anonymous_evaluation(context['work']['id'])
+        context['evaluation'] = replacement
+        context['items_by_criterion'] = None
+        context['_evaluation_checked_at'] = now
+        self._save_cached_context(token, context)
+
+    async def _ensure_context(self, token: str, *, force_evaluation_check: bool = False) -> dict:
         cached = self._get_cached_context(token)
         if cached and cached.get('work') and cached.get('sheet') and cached.get('evaluation'):
+            await self._ensure_cached_evaluation_exists(token, cached, force_check=force_evaluation_check)
             return cached
 
         work = await self._get_work_by_token(token)
         sheet = await self._get_sheet(work['sheet_id'])
         self._assert_sheet_allows_anonymous(sheet)
 
-        evaluation = await self._get_anonymous_evaluation(work['id'])
-        if not evaluation:
-            evaluation = await self._create_anonymous_evaluation(work['id'])
+        evaluation = await self._resolve_anonymous_evaluation(work['id'])
 
         context = {
             'work': work,
             'sheet': sheet,
             'evaluation': evaluation,
+            '_evaluation_checked_at': time.monotonic(),
             'criteria': None,
             'criteria_by_id': {},
             'items_by_criterion': None,
@@ -287,7 +336,7 @@ class AnonymousEvaluationService:
         )
 
     async def get_bundle(self, token: str) -> dict:
-        context = await self._ensure_context(token)
+        context = await self._ensure_context(token, force_evaluation_check=True)
         criteria = await self._ensure_criteria(token, context)
 
         category_ids = sorted({criterion['category_id'] for criterion in criteria if criterion.get('category_id') is not None})

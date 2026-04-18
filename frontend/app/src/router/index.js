@@ -27,6 +27,7 @@ import EvaluationView from '../views/EvaluationView.vue'
 import ViewerEvaluationView from '../views/ViewerEvaluationView.vue'
 import AggregateResultsView from '../views/AggregateResultsView.vue'
 import AnonymousEvaluationView from '../views/AnonymousEvaluationView.vue'
+import AnonymousEvaluationCompleteView from '../views/AnonymousEvaluationCompleteView.vue'
 
 /** Заглушка для пользователей без роли Judge или Viewer */
 const NoAccessView = {
@@ -40,6 +41,13 @@ const routes = [
     path: '/evaluate/:token',
     name: 'anonymous-evaluation',
     component: AnonymousEvaluationView,
+    props: true,
+    meta: { public: true, hideHeader: true },
+  },
+  {
+    path: '/evaluate/:token/completed',
+    name: 'anonymous-evaluation-complete',
+    component: AnonymousEvaluationCompleteView,
     props: true,
     meta: { public: true, hideHeader: true },
   },

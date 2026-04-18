@@ -423,7 +423,7 @@ function toggleCriteria(evalId) {
           <!-- Judge header -->
           <div class="flex items-center gap-2" :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
             <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-              {{ j.judge?.full_name || j.judge?.short_name || 'Судья' }}
+              {{ j.judge?.full_name || j.judge?.short_name || 'Анонимный судья' }}
             </h3>
             <div class="ml-auto flex shrink-0 items-center gap-2">
               <span class="rounded-full px-3 py-0.5 text-sm font-medium"
