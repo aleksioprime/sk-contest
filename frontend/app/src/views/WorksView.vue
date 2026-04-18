@@ -347,9 +347,9 @@ function isFullyEvaluated(work) {
         v-for="work in sortedWorks"
         :key="work.id"
         :to="{ name: viewerMode ? 'results-evaluation' : 'evaluation', params: { sheetId: props.sheetId, workId: work.id } }"
-        class="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 no-underline shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+        class="flex flex-col items-start gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 no-underline shadow-sm transition hover:shadow-md sm:flex-row sm:items-center sm:gap-4 dark:border-gray-700 dark:bg-gray-800"
       >
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 w-full flex-1">
           <div class="mb-1 flex flex-wrap items-center gap-2">
             <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ getWorkTitle(work) }}</h3>
             <span
@@ -368,28 +368,30 @@ function isFullyEvaluated(work) {
         </div>
         <!-- Viewer: баллы и ранг -->
         <template v-if="viewerMode">
-          <span v-if="work.score != null" class="shrink-0 rounded-full bg-score-light px-3 py-1 text-sm font-bold text-score">
-            {{ work.score }}
-          </span>
-          <span
-            class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
-            :class="work.is_scored ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
-          >
-            {{ work.is_scored ? 'Работа оценена' : 'Работа не оценена' }}
-          </span>
-          <span
-            v-if="getLiveRank(work) != null || hasRankMismatch(work)"
-            class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
-            :class="hasRankMismatch(work) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-primary-light text-primary'"
-          >
-            {{ getLiveRank(work) != null ? `${getLiveRank(work)} место` : 'Пересчёт: —' }}
-          </span>
-          <span
-            v-if="hasRankMismatch(work) && getDbRank(work) != null"
-            class="shrink-0 rounded-full bg-yellow-100 px-3 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
-          >
-            БД: {{ getDbRank(work) }} место
-          </span>
+          <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            <span v-if="work.score != null" class="shrink-0 rounded-full bg-score-light px-3 py-1 text-sm font-bold text-score">
+              {{ work.score }}
+            </span>
+            <span
+              class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
+              :class="work.is_scored ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
+            >
+              {{ work.is_scored ? 'Работа оценена' : 'Работа не оценена' }}
+            </span>
+            <span
+              v-if="getLiveRank(work) != null || hasRankMismatch(work)"
+              class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
+              :class="hasRankMismatch(work) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-primary-light text-primary'"
+            >
+              {{ getLiveRank(work) != null ? `${getLiveRank(work)} место` : 'Пересчёт: —' }}
+            </span>
+            <span
+              v-if="hasRankMismatch(work) && getDbRank(work) != null"
+              class="shrink-0 rounded-full bg-yellow-100 px-3 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+            >
+              БД: {{ getDbRank(work) }} место
+            </span>
+          </div>
         </template>
         <!-- Judge: статус оценки -->
         <template v-else>

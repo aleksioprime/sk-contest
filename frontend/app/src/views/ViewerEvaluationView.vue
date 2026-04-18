@@ -442,8 +442,8 @@ function toggleCriteria(evalId) {
         <div v-for="j in judges" :key="j.evaluation.id"
           class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
           <!-- Judge header -->
-          <div class="flex items-center gap-2" :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
-            <h3 class="flex items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-gray-100">
+          <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center" :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
+            <h3 class="flex w-full items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-gray-100 sm:w-auto">
               <svg
                 v-if="isAnonymousJudge(j)"
                 class="h-4 w-4 text-gray-500 dark:text-gray-400"
@@ -460,7 +460,7 @@ function toggleCriteria(evalId) {
               </svg>
               <span>{{ getJudgeDisplayName(j) }}</span>
             </h3>
-            <div class="ml-auto flex shrink-0 items-center gap-2">
+            <div class="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
               <span class="rounded-full px-3 py-0.5 text-sm font-medium"
                 :class="isJudgeFullyScored(j) ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'">
                 {{ isJudgeFullyScored(j) ? 'Оценено' : 'Не оценено' }}
@@ -578,7 +578,7 @@ function toggleCriteria(evalId) {
               </p>
             </div>
           </template><!-- end v-if evaluation -->
-          <p v-else class="text-sm text-gray-400">Оценки не выставлены</p>
+          <p v-else class="text-sm text-gray-400 mt-3">Оценки не выставлены</p>
         </div>
       </div>
     </template>
