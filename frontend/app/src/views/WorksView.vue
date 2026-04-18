@@ -27,12 +27,10 @@ const viewerMode = computed(() => !!route.meta.viewerMode)
 const sheet = ref(null)
 const works = ref([])
 const evaluationsMap = ref({}) // { sheet_work_id: evaluation } — оценки текущего судьи
-const criteriaCount = ref(0)
 const criteriaList = ref([])    // все критерии оценочного листа
 const categories = ref([])      // категории критериев
 const allEvaluations = ref([])  // все оценки всех судей (режим Viewer)
 const allItems = ref([])        // все evaluation_items (режим Viewer)
-const itemsCountMap = ref({})   // { evaluation_id: кол-во items с level_id } — для проверки полноты оценки
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
@@ -134,10 +132,56 @@ function getWorkOrderValue(work) {
   return work?.order != null ? Number(work.order) : Number.POSITIVE_INFINITY
 }
 
+function getWorkScoreValue(work) {
+  if (work?.score == null) return null
+  const score = Number(work.score)
+  return Number.isNaN(score) ? null : score
+}
+
 function compareBySheetOrder(a, b) {
   const orderDiff = getWorkOrderValue(a) - getWorkOrderValue(b)
   if (orderDiff !== 0) return orderDiff
   return Number(a.id) - Number(b.id)
+}
+
+const liveRankMap = computed(() => {
+  const ranked = [...works.value]
+    .filter((w) => getWorkScoreValue(w) != null)
+    .sort((a, b) => {
+      const diff = getWorkScoreValue(b) - getWorkScoreValue(a)
+      return diff !== 0 ? diff : compareBySheetOrder(a, b)
+    })
+
+  const map = {}
+  let previousScore = null
+  let previousRank = null
+
+  for (let i = 0; i < ranked.length; i++) {
+    const work = ranked[i]
+    const score = getWorkScoreValue(work)
+    if (previousScore == null || Math.abs(score - previousScore) > 1e-9) {
+      previousRank = i + 1
+      previousScore = score
+    }
+    map[work.id] = previousRank
+  }
+  return map
+})
+
+function getLiveRank(work) {
+  return liveRankMap.value[work.id] ?? null
+}
+
+function getDbRank(work) {
+  if (work?.rank == null || work.rank === '') return null
+  const rank = Number(work.rank)
+  return Number.isNaN(rank) ? null : rank
+}
+
+function hasRankMismatch(work) {
+  const dbRank = getDbRank(work)
+  if (dbRank == null) return false
+  return getLiveRank(work) !== dbRank
 }
 
 const sortedWorks = computed(() => {
@@ -146,9 +190,11 @@ const sortedWorks = computed(() => {
 
   if (sortBy.value === 'rank') {
     return sorted.sort((a, b) => {
-      if (a.rank && b.rank) return a.rank - b.rank
-      if (a.rank) return -1
-      if (b.rank) return 1
+      const ra = getLiveRank(a)
+      const rb = getLiveRank(b)
+      if (ra != null && rb != null) return ra - rb || compareBySheetOrder(a, b)
+      if (ra != null) return -1
+      if (rb != null) return 1
       return compareBySheetOrder(a, b)
     })
   }
@@ -163,13 +209,12 @@ const sortedWorks = computed(() => {
   }
   // По общему баллу
   return sorted.sort((a, b) => {
-    if (a.rank && b.rank) return a.rank - b.rank
-    if (a.rank) return -1
-    if (b.rank) return 1
-    const sa = a.score != null ? Number(a.score) : -1
-    const sb = b.score != null ? Number(b.score) : -1
-    const diff = sb - sa
-    return diff !== 0 ? diff : compareBySheetOrder(a, b)
+    const ra = getLiveRank(a)
+    const rb = getLiveRank(b)
+    if (ra != null && rb != null) return ra - rb || compareBySheetOrder(a, b)
+    if (ra != null) return -1
+    if (rb != null) return 1
+    return compareBySheetOrder(a, b)
   })
 })
 
@@ -186,6 +231,10 @@ async function loadData(isRefresh = false) {
   error.value = ''
 
   try {
+    allEvaluations.value = []
+    allItems.value = []
+    evaluationsMap.value = {}
+
     const [sheetRes, worksRes] = await Promise.all([
       api.get('/contest_evaluation_sheets:get', {
         params: { filterByTk: props.sheetId, appends: 'contest,stage' },
@@ -270,7 +319,6 @@ async function loadData(isRefresh = false) {
     }
 
     criteriaList.value = loadedCriteria
-    criteriaCount.value = loadedCriteria.length
 
     // Второй параллельный раунд: категории + evaluation_items
     const parallelRequests2 = []
@@ -303,33 +351,11 @@ async function loadData(isRefresh = false) {
       )
     }
 
-    // Evaluation items для жюри (проверка полноты)
-    if (!viewerMode.value && judgeEvals.length) {
-      const evalIds = judgeEvals.map((ev) => ev.id)
-      parallelRequests2.push(
-        api.get('/contest_evaluation_items:list', {
-          params: {
-            filter: JSON.stringify({ evaluation_id: { $in: evalIds } }),
-            pageSize: 1000,
-          },
-        }).then((res) => ({ type: 'judgeItems', data: res.data.data || [] }))
-      )
-    }
-
     if (parallelRequests2.length) {
       const results2 = await Promise.all(parallelRequests2)
       for (const r of results2) {
         if (r.type === 'categories') categories.value = r.data
         else if (r.type === 'allItems') allItems.value = r.data
-        else if (r.type === 'judgeItems') {
-          const newItemsCount = {}
-          for (const item of r.data) {
-            if (item.level_id != null) {
-              newItemsCount[item.evaluation_id] = (newItemsCount[item.evaluation_id] || 0) + 1
-            }
-          }
-          itemsCountMap.value = newItemsCount
-        }
       }
     }
 
@@ -373,6 +399,23 @@ function getParticipants(work) {
   return work.stage_participation?.participation?.participants || []
 }
 
+function getParticipation(work) {
+  return work.stage_participation?.participation || null
+}
+
+function formatParticipantName(participant) {
+  return participant.full_name || participant.short_name || 'Участник'
+}
+
+function getParticipantsLabel(work) {
+  const names = getParticipants(work).map(formatParticipantName).filter(Boolean)
+  return names.join(', ')
+}
+
+function isExternalWork(work) {
+  return !!getParticipation(work)?.is_external
+}
+
 function getSupervisors(work) {
   return work.stage_participation?.participation?.supervisors || []
 }
@@ -384,8 +427,7 @@ function getJudgeEvaluation(work) {
 /** Проверка, оценены ли все критерии для данной работы текущим судьёй */
 function isFullyEvaluated(work) {
   const ev = evaluationsMap.value[work.id]
-  if (!ev || !criteriaCount.value) return false
-  return (itemsCountMap.value[ev.id] || 0) >= criteriaCount.value
+  return !!ev?.is_scored
 }
 </script>
 
@@ -439,9 +481,17 @@ function isFullyEvaluated(work) {
         class="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 no-underline shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
       >
         <div class="min-w-0 flex-1">
-          <h3 class="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">{{ getWorkTitle(work) }}</h3>
+          <div class="mb-1 flex flex-wrap items-center gap-2">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ getWorkTitle(work) }}</h3>
+            <span
+              v-if="isExternalWork(work)"
+              class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            >
+              Внешний участник
+            </span>
+          </div>
           <div v-if="getParticipants(work).length" class="mb-0.5 text-sm text-gray-600 dark:text-gray-400">
-            <span class="font-medium">Участники:</span> {{ getParticipants(work).map(p => p.full_name || p.short_name).join(', ') }}
+            <span class="font-medium">Участники:</span> {{ getParticipantsLabel(work) }}
           </div>
           <div v-if="getSupervisors(work).length" class="text-sm text-gray-500 dark:text-gray-400">
             <span class="font-medium">Руководители:</span> {{ getSupervisors(work).map(s => s.full_name || s.short_name).join(', ') }}
@@ -466,8 +516,24 @@ function isFullyEvaluated(work) {
           <span v-if="work.score != null" class="shrink-0 rounded-full bg-score-light px-3 py-1 text-sm font-bold text-score">
             {{ work.score }}
           </span>
-          <span v-if="work.rank" class="shrink-0 rounded-full bg-primary-light px-3 py-0.5 text-xs font-medium text-primary">
-            {{ work.rank }} место
+          <span
+            class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
+            :class="work.is_scored ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
+          >
+            {{ work.is_scored ? 'Работа оценена' : 'Работа не оценена' }}
+          </span>
+          <span
+            v-if="getLiveRank(work) != null || hasRankMismatch(work)"
+            class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
+            :class="hasRankMismatch(work) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-primary-light text-primary'"
+          >
+            {{ getLiveRank(work) != null ? `${getLiveRank(work)} место` : 'Пересчёт: —' }}
+          </span>
+          <span
+            v-if="hasRankMismatch(work) && getDbRank(work) != null"
+            class="shrink-0 rounded-full bg-yellow-100 px-3 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+          >
+            БД: {{ getDbRank(work) }} место
           </span>
         </template>
         <!-- Judge: статус оценки -->

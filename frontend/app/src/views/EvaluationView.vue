@@ -88,7 +88,7 @@ onMounted(async () => {
       api.get('/contest_evaluation_sheet_works:get', {
         params: {
           filterByTk: props.workId,
-          appends: 'stage_participation,stage_participation.participation',
+          appends: 'stage_participation,stage_participation.participation,stage_participation.participation.participants,stage_participation.participation.supervisors',
         },
       }),
     ])
@@ -197,6 +197,39 @@ function getWorkTitle() {
   return sp?.title
     || sp?.participation?.title
     || `Работа #${work.value.id}`
+}
+
+function getParticipation() {
+  return work.value?.stage_participation?.participation || null
+}
+
+function isExternalWork() {
+  return !!getParticipation()?.is_external
+}
+
+function getParticipants() {
+  return getParticipation()?.participants || []
+}
+
+function getSupervisors() {
+  return getParticipation()?.supervisors || []
+}
+
+function getPersonName(person) {
+  return person?.full_name || person?.short_name || ''
+}
+
+function getParticipantsLabel() {
+  return getParticipants().map(getPersonName).filter(Boolean).join(', ')
+}
+
+function getSupervisorsLabel() {
+  return getSupervisors().map(getPersonName).filter(Boolean).join(', ')
+}
+
+function getWorkNotes() {
+  const notes = getParticipation()?.notes
+  return typeof notes === 'string' ? notes.trim() : ''
 }
 
 function getLevels(criterion) {
@@ -475,8 +508,25 @@ async function deleteGeneralComment() {
     </router-link>
 
     <div class="mb-2" v-if="work">
-      <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
+      <div class="mb-1 flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
+        <span
+          v-if="isExternalWork()"
+          class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+        >
+          Внешний участник
+        </span>
+      </div>
       <p v-if="sheet?.title" class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.title }}</p>
+      <div v-if="getParticipants().length" class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
+      </div>
+      <div v-if="getSupervisors().length" class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+        <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
+      </div>
+      <div v-if="getWorkNotes()" class="mt-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
+        <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
+      </div>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-3 py-12 text-gray-500">

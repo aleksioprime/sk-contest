@@ -363,6 +363,14 @@ function getParticipants(work) {
   return work.stage_participation?.participation?.participants || []
 }
 
+function getParticipation(work) {
+  return work.stage_participation?.participation || null
+}
+
+function isExternalWork(work) {
+  return !!getParticipation(work)?.is_external
+}
+
 function getSupervisors(work) {
   return work.stage_participation?.participation?.supervisors || []
 }
@@ -383,10 +391,13 @@ function getSheetSubtitle(sheet) {
 }
 
 function getParticipantNames(work) {
-  return getParticipants(work)
+  const names = getParticipants(work)
     .map((p) => p.full_name || p.short_name)
     .filter(Boolean)
     .join(', ')
+  if (!isExternalWork(work)) return names
+  if (!names) return 'Внешний участник'
+  return `${names} (Внешний участник)`
 }
 
 function getSupervisorNames(work) {
@@ -768,8 +779,14 @@ async function exportToExcel() {
                 >
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ getWorkTitle(work) }}</div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">
-                    Участники: {{ getParticipants(work).map((p) => p.full_name || p.short_name).join(', ') || '—' }}
+                  <div class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <span>Участники: {{ getParticipantNames(work) || '—' }}</span>
+                    <span
+                      v-if="isExternalWork(work)"
+                      class="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    >
+                      Внешний участник
+                    </span>
                   </div>
                   <div class="text-xs text-score">Балл: {{ formatScore(work.score) }}</div>
                 </div>
@@ -814,8 +831,14 @@ async function exportToExcel() {
                 </td>
                 <td class="px-3 py-2">
                   <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ getWorkTitle(row.work) }}</div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ getParticipants(row.work).map((p) => p.full_name || p.short_name).join(', ') || '—' }}
+                  <div class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <span>{{ getParticipantNames(row.work) || '—' }}</span>
+                    <span
+                      v-if="isExternalWork(row.work)"
+                      class="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    >
+                      Внешний участник
+                    </span>
                   </div>
                 </td>
                 <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">

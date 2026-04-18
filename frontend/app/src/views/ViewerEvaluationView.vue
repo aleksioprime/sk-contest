@@ -24,6 +24,7 @@ const props = defineProps({
 
 const sheet = ref(null)
 const work = ref(null)
+const sheetWorks = ref([])
 const criteria = ref([])          // критерии оценочного листа
 const categories = ref([])        // категории критериев
 const levelsMap = reactive({})    // { scale_id: levels[] } — уровни шкал
@@ -43,7 +44,7 @@ async function loadData(isRefresh = false) {
   error.value = ''
 
   try {
-    const [sheetRes, workRes] = await Promise.all([
+    const [sheetRes, workRes, sheetWorksRes] = await Promise.all([
       api.get('/contest_evaluation_sheets:get', {
         params: { filterByTk: props.sheetId },
       }),
@@ -53,9 +54,17 @@ async function loadData(isRefresh = false) {
           appends: 'stage_participation,stage_participation.participation,stage_participation.participation.participants,stage_participation.participation.supervisors',
         },
       }),
+      api.get('/contest_evaluation_sheet_works:list', {
+        params: {
+          filter: JSON.stringify({ sheet_id: Number(props.sheetId) }),
+          sort: 'order,id',
+          pageSize: 1000,
+        },
+      }),
     ])
     sheet.value = sheetRes.data.data
     work.value = workRes.data.data
+    sheetWorks.value = sheetWorksRes.data.data || []
 
     // Раунд 2: критерии + оценки параллельно (критерии зависят от sheet, оценки — от workId)
     const scorecardId = sheet.value.scorecard_id
@@ -157,12 +166,94 @@ function getWorkTitle() {
   return sp?.title || sp?.participation?.title || `Работа #${work.value.id}`
 }
 
+function getWorkOrderValue(sheetWork) {
+  return sheetWork?.order != null ? Number(sheetWork.order) : Number.POSITIVE_INFINITY
+}
+
+function getWorkScoreValue(sheetWork) {
+  if (sheetWork?.score == null) return null
+  const score = Number(sheetWork.score)
+  return Number.isNaN(score) ? null : score
+}
+
+function compareBySheetOrder(a, b) {
+  const orderDiff = getWorkOrderValue(a) - getWorkOrderValue(b)
+  if (orderDiff !== 0) return orderDiff
+  return Number(a.id) - Number(b.id)
+}
+
+const liveRankMap = computed(() => {
+  const ranked = [...sheetWorks.value]
+    .filter((w) => getWorkScoreValue(w) != null)
+    .sort((a, b) => {
+      const diff = getWorkScoreValue(b) - getWorkScoreValue(a)
+      return diff !== 0 ? diff : compareBySheetOrder(a, b)
+    })
+
+  const map = {}
+  let previousScore = null
+  let previousRank = null
+  for (let i = 0; i < ranked.length; i++) {
+    const sheetWork = ranked[i]
+    const score = getWorkScoreValue(sheetWork)
+    if (previousScore == null || Math.abs(score - previousScore) > 1e-9) {
+      previousRank = i + 1
+      previousScore = score
+    }
+    map[sheetWork.id] = previousRank
+  }
+  return map
+})
+
+function getLiveRank() {
+  const workId = Number(work.value?.id)
+  if (!workId) return null
+  return liveRankMap.value[workId] ?? null
+}
+
+function getDbRank() {
+  if (work.value?.rank == null || work.value.rank === '') return null
+  const rank = Number(work.value.rank)
+  return Number.isNaN(rank) ? null : rank
+}
+
+function hasRankMismatch() {
+  const dbRank = getDbRank()
+  if (dbRank == null) return false
+  return getLiveRank() !== dbRank
+}
+
+function getParticipation() {
+  return work.value?.stage_participation?.participation || null
+}
+
+function isExternalWork() {
+  return !!getParticipation()?.is_external
+}
+
 function getParticipants() {
-  return work.value?.stage_participation?.participation?.participants || []
+  return getParticipation()?.participants || []
 }
 
 function getSupervisors() {
-  return work.value?.stage_participation?.participation?.supervisors || []
+  return getParticipation()?.supervisors || []
+}
+
+function getPersonName(person) {
+  return person?.full_name || person?.short_name || ''
+}
+
+function getParticipantsLabel() {
+  return getParticipants().map(getPersonName).filter(Boolean).join(', ')
+}
+
+function getSupervisorsLabel() {
+  return getSupervisors().map(getPersonName).filter(Boolean).join(', ')
+}
+
+function getWorkNotes() {
+  const notes = getParticipation()?.notes
+  return typeof notes === 'string' ? notes.trim() : ''
 }
 
 function getLevelTitle(criterion, item) {
@@ -206,8 +297,12 @@ function judgeCategoryScore(judgeData, categoryId) {
 }
 
 /** Проверяет, выставил ли судья хотя бы одну оценку */
-function hasJudgeScored(judgeData) {
+function hasJudgeAnyScores(judgeData) {
   return Object.values(judgeData.items).some((item) => item.level_id != null)
+}
+
+function isJudgeFullyScored(judgeData) {
+  return !!judgeData.evaluation?.is_scored
 }
 
 function toggleComment(judgeId, criterionId) {
@@ -244,17 +339,46 @@ function toggleCriteria(evalId) {
     </div>
 
     <div class="mb-2" v-if="work">
-      <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
+      <div class="mb-1 flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
+        <span
+          v-if="isExternalWork()"
+          class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+        >
+          Внешний участник
+        </span>
+        <span
+          class="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
+          :class="work.is_scored ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
+        >
+          {{ work.is_scored ? 'Работа оценена' : 'Работа не оценена' }}
+        </span>
+      </div>
       <p v-if="sheet?.title" class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.title }}</p>
       <div v-if="getParticipants().length" class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-        <span class="font-medium">Участники:</span> {{ getParticipants().map(p => p.full_name || p.short_name).join(', ') }}
+        <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
       </div>
       <div v-if="getSupervisors().length" class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-        <span class="font-medium">Руководители:</span> {{ getSupervisors().map(s => s.full_name || s.short_name).join(', ') }}
+        <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
+      </div>
+      <div v-if="getWorkNotes()" class="mt-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
+        <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
       </div>
       <div class="mt-1 text-sm text-gray-600 dark:text-gray-400" v-if="work.score != null">
         <span class="font-medium">Итого:</span> {{ work.score }} б.
-        <span v-if="work.rank" class="ml-2 inline-block rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-medium text-primary">{{ work.rank }} место</span>
+        <span
+          v-if="getLiveRank() != null || hasRankMismatch()"
+          class="ml-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
+          :class="hasRankMismatch() ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-primary-light text-primary'"
+        >
+          {{ getLiveRank() != null ? `${getLiveRank()} место` : 'Пересчёт: —' }}
+        </span>
+        <span
+          v-if="hasRankMismatch() && getDbRank() != null"
+          class="ml-2 inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+        >
+          БД: {{ getDbRank() }} место
+        </span>
       </div>
     </div>
 
@@ -276,20 +400,23 @@ function toggleCriteria(evalId) {
           class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
         >
           <!-- Judge header -->
-          <div class="flex items-center justify-between" :class="hasJudgeScored(j) ? 'mb-3' : ''">
+          <div class="flex items-center justify-between gap-2" :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
             <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
               {{ j.judge?.full_name || j.judge?.short_name || 'Судья' }}
             </h3>
-            <span v-if="hasJudgeScored(j)" class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">
+            <span v-if="j.evaluation.score != null" class="rounded-full bg-score-light px-3 py-0.5 text-sm font-semibold text-score">
               Итого: {{ j.evaluation.score ?? '—' }}
             </span>
-            <span v-else class="rounded-full bg-gray-100 px-3 py-0.5 text-sm font-medium text-gray-400 dark:bg-gray-700 dark:text-gray-500">
-              Оценки не выставлены
+            <span
+              class="rounded-full px-3 py-0.5 text-sm font-medium"
+              :class="isJudgeFullyScored(j) ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
+            >
+              {{ isJudgeFullyScored(j) ? 'Оценено полностью' : 'Не оценено полностью' }}
             </span>
           </div>
 
-          <!-- Content: criteria & comments (only if judge has scored) -->
-          <template v-if="hasJudgeScored(j)">
+          <!-- Content: criteria & comments (only if judge has any scores) -->
+          <template v-if="hasJudgeAnyScores(j)">
           <!-- Toggle criteria -->
           <button
             class="mb-2 flex w-full cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 font-sans text-sm font-medium text-primary hover:underline"
@@ -388,6 +515,7 @@ function toggleCriteria(evalId) {
             </p>
           </div>
           </template><!-- end v-if evaluation -->
+          <p v-else class="text-sm text-gray-400">Оценки не выставлены</p>
         </div>
       </div>
     </template>
