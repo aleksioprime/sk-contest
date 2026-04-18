@@ -8,6 +8,9 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import api from '../api'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 
 const sheets = ref([])
 const loadingSheets = ref(true)
@@ -151,14 +154,29 @@ async function loadSheets() {
   try {
     const { data } = await api.get('/contest_evaluation_sheets:list', {
       params: {
-        appends: 'contest,stage',
+        appends: 'observers,contest,stage',
         pageSize: 500,
       },
     })
+    const personId = auth.personId != null ? Number(auth.personId) : null
+    const userId = auth.user?.id != null ? Number(auth.user.id) : null
+    const canObserveSheet = (sheet) => {
+      if (auth.isAdmin) return true
+      const observers = Array.isArray(sheet?.observers) ? sheet.observers : []
+      return observers.some((observer) => {
+        const observerId = observer?.id != null ? Number(observer.id) : null
+        const observerUserId = observer?.user_id != null ? Number(observer.user_id) : null
+        if (personId != null && observerId === personId) return true
+        if (userId != null && (observerId === userId || observerUserId === userId)) return true
+        return false
+      })
+    }
+
     sheets.value = (data.data || [])
       .filter((sheet) => {
         const status = sheet.status || 'inactive'
-        return status === 'active' || status === 'inactive'
+        if (status !== 'active' && status !== 'inactive') return false
+        return canObserveSheet(sheet)
       })
       .sort((a, b) => {
         const contestA = a.contest?.title || ''

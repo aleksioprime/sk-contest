@@ -31,8 +31,9 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value.roles.map((r) => r.name)
   })
 
+  const isAdmin = computed(() => userRoleNames.value.includes('admin'))
   const hasJudgeRole = computed(() => userRoleNames.value.includes(JUDGE_ROLE))
-  const hasViewerRole = computed(() => userRoleNames.value.includes(VIEWER_ROLE) || userRoleNames.value.includes('admin')) // Admin имеет права Viewer
+  const hasViewerRole = computed(() => userRoleNames.value.includes(VIEWER_ROLE) || isAdmin.value) // Admin имеет права Viewer
   const isBothRoles = computed(() => hasJudgeRole.value && hasViewerRole.value)
 
   // Роли независимы: пользователь может быть одновременно и Judge, и Viewer
@@ -43,7 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
   const roleName = computed(() => {
     const roles = []
     if (hasJudgeRole.value) roles.push('Judge')
-    if (userRoleNames.value.includes('admin')) roles.push('Admin')
+    if (isAdmin.value) roles.push('Admin')
     else if (userRoleNames.value.includes(VIEWER_ROLE)) roles.push('Viewer')
     return roles.join(' / ') || null
   })
@@ -91,5 +92,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
   }
 
-  return { user, person, personId, token, isAuthenticated, isJudge, isViewer, isBothRoles, hasAccess, roleName, login, fetchUser, logout }
+  return { user, person, personId, token, isAuthenticated, isJudge, isViewer, isAdmin, isBothRoles, hasAccess, roleName, login, fetchUser, logout }
 })

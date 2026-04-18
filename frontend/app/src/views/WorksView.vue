@@ -38,6 +38,7 @@ const sortBy = ref('total')     // 'total' | 'rank' | category_id — текущ
 let refreshTimer = null
 
 const hasCategories = computed(() => categories.value.length > 0)
+const hasUnscoredWorks = computed(() => works.value.some((work) => !work.is_scored))
 
 /**
  * Опции сортировки: по общему баллу, по каждой категории, по месту.
@@ -237,7 +238,7 @@ async function loadData(isRefresh = false) {
 
     const [sheetRes, worksRes] = await Promise.all([
       api.get('/contest_evaluation_sheets:get', {
-        params: { filterByTk: props.sheetId, appends: 'contest,stage' },
+        params: { filterByTk: props.sheetId, appends: 'observers,contest,stage' },
       }),
       api.get('/contest_evaluation_sheet_works:list', {
         params: {
@@ -250,6 +251,24 @@ async function loadData(isRefresh = false) {
     ])
     sheet.value = sheetRes.data.data
     works.value = worksRes.data.data || []
+
+    const personId = auth.personId != null ? Number(auth.personId) : null
+    const userId = auth.user?.id != null ? Number(auth.user.id) : null
+    const canObserveSheet = (targetSheet) => {
+      if (auth.isAdmin) return true
+      const observers = Array.isArray(targetSheet?.observers) ? targetSheet.observers : []
+      return observers.some((observer) => {
+        const observerId = observer?.id != null ? Number(observer.id) : null
+        const observerUserId = observer?.user_id != null ? Number(observer.user_id) : null
+        if (personId != null && observerId === personId) return true
+        if (userId != null && (observerId === userId || observerUserId === userId)) return true
+        return false
+      })
+    }
+    if (viewerMode.value && auth.isViewer && !canObserveSheet(sheet.value)) {
+      router.replace({ name: 'results-sheets' })
+      return
+    }
 
     // Проверяем доступ по статусу листа
     const status = sheet.value.status || 'inactive'
@@ -448,6 +467,14 @@ function isFullyEvaluated(work) {
 
     <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100" v-if="sheet">{{ sheet.title }}</h1>
     <p v-if="sheet?.contest?.title" class="mb-5 text-sm text-gray-500 dark:text-gray-400">{{ sheet.contest.title }}</p>
+
+    <div
+      v-if="viewerMode && !loading && !error && works.length && hasUnscoredWorks"
+      class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
+    >
+      <span class="font-semibold">Внимание:</span>
+      не все работы в этом оценочном листе оценены. Текущее ранжирование и распределение мест являются предварительными и могут измениться после завершения оценивания.
+    </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-3 py-12 text-gray-500">
       <svg class="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>

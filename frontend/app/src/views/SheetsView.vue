@@ -25,14 +25,27 @@ async function loadSheets() {
   try {
     const { data } = await api.get('/contest_evaluation_sheets:list', {
       params: {
-        appends: 'judges,contest,stage',
+        appends: 'judges,observers,contest,stage',
         pageSize: 200,
       },
     })
     // Фильтрация по статусу листа и роли пользователя
     // status: active | inactive | archived (если отсутствует — считаем inactive)
     const allSheets = data.data || []
-    const personId = auth.personId
+    const personId = auth.personId != null ? Number(auth.personId) : null
+    const userId = auth.user?.id != null ? Number(auth.user.id) : null
+
+    const canObserveSheet = (sheet) => {
+      if (auth.isAdmin) return true
+      const observers = Array.isArray(sheet?.observers) ? sheet.observers : []
+      return observers.some((observer) => {
+        const observerId = observer?.id != null ? Number(observer.id) : null
+        const observerUserId = observer?.user_id != null ? Number(observer.user_id) : null
+        if (personId != null && observerId === personId) return true
+        if (userId != null && (observerId === userId || observerUserId === userId)) return true
+        return false
+      })
+    }
 
     if (!viewerMode.value && auth.isJudge && personId) {
       // Жюри видит только active листы, в которых состоит
@@ -43,10 +56,11 @@ async function loadSheets() {
         return sheet.judges.some((j) => j.id === personId)
       })
     } else if (viewerMode.value && auth.isViewer) {
-      // Viewer видит active и inactive (не archived)
+      // Viewer видит только те листы, где он указан в observers
       sheets.value = allSheets.filter((sheet) => {
         const status = sheet.status || 'inactive'
-        return status === 'active' || status === 'inactive'
+        if (status !== 'active' && status !== 'inactive') return false
+        return canObserveSheet(sheet)
       })
     } else {
       // Fallback: показать все
