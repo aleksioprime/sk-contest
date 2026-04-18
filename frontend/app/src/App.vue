@@ -3,15 +3,17 @@
   Задаёт общий layout: шапка (скрывается на странице входа), контентная область и footer.
 -->
 <script setup>
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 
 const route = useRoute()
+const hideHeader = computed(() => route.meta.hideHeader === true || route.name === 'login')
 </script>
 
 <template>
   <div class="flex min-h-screen flex-col">
-    <AppHeader v-if="route.name !== 'login'" />
+    <AppHeader v-if="!hideHeader" />
     <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
       <router-view />
     </main>

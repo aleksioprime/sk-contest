@@ -4,6 +4,7 @@
  * Маршруты:
  *   /login          — страница входа (публичная)
  *   /no-access      — заглушка при отсутствии роли
+ *   /evaluate/:token — анонимная оценка по публичной ссылке
  *   /               — список оценочных листов (Judge); перенаправляет на /results для Viewer-only
  *   /sheets/:id     — список работ в листе (Judge)
  *   /sheets/:id/works/:id       — оценка работы (только Judge)
@@ -25,6 +26,7 @@ import WorksView from '../views/WorksView.vue'
 import EvaluationView from '../views/EvaluationView.vue'
 import ViewerEvaluationView from '../views/ViewerEvaluationView.vue'
 import AggregateResultsView from '../views/AggregateResultsView.vue'
+import AnonymousEvaluationView from '../views/AnonymousEvaluationView.vue'
 
 /** Заглушка для пользователей без роли Judge или Viewer */
 const NoAccessView = {
@@ -34,6 +36,13 @@ const NoAccessView = {
 const routes = [
   { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
   { path: '/no-access', name: 'no-access', component: NoAccessView, meta: { public: true } },
+  {
+    path: '/evaluate/:token',
+    name: 'anonymous-evaluation',
+    component: AnonymousEvaluationView,
+    props: true,
+    meta: { public: true, hideHeader: true },
+  },
   // Judge routes
   { path: '/', name: 'sheets', component: SheetsView },
   { path: '/sheets/:sheetId', name: 'works', component: WorksView, props: true },

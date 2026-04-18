@@ -1,6 +1,9 @@
 # Жюри SK — Оценка конкурсных работ
 
-Веб-приложение для оценки конкурсных работ жюри на основе [NocoBase](https://flow.skeducator.ru)
+Веб-приложение для оценки конкурсных работ жюри на основе [NocoBase](https://flow.skeducator.ru).
+Поддерживает два сценария:
+- авторизованная оценка жюри;
+- анонимная оценка по публичной ссылке `/evaluate/<public_token>`.
 
 Документация по структуре данных: [docs/database.md](docs/database.md)
 
@@ -24,7 +27,11 @@
 |-----------|---------|----------------------|
 | `VITE_API_URL` | URL бэкенда NocoBase (используется dev-прокси Vite) | `https://flow.skeducator.ru` |
 | `VITE_LOGGING` | Включить логирование в консоль (`1` / `0`) | `0` |
+| `NOCOBASE_URL` | URL NocoBase для backend-сервиса | `https://flow.skeducator.ru` |
+| `NOCOBASE_API_KEY` | API-ключ backend-сервиса для запросов в NocoBase | `` |
+| `CORS_ALLOW_ORIGINS` | Разрешённые origins для backend CORS (через запятую) | `http://localhost:3000,http://127.0.0.1:3000` |
 | `FRONTEND_IMAGE_TAG` | Тег Docker-образа для production | `latest` |
+| `BACKEND_IMAGE_TAG` | Тег Docker-образа backend для production | `latest` |
 
 ---
 
@@ -50,8 +57,9 @@ open http://localhost:3000
 В режиме разработки:
 - Исходники монтируются через volume (`frontend/app/src`)
 - Изменения применяются мгновенно через Vite HMR
-- API проксируется через Vite dev-сервер на `VITE_API_URL`
-- Порт: `3000` → `5173` (внутри контейнера)
+- Авторизованный API проксируется через Vite на `VITE_API_URL` (`/api`)
+- Публичный анонимный API проксируется на backend-сервис (`/backend`)
+- Порты: `3000` (frontend), `8000` (backend)
 
 ### Production
 
@@ -65,13 +73,17 @@ docker build --target prod \
 
 docker push ghcr.io/aleksioprime/sk-contest-frontend:latest
 
+docker build -t ghcr.io/aleksioprime/sk-contest-backend:latest ./backend
+docker push ghcr.io/aleksioprime/sk-contest-backend:latest
+
 # Запуск на сервере
 docker compose -f docker-compose.prod.yaml up -d
 ```
 
 В production:
 - Статика раздаётся через nginx
-- API проксируется на `http://nocobase-app:13000/api/`
+- API авторизации/жюри проксируется на `http://nocobase-app:13000/api/`
+- API анонимной оценки проксируется на `http://backend:8000/api/v1/`
 - Контейнер подключается к внешней сети `apps_net`
 - SPA fallback: все маршруты возвращают `index.html`
 

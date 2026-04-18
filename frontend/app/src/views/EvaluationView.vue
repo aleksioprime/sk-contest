@@ -247,6 +247,11 @@ const totalScore = computed(() => {
   }, 0)
 })
 
+const allCriteriaScored = computed(() => {
+  if (!criteria.value.length) return false
+  return criteria.value.every((criterion) => items[criterion.id]?.level_id != null)
+})
+
 const hasCategories = computed(() => categories.value.length > 0)
 
 const categoriesMap = computed(() => {
@@ -289,7 +294,6 @@ function categoryScore(categoryId) {
  * Выбор уровня оценки для критерия.
  * Применяет оптимистичное обновление UI, затем сохраняет на сервере.
  * При ошибке — откат к предыдущему состоянию.
- * После успешного сохранения синхронизирует итоговый балл на сервере.
  */
 async function selectLevel(criterion, level) {
   saving.value = criterion.id
@@ -330,8 +334,6 @@ async function selectLevel(criterion, level) {
       items[criterion.id] = { ...optimistic, ...data.data }
     }
     logger.debug('selectLevel — сохранено', items[criterion.id])
-    // Автоматически обновляем итог на сервере
-    await syncTotalScore()
     saved.value = true
     setTimeout(() => { saved.value = false }, 1500)
   } catch (e) {
@@ -364,7 +366,6 @@ async function resetLevel(criterion) {
       { level_id: null, score: null },
     )
     items[criterion.id] = { ...existing, ...data.data, level_id: null, score: null }
-    await syncTotalScore()
     saved.value = true
     setTimeout(() => { saved.value = false }, 1500)
   } catch (e) {
@@ -373,21 +374,6 @@ async function resetLevel(criterion) {
     error.value = 'Ошибка сброса оценки'
   } finally {
     resetting.value = null
-  }
-}
-
-/** Отправка актуального итогового балла на сервер (contest_evaluations:update) */
-async function syncTotalScore() {
-  if (!evaluation.value) return
-  try {
-    logger.debug('Синхронизация итога', { evaluationId: evaluation.value.id, score: totalScore.value })
-    await api.post(
-      `/contest_evaluations:update?filterByTk=${evaluation.value.id}`,
-      { score: totalScore.value },
-    )
-    evaluation.value.score = String(totalScore.value)
-  } catch (e) {
-    logger.error('Ошибка синхронизации итога', e)
   }
 }
 
@@ -508,16 +494,28 @@ async function deleteGeneralComment() {
     </router-link>
 
     <div class="mb-2" v-if="work">
-      <div class="mb-1 flex flex-wrap items-center gap-2">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
+      <div class="mb-1 flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="mb-1 flex flex-wrap items-center gap-2">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ getWorkTitle() }}</h1>
+            <span
+              v-if="isExternalWork()"
+              class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            >
+              Внешний участник
+            </span>
+          </div>
+          <p v-if="sheet?.title" class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.title }}</p>
+        </div>
         <span
-          v-if="isExternalWork()"
-          class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+          class="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+          :class="allCriteriaScored
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'"
         >
-          Внешний участник
+          {{ allCriteriaScored ? 'Все оценки выставлены' : 'Не все оценки выставлены' }}
         </span>
       </div>
-      <p v-if="sheet?.title" class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.title }}</p>
       <div v-if="getParticipants().length" class="mt-1 text-sm text-gray-600 dark:text-gray-400">
         <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
       </div>
@@ -713,8 +711,11 @@ async function deleteGeneralComment() {
       <div ref="sentinelRef" class="h-px"></div>
       <!-- Total bar (sticky bottom) -->
       <div
-        class="sticky bottom-0 z-30 -mx-4 mt-4 border-t border-score/30 bg-score px-5 py-3 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)] transition-[border-radius] duration-200 sm:-mx-6"
-        :class="totalBarStuck ? 'rounded-t-xl' : 'rounded-xl'"
+        class="sticky bottom-0 z-30 -mx-4 mt-4 border-t px-5 py-3 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)] transition-[border-radius,background-color,border-color] duration-200 sm:-mx-6"
+        :class="[
+          totalBarStuck ? 'rounded-t-xl' : 'rounded-xl',
+          allCriteriaScored ? 'border-green-500/40 bg-green-600' : 'border-score/30 bg-score'
+        ]"
       >
         <div class="flex items-center gap-2 text-base">
           <span class="font-medium">Итого:</span>

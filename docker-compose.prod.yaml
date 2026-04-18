@@ -2,10 +2,19 @@ x-app: &app
   restart: unless-stopped
 
 services:
+  backend:
+    image: ghcr.io/aleksioprime/sk-contest-backend:${BACKEND_IMAGE_TAG:-latest}
+    <<: *app
+    container_name: sk-contest-backend
+    networks:
+      - apps_net
+
   frontend:
     image: ghcr.io/aleksioprime/sk-contest-frontend:${FRONTEND_IMAGE_TAG:-latest}
     <<: *app
     container_name: sk-contest-frontend
+    depends_on:
+      - backend
     networks:
       - apps_net
 

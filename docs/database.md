@@ -73,10 +73,12 @@
     - active - Активный
     - inactive - Неактивный
     - archived - Архивный
+- Анонимная оценка (is_anonymous_enabled)
 
 **Работы оценочного листа (contest_evaluation_sheet_works):**
 - Оценочный лист (sheet_id)
 - Работа на этапе конкурса (stage_participation_id)
+- Публичный токен (public_token)
 - Баллы (score)
 - Ранг (rank)
 - Порядок (order)
@@ -85,6 +87,7 @@
 **Оценки работ (contest_evaluations):**
 - Работа оценочного листа (sheet_work_id)
 - Судья (judge_id)
+- Анонимная оценка (is_anonymous)
 - Баллы (score)
 - Комментарий (comment)
 - Оценено (is_scored)

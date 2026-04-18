@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+__pycache__/
+.pytest_cache/
 
 # Build output
 dist/
