@@ -214,12 +214,12 @@ watch(() => props.token, (token) => {
 
 function getWorkTitle() {
   if (!work.value) return ''
-  const sp = work.value.stage_participation
-  return sp?.title || sp?.participation?.title || `Работа #${work.value.id}`
+  const participation = getParticipation()
+  return participation?.title || work.value?.stage_participation?.title || `Работа #${work.value.id}`
 }
 
 function getParticipation() {
-  return work.value?.stage_participation?.participation || null
+  return work.value?.participation || work.value?.stage_participation?.participation || null
 }
 
 function isExternalWork() {

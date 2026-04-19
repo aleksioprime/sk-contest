@@ -67,7 +67,7 @@ class AnonymousEvaluationService:
         work = await nocobase.get(
             'contest_evaluation_sheet_works',
             filter={'public_token': token},
-            appends='stage_participation,stage_participation.participation,stage_participation.participation.participants,stage_participation.participation.supervisors',
+            appends='participation,participation.participants,participation.supervisors',
             pageSize=1,
         )
         if not work:

@@ -77,7 +77,7 @@
 
 **Работы оценочного листа (contest_evaluation_sheet_works):**
 - Оценочный лист (sheet_id)
-- Работа на этапе конкурса (stage_participation_id)
+- Работа (participation_id)
 - Публичный токен (public_token)
 - Баллы (score)
 - Ранг (rank)

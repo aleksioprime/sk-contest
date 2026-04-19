@@ -346,7 +346,7 @@ async function ensureWorksLoaded(sheetIds) {
         const { data } = await api.get('/contest_evaluation_sheet_works:list', {
           params: {
             filter: JSON.stringify({ sheet_id: sheetId }),
-            appends: 'stage_participation,stage_participation.participation,stage_participation.participation.participants,stage_participation.participation.supervisors',
+            appends: 'participation,participation.participants,participation.supervisors',
             sort: 'order,id',
             pageSize: 1000,
           },
@@ -705,18 +705,22 @@ function getSheetMaxScore(sheet) {
   return Number(scorecardMaxScore[scorecardId] ?? 0)
 }
 
+function getWorkParticipation(work) {
+  return work?.participation || work?.stage_participation?.participation || null
+}
+
 function getWorkTitle(work) {
-  return work.stage_participation?.title
-    || work.stage_participation?.participation?.title
+  return getWorkParticipation(work)?.title
+    || work?.stage_participation?.title
     || `Работа #${work.id}`
 }
 
 function getParticipants(work) {
-  return work.stage_participation?.participation?.participants || []
+  return getWorkParticipation(work)?.participants || []
 }
 
 function getParticipation(work) {
-  return work.stage_participation?.participation || null
+  return getWorkParticipation(work)
 }
 
 function isExternalWork(work) {
@@ -724,7 +728,7 @@ function isExternalWork(work) {
 }
 
 function getSupervisors(work) {
-  return work.stage_participation?.participation?.supervisors || []
+  return getWorkParticipation(work)?.supervisors || []
 }
 
 function formatScore(value, digits = 2) {

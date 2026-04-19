@@ -56,7 +56,7 @@ async function loadData(isRefresh = false) {
       api.get('/contest_evaluation_sheet_works:get', {
         params: {
           filterByTk: props.workId,
-          appends: 'stage_participation,stage_participation.participation,stage_participation.participation.participants,stage_participation.participation.supervisors',
+          appends: 'participation,participation.participants,participation.supervisors',
         },
       }),
       api.get('/contest_evaluation_sheet_works:list', {
@@ -185,8 +185,8 @@ onUnmounted(() => {
 
 function getWorkTitle() {
   if (!work.value) return ''
-  const sp = work.value.stage_participation
-  return sp?.title || sp?.participation?.title || `Работа #${work.value.id}`
+  const participation = getParticipation()
+  return participation?.title || work.value?.stage_participation?.title || `Работа #${work.value.id}`
 }
 
 function getWorkOrderValue(sheetWork) {
@@ -247,7 +247,7 @@ function hasRankMismatch() {
 }
 
 function getParticipation() {
-  return work.value?.stage_participation?.participation || null
+  return work.value?.participation || work.value?.stage_participation?.participation || null
 }
 
 function isExternalWork() {
