@@ -205,6 +205,14 @@ function compareBySheetOrder(a, b) {
   return Number(a.id) - Number(b.id)
 }
 
+function formatNumber(value, digits = 2) {
+  if (value == null || Number.isNaN(Number(value))) return '—'
+  return Number(value).toLocaleString('ru-RU', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  })
+}
+
 const liveRankMap = computed(() => {
   const ranked = [...sheetWorks.value]
     .filter((w) => getWorkScoreValue(w) != null)
@@ -233,6 +241,24 @@ function getLiveRank() {
   if (!workId) return null
   return liveRankMap.value[workId] ?? null
 }
+
+const averageScoreFormula = computed(() => {
+  const scores = judges.value
+    .map((judgeData) => {
+      const score = judgeData?.evaluation?.score
+      if (score == null || score === '') return null
+      const numeric = Number(score)
+      return Number.isNaN(numeric) ? null : numeric
+    })
+    .filter((score) => score != null)
+
+  if (!scores.length) return ''
+
+  const sum = scores.reduce((acc, score) => acc + score, 0)
+  const avg = sum / scores.length
+  const expression = scores.map((score) => formatNumber(score)).join(' + ')
+  return `(${expression}) / ${scores.length} = ${formatNumber(avg)}`
+})
 
 function getDbRank() {
   if (work.value?.rank == null || work.value.rank === '') return null
@@ -406,11 +432,11 @@ function toggleCriteria(evalId) {
         class="mt-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-100">
         <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
       </div>
-      <div v-if="work.score != null || getLiveRank() != null || hasRankMismatch()"
+      <div v-if="work.score != null || averageScoreFormula || getLiveRank() != null || hasRankMismatch()"
         class="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <span v-if="work.score != null"
+        <span v-if="work.score != null || averageScoreFormula"
           class="inline-block rounded-full bg-score-light px-3 py-0.5 font-semibold text-score">
-          Итоговый балл: {{ work.score }}
+          Итоговый балл: {{ averageScoreFormula || formatNumber(work.score) }}
         </span>
         <span v-if="getLiveRank() != null || hasRankMismatch()"
           class="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
