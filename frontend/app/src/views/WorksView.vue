@@ -87,16 +87,16 @@ const liveRankMap = computed(() => {
 
   const map = {}
   let previousScore = null
-  let previousRank = null
+  let currentRank = 0
 
   for (let i = 0; i < ranked.length; i++) {
     const work = ranked[i]
     const score = getWorkScoreValue(work)
     if (previousScore == null || Math.abs(score - previousScore) > 1e-9) {
-      previousRank = i + 1
+      currentRank += 1
       previousScore = score
     }
-    map[work.id] = previousRank
+    map[work.id] = currentRank
   }
   return map
 })

@@ -208,15 +208,15 @@ const rankedRows = computed(() => {
     })
 
   let previousMetric = null
-  let previousRank = null
+  let currentRank = 0
   for (let i = 0; i < scoredRows.length; i++) {
     const row = scoredRows[i]
     if (previousMetric == null || Math.abs(row.metric - previousMetric) > 1e-9) {
-      row.rank = i + 1
-      previousRank = row.rank
+      currentRank += 1
+      row.rank = currentRank
       previousMetric = row.metric
     } else {
-      row.rank = previousRank
+      row.rank = currentRank
     }
   }
 
