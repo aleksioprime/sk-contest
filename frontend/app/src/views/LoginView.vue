@@ -4,17 +4,39 @@
   При успехе редиректит на главную страницу.
 -->
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const account = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
+
+function getFirstQueryValue(value) {
+  if (Array.isArray(value)) return value[0] ?? ''
+  return value ?? ''
+}
+
+function applyCredentialsFromQuery(query) {
+  const loginFromQuery = getFirstQueryValue(query.login ?? query.account)
+  const passwordFromQuery = getFirstQueryValue(query.password)
+
+  if (loginFromQuery !== '') account.value = String(loginFromQuery)
+  if (passwordFromQuery !== '') password.value = String(passwordFromQuery)
+}
+
+watch(
+  () => route.query,
+  (query) => {
+    applyCredentialsFromQuery(query)
+  },
+  { immediate: true },
+)
 
 async function handleLogin() {
   error.value = ''

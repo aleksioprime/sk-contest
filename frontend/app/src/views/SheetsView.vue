@@ -17,6 +17,26 @@ const viewerMode = computed(() => !!route.meta.viewerMode)
 const sheets = ref([])
 const loading = ref(true)
 const error = ref('')
+const SHEET_STATUS_PRIORITY = {
+  active: 0,
+  inactive: 1,
+  archived: 2,
+}
+
+function getSheetStatus(sheet) {
+  const status = sheet?.status || 'inactive'
+  return SHEET_STATUS_PRIORITY[status] != null ? status : 'inactive'
+}
+
+function sortSheetsForDisplay(list) {
+  return [...list].sort((a, b) => {
+    const statusDiff = SHEET_STATUS_PRIORITY[getSheetStatus(a)] - SHEET_STATUS_PRIORITY[getSheetStatus(b)]
+    if (statusDiff !== 0) return statusDiff
+    const titleCompare = String(a?.title || '').localeCompare(String(b?.title || ''), 'ru')
+    if (titleCompare !== 0) return titleCompare
+    return Number(a?.id || 0) - Number(b?.id || 0)
+  })
+}
 
 async function loadSheets() {
   loading.value = true
@@ -49,22 +69,22 @@ async function loadSheets() {
 
     if (!viewerMode.value && auth.isJudge && personId) {
       // Жюри видит только active листы, в которых состоит
-      sheets.value = allSheets.filter((sheet) => {
+      sheets.value = sortSheetsForDisplay(allSheets.filter((sheet) => {
         const status = sheet.status || 'inactive'
         if (status !== 'active') return false
         if (!sheet.judges || !Array.isArray(sheet.judges)) return false
         return sheet.judges.some((j) => j.id === personId)
-      })
+      }))
     } else if (viewerMode.value && auth.isViewer) {
       // Viewer видит только те листы, где он указан в observers
-      sheets.value = allSheets.filter((sheet) => {
+      sheets.value = sortSheetsForDisplay(allSheets.filter((sheet) => {
         const status = sheet.status || 'inactive'
         if (status !== 'active' && status !== 'inactive') return false
         return canObserveSheet(sheet)
-      })
+      }))
     } else {
       // Fallback: показать все
-      sheets.value = allSheets
+      sheets.value = sortSheetsForDisplay(allSheets)
     }
   } catch (e) {
     error.value = 'Не удалось загрузить оценочные листы'
