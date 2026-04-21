@@ -15,8 +15,10 @@ const auth = useAuthStore()
 const route = useRoute()
 const viewerMode = computed(() => !!route.meta.viewerMode)
 const sheets = ref([])
+const viewerSheetProgress = ref({})
 const loading = ref(true)
 const error = ref('')
+let viewerSheetProgressRequestId = 0
 const SHEET_STATUS_PRIORITY = {
   active: 0,
   inactive: 1,
@@ -38,10 +40,60 @@ function sortSheetsForDisplay(list) {
   })
 }
 
+async function loadViewerSheetProgress(list) {
+  const requestId = ++viewerSheetProgressRequestId
+  const sheetIds = list.map((sheet) => Number(sheet?.id)).filter(Boolean)
+  if (!sheetIds.length) {
+    if (requestId === viewerSheetProgressRequestId) {
+      viewerSheetProgress.value = {}
+    }
+    return
+  }
+
+  const progressBySheetId = {}
+  for (const sheetId of sheetIds) {
+    progressBySheetId[sheetId] = { scored: 0, total: 0 }
+  }
+
+  try {
+    const { data } = await api.get('/contest_evaluation_sheet_works:list', {
+      params: {
+        filter: JSON.stringify({ sheet_id: { $in: sheetIds } }),
+        pageSize: 10000,
+      },
+    })
+
+    const works = data.data || []
+    for (const work of works) {
+      const sheetId = Number(work?.sheet_id)
+      const progress = progressBySheetId[sheetId]
+      if (!progress) continue
+      progress.total += 1
+      if (work?.is_scored) progress.scored += 1
+    }
+
+    if (requestId === viewerSheetProgressRequestId) {
+      viewerSheetProgress.value = progressBySheetId
+    }
+  } catch {
+    if (requestId === viewerSheetProgressRequestId) {
+      viewerSheetProgress.value = {}
+    }
+  }
+}
+
+function getViewerSheetProgressLabel(sheet) {
+  const progress = viewerSheetProgress.value[Number(sheet?.id)]
+  if (!progress) return '...'
+  return `${progress.scored} / ${progress.total}`
+}
+
 async function loadSheets() {
+  viewerSheetProgressRequestId += 1
   loading.value = true
   error.value = ''
   sheets.value = []
+  viewerSheetProgress.value = {}
   try {
     const { data } = await api.get('/contest_evaluation_sheets:list', {
       params: {
@@ -86,6 +138,10 @@ async function loadSheets() {
       // Fallback: показать все
       sheets.value = sortSheetsForDisplay(allSheets)
     }
+
+    if (viewerMode.value) {
+      void loadViewerSheetProgress(sheets.value)
+    }
   } catch (e) {
     error.value = 'Не удалось загрузить оценочные листы'
   } finally {
@@ -129,7 +185,10 @@ watch(() => route.name, loadSheets, { immediate: true })
         class="block rounded-xl border border-gray-200 bg-white p-5 no-underline shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
       >
         <h3 class="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">{{ sheet.title }}</h3>
-        <p v-if="sheet.contest?.title" class="mb-3 text-sm text-gray-500 dark:text-gray-400">{{ sheet.contest.title }}</p>
+        <p v-if="sheet.contest?.title" class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.contest.title }}</p>
+        <p v-if="viewerMode" class="mt-0.5 mb-3 text-sm text-gray-500 dark:text-gray-400">
+          Оценено работ: {{ getViewerSheetProgressLabel(sheet) }}
+        </p>
         <div class="flex flex-wrap items-center gap-2">
           <span v-if="sheet.stage?.title" class="inline-block rounded-full bg-primary-light px-3 py-0.5 text-xs font-medium text-primary">{{ sheet.stage.title }}</span>
           <span
