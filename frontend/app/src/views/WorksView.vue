@@ -18,6 +18,7 @@ import { useAuthStore } from '../stores/auth'
 /** Интервал автообновления данных для Viewer (мс) */
 const AUTO_REFRESH_INTERVAL = 30000
 const WORKS_SORT_STORAGE_KEY = 'sk-contest.works.sortBy'
+const WORKS_AUTO_RANK_STORAGE_KEY = 'sk-contest.works.autoRank'
 
 const props = defineProps({ sheetId: [String, Number] })
 const auth = useAuthStore()
@@ -32,6 +33,7 @@ const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
 const sortBy = ref('total')     // 'total' | 'order' — текущая сортировка
+const autoRankEnabled = ref(false)
 let refreshTimer = null
 
 const hasUnscoredWorks = computed(() => works.value.some((work) => !work.is_scored))
@@ -61,8 +63,25 @@ function persistSortPreference(value) {
   }
 }
 
+function restoreAutoRankPreference() {
+  if (typeof window === 'undefined') return
+  const stored = window.localStorage.getItem(WORKS_AUTO_RANK_STORAGE_KEY)
+  autoRankEnabled.value = stored === '1'
+}
+
+function persistAutoRankPreference(value) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(WORKS_AUTO_RANK_STORAGE_KEY, value ? '1' : '0')
+}
+
 function getWorkOrderValue(work) {
   return work?.order != null ? Number(work.order) : Number.POSITIVE_INFINITY
+}
+
+function getWorkOrderLabel(work, index) {
+  const order = getWorkOrderValue(work)
+  if (Number.isFinite(order)) return order
+  return index + 1
 }
 
 function getWorkScoreValue(work) {
@@ -112,9 +131,15 @@ function getDbRank(work) {
 }
 
 function hasRankMismatch(work) {
+  if (!autoRankEnabled.value) return false
   const dbRank = getDbRank(work)
   if (dbRank == null) return false
   return getLiveRank(work) !== dbRank
+}
+
+function getDisplayRank(work) {
+  if (autoRankEnabled.value) return getLiveRank(work)
+  return getDbRank(work)
 }
 
 const sortedWorks = computed(() => {
@@ -233,6 +258,7 @@ async function loadData(isRefresh = false) {
 onMounted(() => {
   if (viewerMode.value) {
     restoreSortPreference()
+    restoreAutoRankPreference()
   }
   loadData()
   if (viewerMode.value) {
@@ -247,6 +273,12 @@ onUnmounted(() => {
 watch(sortBy, (value) => {
   if (viewerMode.value) {
     persistSortPreference(value)
+  }
+})
+
+watch(autoRankEnabled, (value) => {
+  if (viewerMode.value) {
+    persistAutoRankPreference(value)
   }
 })
 
@@ -315,11 +347,11 @@ function isFullyEvaluated(work) {
     <p v-if="sheet?.contest?.title" class="mb-5 text-sm text-gray-500 dark:text-gray-400">{{ sheet.contest.title }}</p>
 
     <div
-      v-if="viewerMode && !loading && !error && works.length && hasUnscoredWorks"
+      v-if="viewerMode && autoRankEnabled && !loading && !error && works.length && hasUnscoredWorks"
       class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
     >
-      <span class="font-semibold">Внимание:</span>
-      не все работы в этом оценочном листе оценены. Текущее ранжирование и распределение мест являются предварительными и могут измениться после завершения оценивания.
+      <span class="font-semibold">Внимание!</span>
+      Текущее ранжирование и распределение мест являются предварительными и могут измениться после завершения оценивания и финального пересчёта баллов.
     </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-3 py-12 text-gray-500">
@@ -335,7 +367,7 @@ function isFullyEvaluated(work) {
 
     <template v-else>
       <!-- Sort dropdown (viewer only) -->
-      <div v-if="viewerMode" class="mb-3 flex items-center gap-2">
+      <div v-if="viewerMode" class="mb-3 flex flex-wrap items-center gap-3">
         <label for="sort-select" class="text-sm text-gray-600 dark:text-gray-400">Сортировка:</label>
         <select
           id="sort-select"
@@ -344,21 +376,28 @@ function isFullyEvaluated(work) {
         >
           <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
+        <label class="ml-auto inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <input v-model="autoRankEnabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+          Автоматически проставлять места
+        </label>
       </div>
 
     <div class="flex flex-col gap-3">
       <router-link
-        v-for="work in sortedWorks"
+        v-for="(work, index) in sortedWorks"
         :key="work.id"
         :to="{ name: viewerMode ? 'results-evaluation' : 'evaluation', params: { sheetId: props.sheetId, workId: work.id } }"
         class="flex flex-col items-start gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 no-underline shadow-sm transition hover:shadow-md sm:flex-row sm:items-center sm:gap-4 dark:border-gray-700 dark:bg-gray-800"
       >
         <div class="min-w-0 w-full flex-1">
-          <div class="mb-1 flex flex-wrap items-center gap-2">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ getWorkTitle(work) }}</h3>
+          <div class="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">
+            <span class="mr-2 inline-flex whitespace-nowrap align-middle rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+              №{{ getWorkOrderLabel(work, index) }}
+            </span>
+            <h3 class="inline text-base font-semibold text-gray-900 dark:text-gray-100">{{ getWorkTitle(work) }}</h3>
             <span
               v-if="isExternalWork(work)"
-              class="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+              class="ml-2 inline-flex whitespace-nowrap align-middle rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
             >
               Внешний участник
             </span>
@@ -383,11 +422,11 @@ function isFullyEvaluated(work) {
               {{ work.is_scored ? 'Работа оценена' : 'Работа не оценена' }}
             </span>
             <span
-              v-if="getLiveRank(work) != null || hasRankMismatch(work)"
+              v-if="getDisplayRank(work) != null || hasRankMismatch(work)"
               class="shrink-0 rounded-full px-3 py-0.5 text-xs font-medium"
               :class="hasRankMismatch(work) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-primary-light text-primary'"
             >
-              {{ getLiveRank(work) != null ? `${getLiveRank(work)} место` : 'Пересчёт: —' }}
+              {{ getDisplayRank(work) != null ? `${getDisplayRank(work)} место` : 'Пересчёт: —' }}
             </span>
             <span
               v-if="hasRankMismatch(work) && getDbRank(work) != null"
