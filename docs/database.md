@@ -46,6 +46,16 @@
 - Шкала (scale_id)
 - Категория (category_id)
 - Описание (description)
+- Тип (type):
+    - Шкала (scale)
+    - Чеклист (checklist)
+
+**Пункты критериев оценочной таблицы (contest_scorecard_criterion_options):**
+- Критерий (criterion_id)
+- Название (title)
+- Баллы (point)
+- Порядок (order)
+- Взаимоисключение (is_exclusive)
 
 **Категории критериев (contest_criterion_categories):**
 - Таблица оценок (scorecard_id)
@@ -99,3 +109,7 @@
 - Уровень (level_id)
 - Баллы (score)
 - Комментарий (comment)
+
+**Выбранные пункты критериев в оценке (contest_evaluation_item_options):**
+- Оценка работы по критериям (evaluation_item_id)
+- Пункт критерия оценочной таблицы (item_id)

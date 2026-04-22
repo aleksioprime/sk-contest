@@ -762,11 +762,12 @@ function getSupervisorNames(work) {
 
 function getExportColumns() {
   const cols = [
-    { key: 'rank', title: 'Место', min: 8, max: 12 },
+    { key: 'index', title: '№', min: 6, max: 10 },
     { key: 'workTitle', title: 'Работа', min: 28, max: 60 },
     { key: 'participants', title: 'Участники', min: 22, max: 42 },
     { key: 'supervisors', title: 'Супервайзеры', min: 30, max: 70 },
     { key: 'rawScore', title: 'Балл', min: 10, max: 16 },
+    { key: 'rank', title: 'Место', min: 8, max: 12 },
   ]
   if (includeCategoryScores.value && categoryColumns.value.length) {
     for (const column of categoryColumns.value) {
@@ -795,8 +796,9 @@ function getExportColumns() {
 }
 
 function getExportRows() {
-  return rankedRows.value.map((row) => {
+  return rankedRows.value.map((row, index) => {
     const exportRow = {
+      index: index + 1,
       rank: row.rank ?? '',
       workTitle: getWorkTitle(row.work),
       participants: getParticipantNames(row.work) || '—',
@@ -846,10 +848,8 @@ function buildColumnWidths(columns, rows) {
   })
 }
 
-function getExportMetaLine() {
-  const now = new Date()
-  const dt = now.toLocaleString('ru-RU')
-  return `Сформировано: ${dt}`
+function getExportTitle() {
+  return selectedSheets.value[0]?.title || 'Оценочный лист'
 }
 
 function getExportFileName() {
@@ -893,13 +893,13 @@ async function exportToExcel() {
     const columns = getExportColumns()
     const rows = getExportRows()
     const colWidths = buildColumnWidths(columns, rows)
-    const title = 'Сводный рейтинг конкурсных работ'
-    const meta = getExportMetaLine()
-    const headerRow = 4
+    const title = getExportTitle()
+    const headerRow = 3
     const dataStartRow = headerRow + 1
     const lastCol = columns.length - 1
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Сводный рейтинг')
+    const indexColIdx = columns.findIndex((col) => col.key === 'index')
     const rankColIdx = columns.findIndex((col) => col.key === 'rank')
 
     worksheet.columns = columns.map((column, idx) => ({
@@ -911,11 +911,6 @@ async function exportToExcel() {
     worksheet.getCell(1, 1).value = title
     worksheet.getCell(1, 1).font = { bold: true, size: 14 }
     worksheet.getCell(1, 1).alignment = { vertical: 'top' }
-
-    worksheet.mergeCells(2, 1, 2, lastCol + 1)
-    worksheet.getCell(2, 1).value = meta
-    worksheet.getCell(2, 1).font = { italic: true, size: 11, color: { argb: 'FF6B7280' } }
-    worksheet.getCell(2, 1).alignment = { vertical: 'top' }
 
     for (let col = 0; col < columns.length; col++) {
       const cell = worksheet.getCell(headerRow, col + 1)
@@ -943,7 +938,7 @@ async function exportToExcel() {
     const criterionColumnIndexes = columns
       .map((column, idx) => (String(column.key).startsWith('criterion:') ? idx : -1))
       .filter((idx) => idx >= 0)
-    const centeredColumnIndexes = [rankColIdx, rawScoreIdx, normalizedScoreIdx, ...categoryColumnIndexes, ...criterionColumnIndexes]
+    const centeredColumnIndexes = [indexColIdx, rankColIdx, rawScoreIdx, normalizedScoreIdx, ...categoryColumnIndexes, ...criterionColumnIndexes]
       .filter((idx) => idx >= 0)
     const wrapColumnIndexes = ['workTitle', 'participants', 'supervisors']
       .map((key) => columns.findIndex((col) => col.key === key))
@@ -1259,7 +1254,7 @@ async function exportToExcel() {
           <table class="min-w-full border-collapse">
             <thead class="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/30">
               <tr>
-                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Место</th>
+                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">№</th>
                 <th class="min-w-[36rem] w-[36rem] px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Работа</th>
                 <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Супервайзеры</th>
                 <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Лист</th>
@@ -1270,6 +1265,7 @@ async function exportToExcel() {
                 >
                   Балл <span class="ml-1">{{ rankingMarker('total') }}</span>
                 </th>
+                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Место</th>
                 <th
                   v-for="category in categoryColumns"
                   :key="category.id"
@@ -1298,12 +1294,12 @@ async function exportToExcel() {
             </thead>
             <tbody>
               <tr
-                v-for="row in rankedRows"
+                v-for="(row, rowIndex) in rankedRows"
                 :key="`${row.sheetId}-${row.id}`"
                 class="border-b border-gray-100 last:border-b-0 dark:border-gray-700"
               >
                 <td class="px-3 py-2 text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  {{ row.rank ?? '—' }}
+                  {{ rowIndex + 1 }}
                 </td>
                 <td class="min-w-[36rem] w-[36rem] px-3 py-2">
                   <div class="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -1327,6 +1323,9 @@ async function exportToExcel() {
                 </td>
                 <td class="px-3 py-2 text-center text-sm font-semibold text-score">
                   {{ formatScore(row.rawScore) }}
+                </td>
+                <td class="px-3 py-2 text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {{ row.rank ?? '—' }}
                 </td>
                 <td
                   v-for="category in categoryColumns"

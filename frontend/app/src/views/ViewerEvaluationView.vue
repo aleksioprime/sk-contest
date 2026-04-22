@@ -8,7 +8,7 @@
   API-загрузка в 3 параллельных раунда:
     1) Лист + работа
     2) Критерии + оценки (с данными судьи)
-    3) Категории + уровни + evaluation_items
+    3) Категории + уровни + evaluation_items + checklist options + checklist selections
 -->
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
@@ -33,6 +33,7 @@ const sheetWorks = ref([])
 const criteria = ref([])          // критерии оценочного листа
 const categories = ref([])        // категории критериев
 const levelsMap = reactive({})    // { scale_id: levels[] } — уровни шкал
+const checklistOptionsMap = reactive({}) // { criterion_id: options[] } — пункты чеклиста
 const judges = ref([])            // [{ judge, evaluation, items }] — данные по каждому судье
 const loading = ref(true)
 const refreshing = ref(false)
@@ -110,9 +111,13 @@ async function loadData(isRefresh = false) {
     criteria.value = criteriaRes.data.data || []
     const evaluations = evalRes.data.data || []
 
-    // Раунд 3: категории + уровни + items параллельно
+    // Раунд 3: категории + уровни + items + checklist options параллельно
     const categoryIds = [...new Set(criteria.value.map((c) => c.category_id).filter(Boolean))]
     const scaleIds = [...new Set(criteria.value.map((c) => c.scale_id).filter(Boolean))]
+    const checklistCriterionIds = criteria.value
+      .filter((criterion) => isChecklistCriterion(criterion))
+      .map((criterion) => Number(criterion.id))
+      .filter(Boolean)
     const evalIds = evaluations.map((ev) => ev.id)
 
     const parallelRequests = []
@@ -136,6 +141,16 @@ async function loadData(isRefresh = false) {
       }))
       requestKeys.push('items')
     }
+    if (checklistCriterionIds.length) {
+      parallelRequests.push(api.get('/contest_scorecard_criterion_options:list', {
+        params: {
+          filter: JSON.stringify({ criterion_id: { $in: checklistCriterionIds } }),
+          sort: 'order,id',
+          pageSize: 2000,
+        },
+      }))
+      requestKeys.push('checklistOptions')
+    }
 
     const parallelResults = await Promise.all(parallelRequests)
     const resultMap = {}
@@ -151,7 +166,24 @@ async function loadData(isRefresh = false) {
         levelsMap[level.scale_id].push(level)
       }
     }
+    resetChecklistState()
+    if (resultMap.checklistOptions) {
+      for (const option of resultMap.checklistOptions.data.data || []) {
+        const criterionId = Number(option?.criterion_id)
+        if (!criterionId) continue
+        if (!checklistOptionsMap[criterionId]) checklistOptionsMap[criterionId] = []
+        checklistOptionsMap[criterionId].push(option)
+      }
+    }
     let allItems = resultMap.items ? (resultMap.items.data.data || []) : []
+    const itemMetaMap = {}
+    for (const item of allItems) {
+      const itemId = Number(item?.id)
+      const criterionId = Number(item?.criterion_id)
+      const evaluationId = Number(item?.evaluation_id)
+      if (!itemId || !criterionId || !evaluationId) continue
+      itemMetaMap[itemId] = { criterionId, evaluationId }
+    }
 
     // Группируем items по evaluation_id
     const itemsByEval = {}
@@ -159,12 +191,48 @@ async function loadData(isRefresh = false) {
       if (!itemsByEval[item.evaluation_id]) itemsByEval[item.evaluation_id] = {}
       itemsByEval[item.evaluation_id][item.criterion_id] = item
     }
+    const checklistSelectionsByEval = {}
+    const evaluationItemIds = Object.keys(itemMetaMap).map((id) => Number(id)).filter(Boolean)
+    if (evaluationItemIds.length && checklistCriterionIds.length) {
+      let relationData = null
+      try {
+        const { data } = await api.get('/contest_evaluation_item_options:list', {
+          params: {
+            filter: JSON.stringify({ evaluation_item_id: { $in: evaluationItemIds } }),
+            pageSize: 5000,
+          },
+        })
+        relationData = data
+      } catch (firstError) {
+        const { data } = await api.get('/contest_evaluation_item_options:list', {
+          params: {
+            filter: JSON.stringify({ evaluation_item: { $in: evaluationItemIds } }),
+            pageSize: 5000,
+          },
+        })
+        relationData = data
+      }
+
+      for (const relation of relationData?.data || []) {
+        const evaluationItemId = getChecklistRelationEvaluationItemId(relation)
+        const optionId = getChecklistRelationOptionId(relation)
+        const itemMeta = evaluationItemId ? itemMetaMap[evaluationItemId] : null
+        if (!itemMeta?.evaluationId || !itemMeta?.criterionId || !optionId) continue
+        if (!checklistSelectionsByEval[itemMeta.evaluationId]) checklistSelectionsByEval[itemMeta.evaluationId] = {}
+        if (!checklistSelectionsByEval[itemMeta.evaluationId][itemMeta.criterionId]) {
+          checklistSelectionsByEval[itemMeta.evaluationId][itemMeta.criterionId] = []
+        }
+        const selected = checklistSelectionsByEval[itemMeta.evaluationId][itemMeta.criterionId]
+        if (!selected.includes(optionId)) selected.push(optionId)
+      }
+    }
 
     // Собираем данные по судьям из оценок (contest_evaluations → judge)
     judges.value = evaluations.map((ev) => ({
       judge: ev.judge,
       evaluation: ev,
       items: itemsByEval[ev.id] || {},
+      checklistSelections: checklistSelectionsByEval[ev.id] || {},
     }))
   } catch (e) {
     if (!isRefresh) error.value = 'Не удалось загрузить данные'
@@ -311,6 +379,58 @@ function getLevelTitle(criterion, item) {
   return levels.find((l) => l.id === item.level_id)?.title || null
 }
 
+function isChecklistCriterion(criterion) {
+  return String(criterion?.type || 'scale') === 'checklist'
+}
+
+function resetChecklistState() {
+  for (const key of Object.keys(checklistOptionsMap)) delete checklistOptionsMap[key]
+}
+
+function getChecklistRelationOptionId(relation) {
+  const value = relation?.option_id ?? relation?.item_id ?? relation?.option?.id ?? relation?.item?.id
+  const id = Number(value)
+  return Number.isNaN(id) ? null : id
+}
+
+function getChecklistRelationEvaluationItemId(relation) {
+  const value = relation?.evaluation_item_id ?? relation?.evaluation_item?.id ?? relation?.evaluation_item
+  const id = Number(value)
+  return Number.isNaN(id) ? null : id
+}
+
+function getChecklistOptions(criterion) {
+  return checklistOptionsMap[Number(criterion?.id)] || []
+}
+
+function getChecklistOptionPoint(option) {
+  const point = Number(option?.point ?? option?.score ?? 0)
+  return Number.isNaN(point) ? 0 : point
+}
+
+function formatChecklistOptionPoint(value) {
+  const point = getChecklistOptionPoint({ point: value })
+  return Number.isInteger(point) ? String(point) : point.toFixed(2)
+}
+
+function getJudgeChecklistSelectedOptionIds(judgeData, criterion) {
+  return judgeData?.checklistSelections?.[Number(criterion?.id)] || []
+}
+
+function getJudgeChecklistSelectedOptions(judgeData, criterion) {
+  const selectedIds = new Set(getJudgeChecklistSelectedOptionIds(judgeData, criterion).map((id) => Number(id)))
+  return getChecklistOptions(criterion).filter((option) => selectedIds.has(Number(option?.id)))
+}
+
+function isJudgeCriterionScored(judgeData, criterion) {
+  const item = judgeData?.items?.[criterion.id]
+  if (isChecklistCriterion(criterion)) {
+    const selectedIds = getJudgeChecklistSelectedOptionIds(judgeData, criterion)
+    return selectedIds.length > 0 || item?.score != null
+  }
+  return item?.level_id != null
+}
+
 const hasCategories = computed(() => categories.value.length > 0)
 
 const categoriesMap = computed(() => {
@@ -347,7 +467,7 @@ function judgeCategoryScore(judgeData, categoryId) {
 
 /** Проверяет, выставил ли судья хотя бы одну оценку */
 function hasJudgeAnyScores(judgeData) {
-  return Object.values(judgeData.items).some((item) => item.level_id != null)
+  return criteria.value.some((criterion) => isJudgeCriterionScored(judgeData, criterion))
 }
 
 function isJudgeFullyScored(judgeData) {
@@ -561,7 +681,7 @@ function toggleCriteria(evalId) {
                               criterion.description }}</p>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
-                          <span class="rounded-full px-2 py-0.5 text-sm font-semibold" :class="j.items[criterion.id]?.level_id != null
+                          <span class="rounded-full px-2 py-0.5 text-sm font-semibold" :class="isJudgeCriterionScored(j, criterion)
                             ? 'bg-score-light text-score'
                             : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'">
                             {{ j.items[criterion.id]?.score ?? '—' }}
@@ -574,10 +694,28 @@ function toggleCriteria(evalId) {
                         </div>
                       </div>
                       <!-- Level title -->
-                      <p v-if="getLevelTitle(criterion, j.items[criterion.id])"
+                      <p v-if="!isChecklistCriterion(criterion) && getLevelTitle(criterion, j.items[criterion.id])"
                         class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                         {{ getLevelTitle(criterion, j.items[criterion.id]) }}
                       </p>
+                      <div v-if="isChecklistCriterion(criterion)" class="mt-1.5 flex flex-col gap-1">
+                        <p
+                          v-for="option in getJudgeChecklistSelectedOptions(j, criterion)"
+                          :key="`option-${j.evaluation.id}-${criterion.id}-${option.id}`"
+                          class="m-0 flex items-start justify-between gap-2 text-xs text-gray-600 dark:text-gray-300"
+                        >
+                          <span class="min-w-0">{{ option.title || `Пункт #${option.id}` }}</span>
+                          <span class="shrink-0 rounded-full bg-score-light px-2 py-0.5 text-[11px] font-semibold text-score">
+                            +{{ formatChecklistOptionPoint(option.point) }}
+                          </span>
+                        </p>
+                        <p
+                          v-if="!getJudgeChecklistSelectedOptions(j, criterion).length"
+                          class="m-0 text-xs text-gray-400 dark:text-gray-500"
+                        >
+                          Пункты чеклиста не выбраны
+                        </p>
+                      </div>
                       <!-- Expanded comment -->
                       <p v-if="expandedComments[`${j.evaluation.id}-${criterion.id}`] && j.items[criterion.id]?.comment"
                         class="mt-1.5 whitespace-pre-wrap rounded-md bg-white px-3 py-2 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-400">

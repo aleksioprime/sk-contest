@@ -33,6 +33,9 @@ const criteria = ref([])          // критерии оценочного ли�
 const categories = ref([])        // категории критериев
 const items = reactive({})        // { criterion_id: evaluation_item } — текущие оценки
 const levelsMap = reactive({})    // { scale_id: levels[] } — уровни шкал оценивания
+const checklistOptionsMap = reactive({}) // { criterion_id: options[] } — пункты чеклиста
+const checklistSelectedOptionIds = reactive({}) // { criterion_id: option_id[] } — выбранные пункты
+const checklistSelectionIdsMap = reactive({}) // { criterion_id: { option_id: selection_id } } — строки связки item_option
 const loading = ref(true)
 const saving = ref(null)
 const error = ref('')
@@ -142,9 +145,13 @@ onMounted(async () => {
     }
     logger.debug('Evaluation найдена', evaluation.value.id)
 
-    // 3. Категории + уровни + items параллельно
+    // 3. Категории + уровни + items + checklist options
     const categoryIds = [...new Set(criteria.value.map((c) => c.category_id).filter(Boolean))]
     const scaleIds = [...new Set(criteria.value.map((c) => c.scale_id).filter(Boolean))]
+    const checklistCriterionIds = criteria.value
+      .filter((criterion) => isChecklistCriterion(criterion))
+      .map((criterion) => Number(criterion.id))
+      .filter(Boolean)
 
     const parallelRequests = []
     const requestKeys = []
@@ -168,6 +175,16 @@ onMounted(async () => {
       },
     }))
     requestKeys.push('items')
+    if (checklistCriterionIds.length) {
+      parallelRequests.push(api.get('/contest_scorecard_criterion_options:list', {
+        params: {
+          filter: JSON.stringify({ criterion_id: { $in: checklistCriterionIds } }),
+          sort: 'order,id',
+          pageSize: 2000,
+        },
+      }))
+      requestKeys.push('checklistOptions')
+    }
 
     const parallelResults = await Promise.all(parallelRequests)
     const resultMap = {}
@@ -177,13 +194,67 @@ onMounted(async () => {
       categories.value = resultMap.categories.data.data || []
     }
     if (resultMap.levels) {
+      for (const key of Object.keys(levelsMap)) delete levelsMap[key]
       for (const level of resultMap.levels.data.data || []) {
         if (!levelsMap[level.scale_id]) levelsMap[level.scale_id] = []
         levelsMap[level.scale_id].push(level)
       }
     }
+    resetChecklistState()
+    const itemCriterionMap = {}
     for (const item of resultMap.items.data.data || []) {
       items[item.criterion_id] = item
+      if (item?.id != null) itemCriterionMap[Number(item.id)] = Number(item.criterion_id)
+    }
+    if (resultMap.checklistOptions) {
+      for (const option of resultMap.checklistOptions.data.data || []) {
+        const criterionId = Number(option?.criterion_id)
+        if (!criterionId) continue
+        if (!checklistOptionsMap[criterionId]) checklistOptionsMap[criterionId] = []
+        checklistOptionsMap[criterionId].push(option)
+      }
+    }
+
+    const evaluationItemIds = Object.keys(itemCriterionMap).map((id) => Number(id)).filter(Boolean)
+    if (evaluationItemIds.length && checklistCriterionIds.length) {
+      let relationData = null
+      try {
+        const { data } = await api.get('/contest_evaluation_item_options:list', {
+          params: {
+            filter: JSON.stringify({ evaluation_item_id: { $in: evaluationItemIds } }),
+            pageSize: 5000,
+          },
+        })
+        relationData = data
+      } catch (firstError) {
+        const { data } = await api.get('/contest_evaluation_item_options:list', {
+          params: {
+            filter: JSON.stringify({ evaluation_item: { $in: evaluationItemIds } }),
+            pageSize: 5000,
+          },
+        })
+        relationData = data
+      }
+      for (const relation of relationData.data || []) {
+        const evaluationItemId = getChecklistRelationEvaluationItemId(relation)
+        const criterionId = itemCriterionMap[evaluationItemId]
+        const optionId = getChecklistRelationOptionId(relation)
+        const relationId = relation?.id != null ? Number(relation.id) : null
+        if (!criterionId || !optionId) continue
+        ensureChecklistCriterionState(criterionId)
+        if (!checklistSelectedOptionIds[criterionId].includes(optionId)) {
+          checklistSelectedOptionIds[criterionId].push(optionId)
+        }
+        if (relationId != null) {
+          checklistSelectionIdsMap[criterionId][optionId] = relationId
+        }
+      }
+    }
+
+    for (const criterion of criteria.value) {
+      if (isChecklistCriterion(criterion)) {
+        recalcChecklistCriterionScore(criterion.id)
+      }
     }
     logger.log('Данные оценки загружены, items:', Object.keys(items).length)
   } catch (e) {
@@ -242,20 +313,114 @@ function getLevels(criterion) {
   return levelsMap[criterion.scale_id] || []
 }
 
+function getChecklistOptions(criterion) {
+  return checklistOptionsMap[Number(criterion?.id)] || []
+}
+
 function getSelectedLevel(criterion) {
   return items[criterion.id]?.level_id ?? null
+}
+
+function isChecklistCriterion(criterion) {
+  return String(criterion?.type || 'scale') === 'checklist'
+}
+
+function ensureChecklistCriterionState(criterionId) {
+  const key = Number(criterionId)
+  if (!checklistSelectedOptionIds[key]) checklistSelectedOptionIds[key] = []
+  if (!checklistSelectionIdsMap[key]) checklistSelectionIdsMap[key] = {}
+}
+
+function resetChecklistState() {
+  for (const key of Object.keys(checklistOptionsMap)) delete checklistOptionsMap[key]
+  for (const key of Object.keys(checklistSelectedOptionIds)) delete checklistSelectedOptionIds[key]
+  for (const key of Object.keys(checklistSelectionIdsMap)) delete checklistSelectionIdsMap[key]
+}
+
+function getChecklistRelationOptionId(relation) {
+  const value = relation?.option_id ?? relation?.item_id ?? relation?.option?.id ?? relation?.item?.id
+  const id = Number(value)
+  return Number.isNaN(id) ? null : id
+}
+
+function getChecklistRelationEvaluationItemId(relation) {
+  const value = relation?.evaluation_item_id ?? relation?.evaluation_item?.id ?? relation?.evaluation_item
+  const id = Number(value)
+  return Number.isNaN(id) ? null : id
+}
+
+function getChecklistOptionPoint(option) {
+  const point = Number(option?.point ?? option?.score ?? 0)
+  return Number.isNaN(point) ? 0 : point
+}
+
+function formatChecklistOptionPoint(value) {
+  const point = getChecklistOptionPoint({ point: value })
+  return Number.isInteger(point) ? String(point) : point.toFixed(2)
+}
+
+function isTruthyFlag(value) {
+  if (value === true || value === 1) return true
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === '1' || normalized === 'true' || normalized === 'yes'
+  }
+  return false
+}
+
+function isChecklistOptionExclusive(option) {
+  return isTruthyFlag(option?.is_exclusive)
+}
+
+function getChecklistOptionById(criterionId, optionId) {
+  const options = checklistOptionsMap[Number(criterionId)] || []
+  return options.find((entry) => Number(entry?.id) === Number(optionId)) || null
+}
+
+function recalcChecklistCriterionScore(criterionId) {
+  const key = Number(criterionId)
+  const item = items[key]
+  if (!item) return
+  const selectedIds = checklistSelectedOptionIds[key] || []
+  const options = checklistOptionsMap[key] || []
+  if (!selectedIds.length) {
+    item.score = null
+    item.level_id = null
+    return
+  }
+  const selectedSet = new Set(selectedIds.map((id) => Number(id)))
+  const sum = options.reduce((acc, option) => {
+    const optionId = Number(option?.id)
+    if (!selectedSet.has(optionId)) return acc
+    return acc + getChecklistOptionPoint(option)
+  }, 0)
+  item.score = Number(sum.toFixed(2))
+  item.level_id = null
+}
+
+function isChecklistOptionSelected(criterion, option) {
+  const criterionId = Number(criterion?.id)
+  const optionId = Number(option?.id)
+  return (checklistSelectedOptionIds[criterionId] || []).includes(optionId)
+}
+
+function isCriterionScored(criterion) {
+  if (isChecklistCriterion(criterion)) {
+    return (checklistSelectedOptionIds[Number(criterion.id)] || []).length > 0
+  }
+  return items[criterion.id]?.level_id != null
 }
 
 const totalScore = computed(() => {
   return criteria.value.reduce((sum, c) => {
     const item = items[c.id]
-    return sum + (item?.score ? Number(item.score) : 0)
+    return sum + (item?.score != null ? Number(item.score) : 0)
   }, 0)
 })
 
 const allCriteriaScored = computed(() => {
   if (!criteria.value.length) return false
-  return criteria.value.every((criterion) => items[criterion.id]?.level_id != null)
+  return criteria.value.every((criterion) => isCriterionScored(criterion))
 })
 
 const hasCategories = computed(() => categories.value.length > 0)
@@ -293,7 +458,7 @@ const groupedCriteria = computed(() => {
 function categoryScore(categoryId) {
   return criteria.value
     .filter((c) => c.category_id === categoryId)
-    .reduce((sum, c) => sum + (items[c.id]?.score ? Number(items[c.id].score) : 0), 0)
+    .reduce((sum, c) => sum + (items[c.id]?.score != null ? Number(items[c.id].score) : 0), 0)
 }
 
 /**
@@ -339,6 +504,7 @@ async function selectLevel(criterion, level) {
       })
       items[criterion.id] = { ...optimistic, ...data.data }
     }
+    await refreshCriterionItemFromBackend(criterion.id)
     logger.debug('selectLevel — сохранено', items[criterion.id])
     saved.value = true
     setTimeout(() => { saved.value = false }, 1500)
@@ -359,6 +525,139 @@ async function selectLevel(criterion, level) {
 const savingComment = ref(false)
 const resetting = ref(null)
 
+async function refreshCriterionItemFromBackend(criterionId) {
+  const key = Number(criterionId)
+  const currentItem = items[key]
+  if (!currentItem?.id) return
+  try {
+    const { data } = await api.get('/contest_evaluation_items:get', {
+      params: { filterByTk: currentItem.id },
+    })
+    const backendItem = data?.data
+    if (backendItem?.id != null) {
+      items[key] = { ...(items[key] || {}), ...backendItem }
+    }
+  } catch (e) {
+    logger.warn('Не удалось обновить evaluation_item после сохранения', { criterionId: key, error: e?.message })
+  }
+}
+
+async function ensureEvaluationItem(criterion) {
+  const existing = items[criterion.id]
+  if (existing?.id) return existing
+
+  const { data } = await api.post('/contest_evaluation_items:create', {
+    evaluation_id: evaluation.value.id,
+    criterion_id: criterion.id,
+    level_id: null,
+    score: null,
+  })
+  const created = { criterion_id: criterion.id, evaluation_id: evaluation.value.id, ...(data.data || {}) }
+  items[criterion.id] = created
+  return created
+}
+
+async function createChecklistRelationRow(evaluationItemId, optionId) {
+  const { data } = await api.post('/contest_evaluation_item_options:create', {
+    evaluation_item: evaluationItemId,
+    option: optionId,
+  })
+  return data.data || {}
+}
+
+async function deleteChecklistRelationRow(relationId) {
+  await api.post(`/contest_evaluation_item_options:destroy?filterByTk=${relationId}`)
+}
+
+async function bulkDeleteChecklistRelationRows(relationIds) {
+  const ids = relationIds.map((id) => Number(id)).filter(Boolean)
+  if (!ids.length) return
+  await api.post('/contest_evaluation_item_options:destroy', {}, {
+    params: {
+      filter: JSON.stringify({ id: { $in: ids } }),
+    },
+  })
+}
+
+async function toggleChecklistOption(criterion, option) {
+  const criterionId = Number(criterion?.id)
+  const optionId = Number(option?.id)
+  if (!criterionId || !optionId || !evaluation.value?.id) return
+
+  saving.value = criterionId
+  saved.value = false
+  error.value = ''
+
+  ensureChecklistCriterionState(criterionId)
+  const selected = checklistSelectedOptionIds[criterionId]
+  const selectionMap = checklistSelectionIdsMap[criterionId]
+  const wasSelected = selected.includes(optionId)
+  const prevSelected = [...selected]
+  const prevSelectionMap = { ...selectionMap }
+  const prevItem = items[criterionId] ? { ...items[criterionId] } : null
+
+  try {
+    const item = await ensureEvaluationItem(criterion)
+
+    if (wasSelected) {
+      const relationId = selectionMap[optionId]
+      if (relationId == null) throw new Error('Checklist relation id is missing')
+      checklistSelectedOptionIds[criterionId] = selected.filter((id) => Number(id) !== optionId)
+      delete checklistSelectionIdsMap[criterionId][optionId]
+      await deleteChecklistRelationRow(relationId)
+    } else {
+      const selectingExclusive = isChecklistOptionExclusive(option)
+      const selectedExclusiveIds = selected.filter((id) => (
+        isChecklistOptionExclusive(getChecklistOptionById(criterionId, id))
+      ))
+      const idsToDrop = selectingExclusive ? [...selected] : selectedExclusiveIds
+
+      if (idsToDrop.length) {
+        const relationIdsToDrop = idsToDrop
+          .map((id) => selectionMap[id])
+          .filter((id) => id != null)
+        if (relationIdsToDrop.length !== idsToDrop.length) {
+          throw new Error('Checklist relation id is missing for exclusive cleanup')
+        }
+        await bulkDeleteChecklistRelationRows(relationIdsToDrop)
+        const idsToDropSet = new Set(idsToDrop.map((id) => Number(id)))
+        checklistSelectedOptionIds[criterionId] = selected.filter((id) => !idsToDropSet.has(Number(id)))
+        const nextSelectionMap = {}
+        for (const id of checklistSelectedOptionIds[criterionId]) {
+          const relationId = selectionMap[id]
+          if (relationId != null) nextSelectionMap[id] = relationId
+        }
+        checklistSelectionIdsMap[criterionId] = nextSelectionMap
+      }
+
+      const created = await createChecklistRelationRow(item.id, optionId)
+      const createdId = created?.id != null ? Number(created.id) : null
+      checklistSelectedOptionIds[criterionId] = [...checklistSelectedOptionIds[criterionId], optionId]
+      if (createdId != null && !Number.isNaN(createdId)) {
+        checklistSelectionIdsMap[criterionId][optionId] = createdId
+      }
+    }
+
+    recalcChecklistCriterionScore(criterionId)
+    await refreshCriterionItemFromBackend(criterionId)
+
+    saved.value = true
+    setTimeout(() => { saved.value = false }, 1500)
+  } catch (e) {
+    logger.error('Ошибка изменения чеклиста', e)
+    checklistSelectedOptionIds[criterionId] = prevSelected
+    checklistSelectionIdsMap[criterionId] = prevSelectionMap
+    if (prevItem) {
+      items[criterionId] = prevItem
+    } else {
+      delete items[criterionId]
+    }
+    error.value = 'Ошибка сохранения'
+  } finally {
+    saving.value = null
+  }
+}
+
 /** Сброс выбранного уровня оценки для критерия */
 async function resetLevel(criterion) {
   const existing = items[criterion.id]
@@ -372,6 +671,7 @@ async function resetLevel(criterion) {
       { level_id: null, score: null },
     )
     items[criterion.id] = { ...existing, ...data.data, level_id: null, score: null }
+    await refreshCriterionItemFromBackend(criterion.id)
     saved.value = true
     setTimeout(() => { saved.value = false }, 1500)
   } catch (e) {
@@ -380,6 +680,47 @@ async function resetLevel(criterion) {
     error.value = 'Ошибка сброса оценки'
   } finally {
     resetting.value = null
+  }
+}
+
+async function clearChecklist(criterion) {
+  const criterionId = Number(criterion?.id)
+  if (!criterionId) return
+  const selectedIds = [...(checklistSelectedOptionIds[criterionId] || [])]
+  if (!selectedIds.length) return
+
+  saving.value = criterionId
+  saved.value = false
+  error.value = ''
+
+  const prevSelected = [...selectedIds]
+  const prevSelectionMap = { ...(checklistSelectionIdsMap[criterionId] || {}) }
+  const prevItem = items[criterionId] ? { ...items[criterionId] } : null
+
+  try {
+    const relationIds = selectedIds
+      .map((optionId) => checklistSelectionIdsMap[criterionId]?.[optionId])
+      .filter((id) => id != null)
+    await bulkDeleteChecklistRelationRows(relationIds)
+
+    checklistSelectedOptionIds[criterionId] = []
+    checklistSelectionIdsMap[criterionId] = {}
+    recalcChecklistCriterionScore(criterionId)
+    await refreshCriterionItemFromBackend(criterionId)
+    saved.value = true
+    setTimeout(() => { saved.value = false }, 1500)
+  } catch (e) {
+    logger.error('Ошибка очистки чеклиста', e)
+    checklistSelectedOptionIds[criterionId] = prevSelected
+    checklistSelectionIdsMap[criterionId] = prevSelectionMap
+    if (prevItem) {
+      items[criterionId] = prevItem
+    } else {
+      delete items[criterionId]
+    }
+    error.value = 'Ошибка сброса оценки'
+  } finally {
+    saving.value = null
   }
 }
 
@@ -575,20 +916,28 @@ async function deleteGeneralComment() {
                 {{ items[criterion.id]?.score ?? '—' }}
               </span>
               <button
-                v-if="items[criterion.id]?.id && items[criterion.id]?.level_id != null"
+                v-if="!isChecklistCriterion(criterion) && items[criterion.id]?.id && items[criterion.id]?.level_id != null"
                 class="cursor-pointer rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
                 :disabled="resetting === criterion.id || saving === criterion.id"
                 @click.prevent="resetLevel(criterion)"
               >
                 {{ resetting === criterion.id ? '...' : 'Удалить оценку' }}
               </button>
+              <button
+                v-if="isChecklistCriterion(criterion) && (checklistSelectedOptionIds[Number(criterion.id)] || []).length"
+                class="cursor-pointer rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
+                :disabled="saving === criterion.id"
+                @click.prevent="clearChecklist(criterion)"
+              >
+                {{ saving === criterion.id ? '...' : 'Очистить выбор' }}
+              </button>
             </div>
           </div>
           <p v-if="criterion.description" class="m-0 mb-3 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}</p>
           <div v-else class="mb-2"></div>
 
-          <!-- Level buttons -->
-          <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+          <!-- Scale buttons -->
+          <div v-if="!isChecklistCriterion(criterion)" class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
             <button
               v-for="level in getLevels(criterion)"
               :key="level.id"
@@ -606,6 +955,33 @@ async function deleteGeneralComment() {
               <span class="text-base font-bold">{{ level.point }}</span>
               <span v-if="level.title" class="text-center text-[11px] leading-tight opacity-80">{{ level.title }}</span>
             </button>
+          </div>
+          <!-- Checklist options -->
+          <div v-else class="flex flex-col gap-2">
+            <label
+              v-for="option in getChecklistOptions(criterion)"
+              :key="option.id"
+              class="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition hover:border-primary dark:border-gray-700 dark:bg-gray-900/30"
+            >
+              <span class="flex min-w-0 items-start gap-2">
+                <input
+                  type="checkbox"
+                  class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  :checked="isChecklistOptionSelected(criterion, option)"
+                  :disabled="saving === criterion.id"
+                  @change="toggleChecklistOption(criterion, option)"
+                >
+                <span class="min-w-0 leading-snug text-gray-700 dark:text-gray-200">
+                  {{ option.title || `Пункт #${option.id}` }}
+                </span>
+              </span>
+              <span class="shrink-0 rounded-full bg-score-light px-2 py-0.5 text-xs font-semibold text-score">
+                +{{ formatChecklistOptionPoint(option.point) }}
+              </span>
+            </label>
+            <p v-if="!getChecklistOptions(criterion).length" class="text-xs text-gray-500 dark:text-gray-400">
+              Для этого критерия не настроены пункты чеклиста.
+            </p>
           </div>
 
           <!-- Criterion comment -->

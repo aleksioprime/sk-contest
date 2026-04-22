@@ -29,13 +29,17 @@
 - хранит пункты чек-листа критерия;
 - `is_exclusive=true` для взаимоисключающих пунктов (например, пункт `*0`).
 
-### 1.3 `contest_evaluation_items`
-Добавить связь:
-- `selected_options` (manyToMany -> `contest_scorecard_criterion_options`).
+### 1.3 Новая коллекция `contest_evaluation_item_options`
+Поля:
+- `evaluation_item_id` (belongsTo -> `contest_evaluation_items`)
+- `option_id` (belongsTo -> `contest_scorecard_criterion_options`)
 
-Важно:
-- в NocoBase промежуточная таблица для many-to-many создаётся автоматически;
-- вручную создавать join-таблицу не требуется.
+Назначение:
+- хранит выбранные пункты checklist-критерия для конкретного `evaluation_item`.
+
+Рекомендации:
+- добавить уникальность пары (`evaluation_item_id`, `option_id`), чтобы не было дублей;
+- при удалении `evaluation_item` каскадно удалять связанные записи в `contest_evaluation_item_options`.
 
 ## 2) Правила бизнес-логики
 
@@ -43,7 +47,7 @@
 - `scale`: как сейчас, хранится `level_id` и `score = level.point`.
 - `checklist`:
   - `level_id = null`;
-  - `selected_options` = выбранные пункты;
+  - выбранные пункты хранятся в `contest_evaluation_item_options`;
   - `score` в `contest_evaluation_items` = сумма `point` выбранных пунктов.
 
 ### 2.2 Взаимоисключающие пункты
@@ -67,6 +71,7 @@
 Что добавить:
 - загрузку `criterion.type` и options для checklist;
 - метод сохранения выбранных options по критерию (`set_options` или `toggle_option`);
+- операции с таблицей `contest_evaluation_item_options` (добавление/удаление строк выбора);
 - пересчёт `contest_evaluation_items.score` после изменения выбора;
 - валидацию:
   - option принадлежит текущему criterion;
@@ -98,7 +103,7 @@
 - Текущие формы и листы продолжают работать без изменений.
 
 ### 5.2 Порядок внедрения
-1. Добавить поля/коллекции/связи в NocoBase.
+1. Добавить поля/коллекции/связи в NocoBase, включая `contest_evaluation_item_options`.
 2. Реализовать backend-логику для checklist.
 3. Добавить frontend-рендер checklist в judge/viewer/anonymous.
 4. Протестировать смешанные scorecard (часть scale, часть checklist).
