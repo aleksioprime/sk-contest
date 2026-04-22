@@ -42,7 +42,40 @@ const expandedComments = reactive({})        // { 'evalId-criterionId': true } �
 const expandedGeneralComments = reactive({})  // { evalId: true } — раскрытые общие комментарии
 const expandedCriteria = reactive({})         // { evalId: true } — раскрытые блоки критериев
 const collapsedCategories = reactive({})      // { 'evalId-catKey': true } — свёрнутые категории
+const metadataReady = ref(false)              // true, когда загружены критерии и справочники scorecard
+const metadataScorecardId = ref(null)         // scorecard_id, для которого прогрет metadata-кеш
+const checklistRelationField = ref(null)      // 'evaluation_item_id' | 'evaluation_item'
 let refreshTimer = null
+
+async function listChecklistSelectionRelations(evaluationItemIds) {
+  const ids = evaluationItemIds.map((id) => Number(id)).filter(Boolean)
+  if (!ids.length) return []
+
+  const fetchByField = async (field) => {
+    const { data } = await api.get('/contest_evaluation_item_options:list', {
+      params: {
+        filter: JSON.stringify({ [field]: { $in: ids } }),
+        pageSize: 5000,
+      },
+    })
+    checklistRelationField.value = field
+    return data?.data || []
+  }
+
+  if (checklistRelationField.value) {
+    try {
+      return await fetchByField(checklistRelationField.value)
+    } catch (e) {
+      checklistRelationField.value = null
+    }
+  }
+
+  try {
+    return await fetchByField('evaluation_item_id')
+  } catch (firstError) {
+    return await fetchByField('evaluation_item')
+  }
+}
 
 async function loadData(isRefresh = false) {
   if (isRefresh) refreshing.value = true
@@ -90,16 +123,15 @@ async function loadData(isRefresh = false) {
       return
     }
 
-    // Раунд 2: критерии + оценки параллельно (критерии зависят от sheet, оценки — от workId)
     const scorecardId = sheet.value.scorecard_id
-    const [criteriaRes, evalRes] = await Promise.all([
-      api.get('/contest_scorecard_criteria:list', {
-        params: {
-          filter: JSON.stringify({ scorecard_id: scorecardId }),
-          sort: 'order,id',
-          pageSize: 200,
-        },
-      }),
+    const normalizedScorecardId = Number(scorecardId)
+    const shouldReloadMetadata = (
+      !metadataReady.value
+      || Number(metadataScorecardId.value) !== normalizedScorecardId
+    )
+
+    // Раунд 2: всегда загружаем оценки; критерии — только при холодном старте/смене scorecard
+    const [evalRes, criteriaRes] = await Promise.all([
       api.get('/contest_evaluations:list', {
         params: {
           filter: JSON.stringify({ sheet_work_id: Number(props.workId) }),
@@ -107,75 +139,102 @@ async function loadData(isRefresh = false) {
           pageSize: 200,
         },
       }),
+      shouldReloadMetadata
+        ? api.get('/contest_scorecard_criteria:list', {
+          params: {
+            filter: JSON.stringify({ scorecard_id: scorecardId }),
+            sort: 'order,id',
+            pageSize: 200,
+          },
+        })
+        : Promise.resolve(null),
     ])
-    criteria.value = criteriaRes.data.data || []
+    if (criteriaRes) {
+      criteria.value = criteriaRes.data.data || []
+    }
     const evaluations = evalRes.data.data || []
 
-    // Раунд 3: категории + уровни + items + checklist options параллельно
-    const categoryIds = [...new Set(criteria.value.map((c) => c.category_id).filter(Boolean))]
-    const scaleIds = [...new Set(criteria.value.map((c) => c.scale_id).filter(Boolean))]
     const checklistCriterionIds = criteria.value
       .filter((criterion) => isChecklistCriterion(criterion))
       .map((criterion) => Number(criterion.id))
       .filter(Boolean)
     const evalIds = evaluations.map((ev) => ev.id)
 
-    const parallelRequests = []
-    const requestKeys = []
+    // Раунд 3: динамика всегда; metadata-справочники только при необходимости
+    const metadataPromise = (async () => {
+      if (!shouldReloadMetadata) return
 
-    if (categoryIds.length) {
-      parallelRequests.push(api.get('/contest_criterion_categories:list', {
-        params: { filter: JSON.stringify({ id: { $in: categoryIds } }), pageSize: 200 },
-      }))
-      requestKeys.push('categories')
-    }
-    if (scaleIds.length) {
-      parallelRequests.push(api.get('/contest_criterion_scale_levels:list', {
-        params: { filter: JSON.stringify({ scale_id: { $in: scaleIds } }), sort: 'order,id', pageSize: 500 },
-      }))
-      requestKeys.push('levels')
-    }
-    if (evalIds.length) {
-      parallelRequests.push(api.get('/contest_evaluation_items:list', {
-        params: { filter: JSON.stringify({ evaluation_id: { $in: evalIds } }), pageSize: 2000 },
-      }))
-      requestKeys.push('items')
-    }
-    if (checklistCriterionIds.length) {
-      parallelRequests.push(api.get('/contest_scorecard_criterion_options:list', {
-        params: {
-          filter: JSON.stringify({ criterion_id: { $in: checklistCriterionIds } }),
-          sort: 'order,id',
-          pageSize: 2000,
-        },
-      }))
-      requestKeys.push('checklistOptions')
-    }
+      const categoryIds = [...new Set(criteria.value.map((c) => c.category_id).filter(Boolean))]
+      const scaleIds = [...new Set(criteria.value.map((c) => c.scale_id).filter(Boolean))]
 
-    const parallelResults = await Promise.all(parallelRequests)
-    const resultMap = {}
-    requestKeys.forEach((key, i) => { resultMap[key] = parallelResults[i] })
+      const metaRequests = []
+      const metaKeys = []
+      if (categoryIds.length) {
+        metaRequests.push(api.get('/contest_criterion_categories:list', {
+          params: { filter: JSON.stringify({ id: { $in: categoryIds } }), pageSize: 200 },
+        }))
+        metaKeys.push('categories')
+      }
+      if (scaleIds.length) {
+        metaRequests.push(api.get('/contest_criterion_scale_levels:list', {
+          params: { filter: JSON.stringify({ scale_id: { $in: scaleIds } }), sort: 'order,id', pageSize: 500 },
+        }))
+        metaKeys.push('levels')
+      }
+      if (checklistCriterionIds.length) {
+        metaRequests.push(api.get('/contest_scorecard_criterion_options:list', {
+          params: {
+            filter: JSON.stringify({ criterion_id: { $in: checklistCriterionIds } }),
+            sort: 'order,id',
+            pageSize: 2000,
+          },
+        }))
+        metaKeys.push('checklistOptions')
+      }
 
-    if (resultMap.categories) {
-      categories.value = resultMap.categories.data.data || []
-    }
-    if (resultMap.levels) {
+      if (!metaRequests.length) {
+        categories.value = []
+        for (const key of Object.keys(levelsMap)) delete levelsMap[key]
+        resetChecklistState()
+        metadataReady.value = true
+        metadataScorecardId.value = normalizedScorecardId
+        return
+      }
+
+      const metaResults = await Promise.all(metaRequests)
+      const metaMap = {}
+      metaKeys.forEach((key, i) => { metaMap[key] = metaResults[i] })
+
+      categories.value = metaMap.categories ? (metaMap.categories.data.data || []) : []
       for (const key of Object.keys(levelsMap)) delete levelsMap[key]
-      for (const level of resultMap.levels.data.data || []) {
-        if (!levelsMap[level.scale_id]) levelsMap[level.scale_id] = []
-        levelsMap[level.scale_id].push(level)
+      if (metaMap.levels) {
+        for (const level of metaMap.levels.data.data || []) {
+          if (!levelsMap[level.scale_id]) levelsMap[level.scale_id] = []
+          levelsMap[level.scale_id].push(level)
+        }
       }
-    }
-    resetChecklistState()
-    if (resultMap.checklistOptions) {
-      for (const option of resultMap.checklistOptions.data.data || []) {
-        const criterionId = Number(option?.criterion_id)
-        if (!criterionId) continue
-        if (!checklistOptionsMap[criterionId]) checklistOptionsMap[criterionId] = []
-        checklistOptionsMap[criterionId].push(option)
+      resetChecklistState()
+      if (metaMap.checklistOptions) {
+        for (const option of metaMap.checklistOptions.data.data || []) {
+          const criterionId = Number(option?.criterion_id)
+          if (!criterionId) continue
+          if (!checklistOptionsMap[criterionId]) checklistOptionsMap[criterionId] = []
+          checklistOptionsMap[criterionId].push(option)
+        }
       }
-    }
-    let allItems = resultMap.items ? (resultMap.items.data.data || []) : []
+
+      metadataReady.value = true
+      metadataScorecardId.value = normalizedScorecardId
+    })()
+
+    const itemsPromise = evalIds.length
+      ? api.get('/contest_evaluation_items:list', {
+        params: { filter: JSON.stringify({ evaluation_id: { $in: evalIds } }), pageSize: 2000 },
+      })
+      : Promise.resolve({ data: { data: [] } })
+
+    const [itemsRes] = await Promise.all([itemsPromise, metadataPromise])
+    const allItems = itemsRes?.data?.data || []
     const itemMetaMap = {}
     for (const item of allItems) {
       const itemId = Number(item?.id)
@@ -194,26 +253,8 @@ async function loadData(isRefresh = false) {
     const checklistSelectionsByEval = {}
     const evaluationItemIds = Object.keys(itemMetaMap).map((id) => Number(id)).filter(Boolean)
     if (evaluationItemIds.length && checklistCriterionIds.length) {
-      let relationData = null
-      try {
-        const { data } = await api.get('/contest_evaluation_item_options:list', {
-          params: {
-            filter: JSON.stringify({ evaluation_item_id: { $in: evaluationItemIds } }),
-            pageSize: 5000,
-          },
-        })
-        relationData = data
-      } catch (firstError) {
-        const { data } = await api.get('/contest_evaluation_item_options:list', {
-          params: {
-            filter: JSON.stringify({ evaluation_item: { $in: evaluationItemIds } }),
-            pageSize: 5000,
-          },
-        })
-        relationData = data
-      }
-
-      for (const relation of relationData?.data || []) {
+      const relationData = await listChecklistSelectionRelations(evaluationItemIds)
+      for (const relation of relationData) {
         const evaluationItemId = getChecklistRelationEvaluationItemId(relation)
         const optionId = getChecklistRelationOptionId(relation)
         const itemMeta = evaluationItemId ? itemMetaMap[evaluationItemId] : null
