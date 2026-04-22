@@ -422,6 +422,9 @@ const allCriteriaScored = computed(() => {
   if (!criteria.value.length) return false
   return criteria.value.every((criterion) => isCriterionScored(criterion))
 })
+const scoredCriteriaCount = computed(() => {
+  return criteria.value.filter((criterion) => isCriterionScored(criterion)).length
+})
 
 const hasCategories = computed(() => categories.value.length > 0)
 
@@ -459,6 +462,19 @@ function categoryScore(categoryId) {
   return criteria.value
     .filter((c) => c.category_id === categoryId)
     .reduce((sum, c) => sum + (items[c.id]?.score != null ? Number(items[c.id].score) : 0), 0)
+}
+
+function getChecklistSelectedCount(criterion) {
+  return (checklistSelectedOptionIds[Number(criterion?.id)] || []).length
+}
+
+function hasChecklistExclusiveSelected(criterion) {
+  const criterionId = Number(criterion?.id)
+  if (!criterionId) return false
+  const selectedIds = checklistSelectedOptionIds[criterionId] || []
+  return selectedIds.some((id) => (
+    isChecklistOptionExclusive(getChecklistOptionById(criterionId, id))
+  ))
 }
 
 /**
@@ -907,17 +923,32 @@ async function deleteGeneralComment() {
             <!-- Criteria inside -->
             <div v-show="!hasCategories || !collapsedCategories[group.category?.id ?? 'uncategorized']" :class="hasCategories ? 'flex flex-col gap-3 p-3' : 'flex flex-col gap-3'">
 
-        <div v-for="criterion in group.criteria" :key="criterion.id" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+        <div
+          v-for="criterion in group.criteria"
+          :key="criterion.id"
+          class="rounded-2xl border border-gray-200/90 bg-white px-4 py-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:py-5"
+        >
           <!-- Header -->
-          <div class="mb-1 flex items-start justify-between gap-4">
-            <h3 class="m-0 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ criterion.title }}</h3>
+          <div class="mb-2 flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h3 class="m-0 text-base font-semibold leading-tight text-gray-800 dark:text-gray-100">{{ criterion.title }}</h3>
+              <p v-if="criterion.description" class="m-0 mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                {{ criterion.description }}
+              </p>
+            </div>
             <div class="flex shrink-0 items-center gap-2">
-              <span class="rounded-full bg-score-light px-2.5 py-0.5 text-sm font-semibold text-score">
+              <span class="rounded-full bg-score-light px-3 py-1 text-sm font-semibold text-score">
                 {{ items[criterion.id]?.score ?? '—' }}
+              </span>
+              <span
+                v-if="isChecklistCriterion(criterion)"
+                class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+              >
+                Выбрано: {{ getChecklistSelectedCount(criterion) }}
               </span>
               <button
                 v-if="!isChecklistCriterion(criterion) && items[criterion.id]?.id && items[criterion.id]?.level_id != null"
-                class="cursor-pointer rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
+                class="min-h-9 cursor-pointer rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
                 :disabled="resetting === criterion.id || saving === criterion.id"
                 @click.prevent="resetLevel(criterion)"
               >
@@ -925,7 +956,7 @@ async function deleteGeneralComment() {
               </button>
               <button
                 v-if="isChecklistCriterion(criterion) && (checklistSelectedOptionIds[Number(criterion.id)] || []).length"
-                class="cursor-pointer rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
+                class="min-h-9 cursor-pointer rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
                 :disabled="saving === criterion.id"
                 @click.prevent="clearChecklist(criterion)"
               >
@@ -933,19 +964,17 @@ async function deleteGeneralComment() {
               </button>
             </div>
           </div>
-          <p v-if="criterion.description" class="m-0 mb-3 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}</p>
-          <div v-else class="mb-2"></div>
 
           <!-- Scale buttons -->
           <div v-if="!isChecklistCriterion(criterion)" class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
             <button
               v-for="level in getLevels(criterion)"
               :key="level.id"
-              class="flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border-2 bg-white px-3 py-2 transition sm:min-w-12 dark:bg-gray-800"
+              class="min-h-14 touch-manipulation flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white px-3 py-2.5 transition sm:min-w-16 dark:bg-gray-800"
               :class="[
                 getSelectedLevel(criterion) === level.id
-                  ? 'border-primary bg-primary! text-white dark:bg-primary!'
-                  : 'border-gray-200 hover:border-primary hover:bg-primary-light dark:border-gray-600',
+                  ? 'border-primary bg-primary! text-white shadow-sm dark:bg-primary!'
+                  : 'border-gray-200 hover:border-primary hover:bg-primary-light/60 dark:border-gray-600',
                 saving === criterion.id ? 'opacity-60 cursor-wait' : ''
               ]"
               :title="level.title"
@@ -957,28 +986,56 @@ async function deleteGeneralComment() {
             </button>
           </div>
           <!-- Checklist options -->
-          <div v-else class="flex flex-col gap-2">
-            <label
+          <div v-else class="flex flex-col gap-2.5">
+            <div class="mb-0.5 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-100/80 px-3 py-2 text-xs text-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
+              <span>Выбрано пунктов: <strong>{{ getChecklistSelectedCount(criterion) }}</strong></span>
+              <span v-if="saving === criterion.id">Сохраняем...</span>
+              <span v-else-if="hasChecklistExclusiveSelected(criterion)">Выбран взаимоисключающий пункт</span>
+              <span v-else>Можно выбрать несколько пунктов</span>
+            </div>
+            <button
               v-for="option in getChecklistOptions(criterion)"
               :key="option.id"
-              class="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition hover:border-primary dark:border-gray-700 dark:bg-gray-900/30"
+              type="button"
+              class="w-full touch-manipulation cursor-pointer rounded-xl border px-3 py-3.5 text-left transition sm:px-4"
+              :class="[
+                isChecklistOptionSelected(criterion, option)
+                  ? 'border-primary bg-primary-light/40 shadow-[0_1px_0_rgba(0,0,0,0.04)] dark:border-primary dark:bg-primary/20'
+                  : 'border-gray-200 bg-white hover:border-primary/60 hover:bg-primary-light/40 dark:border-gray-700 dark:bg-gray-900/30 dark:hover:bg-primary/10',
+                saving === criterion.id ? 'cursor-wait opacity-60' : '',
+              ]"
+              :disabled="saving === criterion.id"
+              @click="toggleChecklistOption(criterion, option)"
             >
-              <span class="flex min-w-0 items-start gap-2">
-                <input
-                  type="checkbox"
-                  class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  :checked="isChecklistOptionSelected(criterion, option)"
-                  :disabled="saving === criterion.id"
-                  @change="toggleChecklistOption(criterion, option)"
-                >
-                <span class="min-w-0 leading-snug text-gray-700 dark:text-gray-200">
-                  {{ option.title || `Пункт #${option.id}` }}
+              <span class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 items-center gap-3">
+                  <span
+                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded border"
+                    :class="isChecklistOptionSelected(criterion, option)
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-gray-300 bg-white dark:border-gray-500 dark:bg-gray-800'"
+                  >
+                    <svg
+                      v-if="isChecklistOptionSelected(criterion, option)"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      class="h-3.5 w-3.5"
+                    >
+                      <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.2 7.2a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.42L9 11.586l6.496-6.296a1 1 0 011.208 0z" clip-rule="evenodd" />
+                    </svg>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block text-sm font-medium leading-snug text-gray-800 dark:text-gray-100">
+                      {{ option.title || `Пункт #${option.id}` }}
+                    </span>
+                  </span>
+                </span>
+                <span class="shrink-0 rounded-full bg-score-light px-2.5 py-1 text-xs font-semibold text-score">
+                  +{{ formatChecklistOptionPoint(option.point) }}
                 </span>
               </span>
-              <span class="shrink-0 rounded-full bg-score-light px-2 py-0.5 text-xs font-semibold text-score">
-                +{{ formatChecklistOptionPoint(option.point) }}
-              </span>
-            </label>
+            </button>
             <p v-if="!getChecklistOptions(criterion).length" class="text-xs text-gray-500 dark:text-gray-400">
               Для этого критерия не настроены пункты чеклиста.
             </p>
@@ -1103,9 +1160,12 @@ async function deleteGeneralComment() {
             : 'border-amber-300/50 bg-amber-600'
         ]"
       >
-        <div class="relative flex items-center gap-2 text-base">
+        <div class="relative flex flex-wrap items-center gap-2 text-base">
           <span class="font-medium">Итого:</span>
           <strong class="text-lg">{{ totalScore }}</strong>
+          <span class="rounded-full border border-white/40 bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white">
+            {{ scoredCriteriaCount }}/{{ criteria.length }} критериев
+          </span>
           <div class="ml-auto flex items-center gap-2">
             <transition name="fade">
               <span v-if="saved" class="text-sm font-medium text-green-100">Сохранено ✓</span>
