@@ -940,12 +940,6 @@ async function deleteGeneralComment() {
               <span class="rounded-full bg-score-light px-3 py-1 text-sm font-semibold text-score">
                 {{ items[criterion.id]?.score ?? '—' }}
               </span>
-              <span
-                v-if="isChecklistCriterion(criterion)"
-                class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-              >
-                Выбрано: {{ getChecklistSelectedCount(criterion) }}
-              </span>
               <button
                 v-if="!isChecklistCriterion(criterion) && items[criterion.id]?.id && items[criterion.id]?.level_id != null"
                 class="min-h-9 cursor-pointer rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
