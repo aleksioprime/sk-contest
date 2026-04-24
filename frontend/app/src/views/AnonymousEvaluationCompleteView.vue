@@ -11,9 +11,33 @@ const router = useRouter()
 const loading = ref(true)
 
 const COMPLETION_STORAGE_KEY_PREFIX = 'sk_contest_anonymous_completed_'
+const EVALUATION_STORAGE_KEY_PREFIX = 'sk_contest_anonymous_evaluation_'
 
 function completionStorageKey(token) {
   return `${COMPLETION_STORAGE_KEY_PREFIX}${token}`
+}
+
+function evaluationStorageKey(token) {
+  return `${EVALUATION_STORAGE_KEY_PREFIX}${token}`
+}
+
+function getStoredEvaluationId(token) {
+  try {
+    const raw = window.localStorage.getItem(evaluationStorageKey(token))
+    if (!raw) return null
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function clearStoredEvaluationId(token) {
+  try {
+    window.localStorage.removeItem(evaluationStorageKey(token))
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function getCompletionMarker(token) {
@@ -57,8 +81,17 @@ async function verifyCompletedState(token) {
     return
   }
 
+  const evaluationId = marker?.evaluation_id ?? getStoredEvaluationId(token)
+  if (evaluationId == null) {
+    clearEvaluationCompletedLocally(token)
+    await router.replace({ name: 'anonymous-evaluation', params: { token } })
+    return
+  }
+
   try {
-    const { data } = await publicApi.get(`/public/evaluations/${token}`)
+    const { data } = await publicApi.get(`/public/evaluations/${token}`, {
+      params: { evaluation_id: evaluationId },
+    })
 
     const criteriaList = Array.isArray(data?.criteria) ? data.criteria : []
     const itemsList = Array.isArray(data?.items) ? data.items : []
@@ -80,10 +113,13 @@ async function verifyCompletedState(token) {
 
     if (!allScoredOnServer || !sameEvaluation) {
       clearEvaluationCompletedLocally(token)
+      if (!sameEvaluation) clearStoredEvaluationId(token)
       await router.replace({ name: 'anonymous-evaluation', params: { token } })
       return
     }
   } catch {
+    clearEvaluationCompletedLocally(token)
+    clearStoredEvaluationId(token)
     // Если ссылка недействительна/лист закрыт, показываем экран evaluate с его обработкой ошибок.
     await router.replace({ name: 'anonymous-evaluation', params: { token } })
     return

@@ -16,6 +16,10 @@ class AnonymousEvaluationService:
         self._context_cache: dict[str, dict] = {}
 
     @staticmethod
+    def _cache_key(token: str, evaluation_id: int | str) -> str:
+        return f'{token}:{evaluation_id}'
+
+    @staticmethod
     def _key(value: int | str) -> str:
         return str(value)
 
@@ -55,13 +59,17 @@ class AnonymousEvaluationService:
         for token in expired_tokens:
             self._context_cache.pop(token, None)
 
-    def _get_cached_context(self, token: str) -> dict | None:
+    def _get_cached_context(self, token: str, evaluation_id: int | str) -> dict | None:
         self._cleanup_cache()
-        return self._context_cache.get(token)
+        return self._context_cache.get(self._cache_key(token, evaluation_id))
 
     def _save_cached_context(self, token: str, context: dict):
+        evaluation = context.get('evaluation') or {}
+        evaluation_id = evaluation.get('id')
+        if evaluation_id is None:
+            return
         context['_expires_at'] = time.monotonic() + self.CACHE_TTL_SECONDS
-        self._context_cache[token] = context
+        self._context_cache[self._cache_key(token, evaluation_id)] = context
 
     async def _get_work_by_token(self, token: str) -> dict:
         work = await nocobase.get(
@@ -88,22 +96,6 @@ class AnonymousEvaluationService:
         if status and status != 'active':
             raise HTTPException(status_code=403, detail='Лист недоступен для анонимной оценки')
 
-    async def _get_anonymous_evaluation(self, sheet_work_id: int | str) -> dict | None:
-        evaluations = await nocobase.list(
-            'contest_evaluations',
-            filter={'sheet_work_id': sheet_work_id, 'is_anonymous': True},
-            sort='-id',
-            pageSize=20,
-        )
-        if not isinstance(evaluations, list):
-            return None
-
-        for evaluation in evaluations:
-            if evaluation.get('judge_id') is None:
-                return evaluation
-
-        return evaluations[0] if evaluations else None
-
     async def _create_anonymous_evaluation(self, sheet_work_id: int | str) -> dict:
         attempts = [
             {'sheet_work_id': sheet_work_id, 'is_anonymous': True},
@@ -121,12 +113,6 @@ class AnonymousEvaluationService:
             raise last_error
         raise HTTPException(status_code=500, detail='Не удалось создать анонимную оценку')
 
-    async def _resolve_anonymous_evaluation(self, sheet_work_id: int | str) -> dict:
-        evaluation = await self._get_anonymous_evaluation(sheet_work_id)
-        if evaluation:
-            return evaluation
-        return await self._create_anonymous_evaluation(sheet_work_id)
-
     async def _get_existing_evaluation_or_none(self, evaluation_id: int | str) -> dict | None:
         try:
             evaluation = await nocobase.get_by_id('contest_evaluations', evaluation_id)
@@ -136,6 +122,37 @@ class AnonymousEvaluationService:
             raise
         if not evaluation or evaluation.get('id') is None:
             return None
+        return evaluation
+
+    @staticmethod
+    def _extract_sheet_work_id(evaluation: dict) -> int | str | None:
+        sheet_work_id = evaluation.get('sheet_work_id')
+        if sheet_work_id is not None:
+            return sheet_work_id
+
+        sheet_work = evaluation.get('sheet_work')
+        if isinstance(sheet_work, dict):
+            return sheet_work.get('id')
+        return sheet_work
+
+    async def _get_valid_anonymous_evaluation(self, sheet_work_id: int | str, evaluation_id: int | str) -> dict | None:
+        evaluation = await self._get_existing_evaluation_or_none(evaluation_id)
+        if not evaluation:
+            return None
+
+        if not evaluation.get('is_anonymous'):
+            return None
+
+        if evaluation.get('judge_id') is not None:
+            return None
+
+        evaluation_sheet_work_id = self._extract_sheet_work_id(evaluation)
+        if evaluation_sheet_work_id is None:
+            return None
+
+        if str(evaluation_sheet_work_id) != str(sheet_work_id):
+            return None
+
         return evaluation
 
     async def _ensure_cached_evaluation_exists(self, token: str, context: dict, *, force_check: bool = False):
@@ -163,14 +180,10 @@ class AnonymousEvaluationService:
             self._save_cached_context(token, context)
             return
 
-        replacement = await self._resolve_anonymous_evaluation(context['work']['id'])
-        context['evaluation'] = replacement
-        context['items_by_criterion'] = None
-        context['_evaluation_checked_at'] = now
-        self._save_cached_context(token, context)
+        raise HTTPException(status_code=409, detail='Анонимная сессия недействительна или была сброшена')
 
-    async def _ensure_context(self, token: str, *, force_evaluation_check: bool = False) -> dict:
-        cached = self._get_cached_context(token)
+    async def _ensure_context(self, token: str, evaluation_id: int | str, *, force_evaluation_check: bool = False) -> dict:
+        cached = self._get_cached_context(token, evaluation_id)
         if cached and cached.get('work') and cached.get('sheet') and cached.get('evaluation'):
             await self._ensure_cached_evaluation_exists(token, cached, force_check=force_evaluation_check)
             return cached
@@ -179,7 +192,9 @@ class AnonymousEvaluationService:
         sheet = await self._get_sheet(work['sheet_id'])
         self._assert_sheet_allows_anonymous(sheet)
 
-        evaluation = await self._resolve_anonymous_evaluation(work['id'])
+        evaluation = await self._get_valid_anonymous_evaluation(work['id'], evaluation_id)
+        if not evaluation:
+            raise HTTPException(status_code=409, detail='Анонимная сессия недействительна')
 
         context = {
             'work': work,
@@ -335,8 +350,27 @@ class AnonymousEvaluationService:
             key=lambda item: (str(item.get('id', '')), str(item.get('criterion_id', ''))),
         )
 
-    async def get_bundle(self, token: str) -> dict:
-        context = await self._ensure_context(token, force_evaluation_check=True)
+    async def get_bundle(self, token: str, *, evaluation_id: int | None = None) -> dict:
+        if evaluation_id is None:
+            work = await self._get_work_by_token(token)
+            sheet = await self._get_sheet(work['sheet_id'])
+            self._assert_sheet_allows_anonymous(sheet)
+            evaluation = await self._create_anonymous_evaluation(work['id'])
+            context = {
+                'work': work,
+                'sheet': sheet,
+                'evaluation': evaluation,
+                '_evaluation_checked_at': time.monotonic(),
+                'criteria': None,
+                'criteria_by_id': {},
+                'items_by_criterion': None,
+                'levels_by_id': {},
+                'categories': None,
+                'levels': None,
+            }
+            self._save_cached_context(token, context)
+        else:
+            context = await self._ensure_context(token, evaluation_id, force_evaluation_check=True)
         criteria = await self._ensure_criteria(token, context)
 
         category_ids = sorted({criterion['category_id'] for criterion in criteria if criterion.get('category_id') is not None})
@@ -382,8 +416,10 @@ class AnonymousEvaluationService:
             'items': self._sorted_items(context.get('items_by_criterion') or {}),
         }
 
-    async def set_level(self, token: str, criterion_id: int, level_id: int | None) -> dict:
-        context = await self._ensure_context(token)
+    async def set_level(self, token: str, criterion_id: int, level_id: int | None, *, evaluation_id: int | None = None) -> dict:
+        if evaluation_id is None:
+            raise HTTPException(status_code=400, detail='Требуется evaluation_id для анонимной сессии')
+        context = await self._ensure_context(token, evaluation_id)
         criterion = await self._get_criterion_from_context(token, context, criterion_id)
         item = await self._get_or_create_item(token, context, criterion_id)
 
@@ -417,8 +453,10 @@ class AnonymousEvaluationService:
             'evaluation': context['evaluation'],
         }
 
-    async def set_item_comment(self, token: str, criterion_id: int, comment: str | None) -> dict:
-        context = await self._ensure_context(token)
+    async def set_item_comment(self, token: str, criterion_id: int, comment: str | None, *, evaluation_id: int | None = None) -> dict:
+        if evaluation_id is None:
+            raise HTTPException(status_code=400, detail='Требуется evaluation_id для анонимной сессии')
+        context = await self._ensure_context(token, evaluation_id)
         await self._get_criterion_from_context(token, context, criterion_id)
         item = await self._get_or_create_item(token, context, criterion_id)
 
@@ -434,8 +472,10 @@ class AnonymousEvaluationService:
 
         return {'item': item_merged}
 
-    async def set_evaluation_comment(self, token: str, comment: str | None) -> dict:
-        context = await self._ensure_context(token)
+    async def set_evaluation_comment(self, token: str, comment: str | None, *, evaluation_id: int | None = None) -> dict:
+        if evaluation_id is None:
+            raise HTTPException(status_code=400, detail='Требуется evaluation_id для анонимной сессии')
+        context = await self._ensure_context(token, evaluation_id)
 
         updated_evaluation = await nocobase.update(
             'contest_evaluations',
@@ -447,8 +487,10 @@ class AnonymousEvaluationService:
         self._save_cached_context(token, context)
         return {'evaluation': context['evaluation']}
 
-    async def set_anonymous_name(self, token: str, anonymous_name: str | None) -> dict:
-        context = await self._ensure_context(token)
+    async def set_anonymous_name(self, token: str, anonymous_name: str | None, *, evaluation_id: int | None = None) -> dict:
+        if evaluation_id is None:
+            raise HTTPException(status_code=400, detail='Требуется evaluation_id для анонимной сессии')
+        context = await self._ensure_context(token, evaluation_id)
 
         normalized_name = None
         if isinstance(anonymous_name, str):

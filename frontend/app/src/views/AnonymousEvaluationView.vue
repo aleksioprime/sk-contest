@@ -9,6 +9,7 @@ const props = defineProps({
 const router = useRouter()
 
 const COMPLETION_STORAGE_KEY_PREFIX = 'sk_contest_anonymous_completed_'
+const EVALUATION_STORAGE_KEY_PREFIX = 'sk_contest_anonymous_evaluation_'
 
 const sheet = ref(null)
 const work = ref(null)
@@ -39,6 +40,38 @@ const savingAnonymousName = ref(false)
 
 function completionStorageKey(token) {
   return `${COMPLETION_STORAGE_KEY_PREFIX}${token}`
+}
+
+function evaluationStorageKey(token) {
+  return `${EVALUATION_STORAGE_KEY_PREFIX}${token}`
+}
+
+function getStoredEvaluationId(token) {
+  try {
+    const raw = window.localStorage.getItem(evaluationStorageKey(token))
+    if (!raw) return null
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function setStoredEvaluationId(token, evaluationId) {
+  if (evaluationId == null) return
+  try {
+    window.localStorage.setItem(evaluationStorageKey(token), String(evaluationId))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function clearStoredEvaluationId(token) {
+  try {
+    window.localStorage.removeItem(evaluationStorageKey(token))
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function getCompletionMarker(token) {
@@ -135,12 +168,17 @@ function resetData() {
   Object.keys(levelsMap).forEach((key) => delete levelsMap[key])
 }
 
-function applyBundle(bundle) {
+function applyBundle(bundle, token = props.token) {
   resetData()
 
   sheet.value = bundle.sheet || null
   work.value = bundle.work || null
   evaluation.value = bundle.evaluation || null
+  if (bundle?.evaluation?.id != null) {
+    setStoredEvaluationId(token, bundle.evaluation.id)
+  } else {
+    clearStoredEvaluationId(token)
+  }
   anonymousNameDraft.value = bundle?.evaluation?.anonymous_name || ''
   criteria.value = bundle.criteria || []
   categories.value = bundle.categories || []
@@ -161,17 +199,33 @@ async function loadBundle(token = props.token) {
   fatalState.value = null
   resetData()
 
+  const storedEvaluationId = getStoredEvaluationId(token)
+  const requestConfig = storedEvaluationId != null
+    ? { params: { evaluation_id: storedEvaluationId } }
+    : undefined
+
   try {
-    const { data } = await publicApi.get(`/public/evaluations/${token}`)
-    applyBundle(data)
+    const { data } = await publicApi.get(`/public/evaluations/${token}`, requestConfig)
+    applyBundle(data, token)
     return data
   } catch (e) {
+    const status = e?.response?.status
+    if (status === 409 && storedEvaluationId != null) {
+      clearStoredEvaluationId(token)
+      return await loadBundle(token)
+    }
     fatalState.value = resolveFatalState(e)
     return null
   } finally {
     loading.value = false
     await nextTick()
   }
+}
+
+function getEvaluationRequestConfig() {
+  const evaluationId = evaluation.value?.id ?? getStoredEvaluationId(props.token)
+  if (evaluationId == null) return null
+  return { params: { evaluation_id: evaluationId } }
 }
 
 async function loadOrRedirectIfCompleted(token) {
@@ -347,9 +401,16 @@ async function selectLevel(criterion, level) {
   items[criterion.id] = optimistic
 
   try {
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return
+    }
+
     const { data } = await publicApi.patch(
       `/public/evaluations/${props.token}/criteria/${criterion.id}/level`,
       { level_id: level.id },
+      requestConfig,
     )
 
     items[criterion.id] = { ...optimistic, ...(data.item || {}) }
@@ -380,9 +441,16 @@ async function resetLevel(criterion) {
   error.value = ''
 
   try {
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return
+    }
+
     const { data } = await publicApi.patch(
       `/public/evaluations/${props.token}/criteria/${criterion.id}/level`,
       { level_id: null },
+      requestConfig,
     )
 
     items[criterion.id] = {
@@ -419,9 +487,16 @@ async function saveItemComment(criterion) {
   error.value = ''
 
   try {
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return
+    }
+
     const { data } = await publicApi.patch(
       `/public/evaluations/${props.token}/criteria/${criterion.id}/comment`,
       { comment: commentDraft.value || null },
+      requestConfig,
     )
 
     items[criterion.id] = {
@@ -448,9 +523,16 @@ async function deleteItemComment(criterion) {
   error.value = ''
 
   try {
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return
+    }
+
     const { data } = await publicApi.patch(
       `/public/evaluations/${props.token}/criteria/${criterion.id}/comment`,
       { comment: null },
+      requestConfig,
     )
 
     items[criterion.id] = {
@@ -484,9 +566,17 @@ async function saveGeneralComment() {
   error.value = ''
 
   try {
-    const { data } = await publicApi.patch(`/public/evaluations/${props.token}/comment`, {
-      comment: generalCommentDraft.value || null,
-    })
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return
+    }
+
+    const { data } = await publicApi.patch(
+      `/public/evaluations/${props.token}/comment`,
+      { comment: generalCommentDraft.value || null },
+      requestConfig,
+    )
 
     evaluation.value = {
       ...(evaluation.value || {}),
@@ -511,9 +601,17 @@ async function deleteGeneralComment() {
   error.value = ''
 
   try {
-    const { data } = await publicApi.patch(`/public/evaluations/${props.token}/comment`, {
-      comment: null,
-    })
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return
+    }
+
+    const { data } = await publicApi.patch(
+      `/public/evaluations/${props.token}/comment`,
+      { comment: null },
+      requestConfig,
+    )
 
     evaluation.value = {
       ...(evaluation.value || {}),
@@ -537,9 +635,17 @@ async function saveAnonymousName() {
   error.value = ''
 
   try {
-    const { data } = await publicApi.patch(`/public/evaluations/${props.token}/anonymous-name`, {
-      anonymous_name: normalizedName || null,
-    })
+    const requestConfig = getEvaluationRequestConfig()
+    if (!requestConfig) {
+      error.value = 'Не удалось определить сессию оценки. Обновите страницу.'
+      return false
+    }
+
+    const { data } = await publicApi.patch(
+      `/public/evaluations/${props.token}/anonymous-name`,
+      { anonymous_name: normalizedName || null },
+      requestConfig,
+    )
 
     evaluation.value = {
       ...(evaluation.value || {}),
