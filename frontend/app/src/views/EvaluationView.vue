@@ -932,7 +932,7 @@ async function deleteGeneralComment() {
           <div class="mb-2 flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
               <h3 class="m-0 text-base font-semibold leading-tight text-gray-800 dark:text-gray-100">{{ criterion.title }}</h3>
-              <p v-if="criterion.description" class="m-0 mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              <p v-if="criterion.description" class="m-0 mt-1 whitespace-pre-line text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 {{ criterion.description }}
               </p>
             </div>

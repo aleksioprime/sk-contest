@@ -934,7 +934,7 @@ async function finishEvaluation() {
                 </div>
 
                 <p v-if="criterion.description"
-                  class="m-0 mb-3 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}
+                  class="m-0 mb-3 whitespace-pre-line text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{ criterion.description }}
                 </p>
                 <div v-else class="mb-2"></div>
 

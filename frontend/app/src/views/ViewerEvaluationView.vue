@@ -718,7 +718,7 @@ function toggleCriteria(evalId) {
                         <div>
                           <span class="text-sm text-gray-700 dark:text-gray-300">{{ criterion.title }}</span>
                           <p v-if="criterion.description"
-                            class="m-0 mt-0.5 text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{
+                            class="m-0 mt-0.5 whitespace-pre-line text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{
                               criterion.description }}</p>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
