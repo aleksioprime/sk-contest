@@ -1,9 +1,14 @@
 from fastapi import APIRouter
 
-from src.schemas import AnonymousNamePayload, CommentPayload, LevelPayload
+from src.schemas import AnonymousNamePayload, CommentPayload, LevelPayload, StartEvaluationPayload
 from src.services.anonymous_evaluation_service import anonymous_evaluation_service
 
 router = APIRouter()
+
+
+@router.post('/{token}/start')
+async def start_evaluation(token: str, payload: StartEvaluationPayload):
+    return await anonymous_evaluation_service.start_anonymous_evaluation(token, payload.anonymous_name)
 
 
 @router.get('/{token}')

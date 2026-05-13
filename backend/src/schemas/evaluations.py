@@ -11,3 +11,7 @@ class CommentPayload(BaseModel):
 
 class AnonymousNamePayload(BaseModel):
     anonymous_name: str | None = None
+
+
+class StartEvaluationPayload(BaseModel):
+    anonymous_name: str | None = None

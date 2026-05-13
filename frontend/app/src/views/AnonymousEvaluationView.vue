@@ -38,6 +38,12 @@ const savingComment = ref(false)
 const anonymousNameDraft = ref('')
 const savingAnonymousName = ref(false)
 
+// Стартовый экран
+const started = ref(false)
+const startingEvaluation = ref(false)
+const startNameDraft = ref('')
+const startError = ref('')
+
 function completionStorageKey(token) {
   return `${COMPLETION_STORAGE_KEY_PREFIX}${token}`
 }
@@ -211,8 +217,11 @@ async function loadBundle(token = props.token) {
   } catch (e) {
     const status = e?.response?.status
     if (status === 409 && storedEvaluationId != null) {
+      // Сессия устарела — сбрасываем и возвращаем на стартовый экран
       clearStoredEvaluationId(token)
-      return await loadBundle(token)
+      clearEvaluationCompletedLocally(token)
+      started.value = false
+      return null
     }
     fatalState.value = resolveFatalState(e)
     return null
@@ -258,12 +267,63 @@ async function loadOrRedirectIfCompleted(token) {
   clearEvaluationCompletedLocally(token)
 }
 
+async function checkSession(token = props.token) {
+  const storedId = getStoredEvaluationId(token)
+  if (storedId != null) {
+    await loadOrRedirectIfCompleted(token)
+    if (evaluation.value) {
+      started.value = true
+    }
+    // Если evaluation = null (fatalState или сессия устарела), started остаётся false
+  } else {
+    loading.value = false
+    started.value = false
+  }
+}
+
+async function startEvaluation() {
+  const name = normalizeAnonymousName(startNameDraft.value)
+  if (!name) {
+    startError.value = 'Введите ваше полное имя'
+    return
+  }
+
+  startingEvaluation.value = true
+  startError.value = ''
+
+  try {
+    const { data } = await publicApi.post(`/public/evaluations/${props.token}/start`, {
+      anonymous_name: name,
+    })
+    setStoredEvaluationId(props.token, data.evaluation.id)
+    const bundle = await loadBundle(props.token)
+    if (bundle) {
+      started.value = true
+    }
+  } catch (e) {
+    const status = e?.response?.status
+    const detail = e?.response?.data?.detail
+    if (status === 404) {
+      startError.value = 'Ссылка недействительна. Проверьте адрес или запросите новую ссылку.'
+    } else if (status === 403) {
+      startError.value = detail || 'Этот оценочный лист сейчас недоступен для анонимной оценки.'
+    } else {
+      startError.value = detail || 'Не удалось начать оценку. Попробуйте позже.'
+    }
+  } finally {
+    startingEvaluation.value = false
+  }
+}
+
 onMounted(() => {
-  loadOrRedirectIfCompleted(props.token)
+  checkSession()
 })
 
 watch(() => props.token, (token) => {
-  loadOrRedirectIfCompleted(token)
+  started.value = false
+  startError.value = ''
+  startNameDraft.value = ''
+  checkSession(token)
 })
 
 function getWorkTitle() {
@@ -746,6 +806,41 @@ async function finishEvaluation() {
           class="inline-flex cursor-pointer items-center rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/40"
           @click="loadBundle">
           Попробовать снова
+        </button>
+      </div>
+    </div>
+
+    <div v-else-if="!started" class="mx-auto flex min-h-[60vh] max-w-lg items-center justify-center">
+      <div class="w-full rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <h2 class="mb-1 text-xl font-semibold text-gray-900 dark:text-gray-100">Анонимная оценка работы</h2>
+        <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">Введите ваше полное имя и нажмите «Начать оценку»</p>
+        <div class="mb-4">
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Ваше полное имя <span class="text-red-500">*</span>
+          </label>
+          <input
+            v-model="startNameDraft"
+            type="text"
+            maxlength="150"
+            placeholder="Введите ФИО"
+            class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 font-sans text-sm text-gray-800 transition focus:border-primary focus:ring-2 focus:ring-primary-light focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+            :disabled="startingEvaluation"
+            @keyup.enter="startEvaluation"
+          />
+        </div>
+        <p v-if="startError" class="mb-3 text-sm text-red-600 dark:text-red-400">{{ startError }}</p>
+        <button
+          class="w-full cursor-pointer rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+          :disabled="startingEvaluation || !normalizeAnonymousName(startNameDraft)"
+          @click="startEvaluation">
+          <span v-if="startingEvaluation" class="flex items-center justify-center gap-2">
+            <svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            Начинаем...
+          </span>
+          <span v-else>Начать оценку</span>
         </button>
       </div>
     </div>

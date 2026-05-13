@@ -309,6 +309,21 @@ class AnonymousEvaluationService:
         if existing:
             return existing
 
+        # Проверяем БД перед созданием — workflow мог уже создать запись после начальной загрузки
+        db_items = await nocobase.list(
+            'contest_evaluation_items',
+            filter={
+                'evaluation_id': context['evaluation']['id'],
+                'criterion_id': criterion_id,
+            },
+            pageSize=1,
+        )
+        if db_items and isinstance(db_items, list) and db_items:
+            db_item = db_items[0]
+            items_by_criterion[criterion_key] = db_item
+            self._save_cached_context(token, context)
+            return db_item
+
         attempts = [
             {'evaluation_id': context['evaluation']['id'], 'criterion_id': criterion_id},
             {'evaluation': context['evaluation']['id'], 'criterion': criterion_id},
@@ -350,27 +365,38 @@ class AnonymousEvaluationService:
             key=lambda item: (str(item.get('id', '')), str(item.get('criterion_id', ''))),
         )
 
+    async def start_anonymous_evaluation(self, token: str, anonymous_name: str | None = None) -> dict:
+        work = await self._get_work_by_token(token)
+        sheet = await self._get_sheet(work['sheet_id'])
+        self._assert_sheet_allows_anonymous(sheet)
+        evaluation = await self._create_anonymous_evaluation(work['id'])
+
+        normalized_name = None
+        if isinstance(anonymous_name, str):
+            normalized_name = anonymous_name.strip()
+            if not normalized_name:
+                normalized_name = None
+
+        if normalized_name and len(normalized_name) > 150:
+            raise HTTPException(status_code=400, detail='Слишком длинное имя (максимум 150 символов)')
+
+        if normalized_name:
+            updated = await nocobase.update(
+                'contest_evaluations',
+                evaluation['id'],
+                {'anonymous_name': normalized_name},
+            )
+            evaluation = {**evaluation, **updated, 'anonymous_name': normalized_name}
+
+        return {'evaluation': evaluation}
+
     async def get_bundle(self, token: str, *, evaluation_id: int | None = None) -> dict:
         if evaluation_id is None:
-            work = await self._get_work_by_token(token)
-            sheet = await self._get_sheet(work['sheet_id'])
-            self._assert_sheet_allows_anonymous(sheet)
-            evaluation = await self._create_anonymous_evaluation(work['id'])
-            context = {
-                'work': work,
-                'sheet': sheet,
-                'evaluation': evaluation,
-                '_evaluation_checked_at': time.monotonic(),
-                'criteria': None,
-                'criteria_by_id': {},
-                'items_by_criterion': None,
-                'levels_by_id': {},
-                'categories': None,
-                'levels': None,
-            }
-            self._save_cached_context(token, context)
-        else:
-            context = await self._ensure_context(token, evaluation_id, force_evaluation_check=True)
+            raise HTTPException(
+                status_code=400,
+                detail='Требуется evaluation_id. Начните оценку через кнопку «Начать оценку».',
+            )
+        context = await self._ensure_context(token, evaluation_id, force_evaluation_check=True)
         criteria = await self._ensure_criteria(token, context)
 
         category_ids = sorted({criterion['category_id'] for criterion in criteria if criterion.get('category_id') is not None})
