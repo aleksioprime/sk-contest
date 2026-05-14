@@ -276,7 +276,7 @@ async function checkSession(token = props.token) {
     }
     // Если evaluation = null (fatalState или сессия устарела), started остаётся false
   } else {
-    loading.value = false
+    await loadBundle(token)
     started.value = false
   }
 }
@@ -748,7 +748,7 @@ async function finishEvaluation() {
 
 <template>
   <div>
-    <div class="my-5" v-if="work">
+    <div class="my-5" v-if="work && started">
       <div class="mb-1 flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="mb-1 flex flex-wrap items-center gap-2">
@@ -814,6 +814,19 @@ async function finishEvaluation() {
       <div class="w-full rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <h2 class="mb-1 text-xl font-semibold text-gray-900 dark:text-gray-100">Анонимная оценка работы</h2>
         <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">Введите ваше полное имя и нажмите «Начать оценку»</p>
+        <div v-if="work" class="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-900/50 dark:bg-blue-900/20">
+          <p class="text-sm font-semibold text-blue-900 dark:text-blue-100">{{ getWorkTitle() }}</p>
+          <p v-if="sheet?.title" class="mt-0.5 text-xs text-blue-700 dark:text-blue-300">Лист: {{ sheet.title }}</p>
+          <p v-if="getParticipants().length" class="mt-1 text-xs text-blue-800 dark:text-blue-200">
+            <span class="font-medium">Участники:</span> {{ getParticipantsLabel() }}
+          </p>
+          <p v-if="getSupervisors().length" class="mt-0.5 text-xs text-blue-700 dark:text-blue-300">
+            <span class="font-medium">Руководители:</span> {{ getSupervisorsLabel() }}
+          </p>
+          <p v-if="getWorkNotes()" class="mt-1 whitespace-pre-line text-xs text-blue-700 dark:text-blue-300">
+            <span class="font-medium">Примечание:</span> {{ getWorkNotes() }}
+          </p>
+        </div>
         <div class="mb-4">
           <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
             Ваше полное имя <span class="text-red-500">*</span>

@@ -38,6 +38,10 @@ const judges = ref([])            // [{ judge, evaluation, items }] — данн
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
+const deletingEvaluationId = ref(null)
+const deleteModalOpen = ref(false)
+const pendingDeleteEvaluationId = ref(null)
+const pendingDeleteJudgeName = ref('')
 const expandedComments = reactive({})        // { 'evalId-criterionId': true } — раскрытые комментарии
 const expandedGeneralComments = reactive({})  // { evalId: true } — раскрытые общие комментарии
 const expandedCriteria = reactive({})         // { evalId: true } — раскрытые блоки критериев
@@ -536,6 +540,50 @@ function getJudgeDisplayName(judgeData) {
   return 'Судья без имени'
 }
 
+function canDeleteAnonymousJudge(judgeData) {
+  return (auth.isViewer || auth.isAdmin) && isAnonymousJudge(judgeData)
+}
+
+function requestDeleteAnonymousJudge(judgeData) {
+  if (!canDeleteAnonymousJudge(judgeData)) return
+
+  const evaluationId = Number(judgeData?.evaluation?.id)
+  if (!evaluationId) return
+
+  pendingDeleteEvaluationId.value = evaluationId
+  pendingDeleteJudgeName.value = getJudgeDisplayName(judgeData)
+  deleteModalOpen.value = true
+}
+
+function clearDeleteAnonymousJudgeModalState() {
+  deleteModalOpen.value = false
+  pendingDeleteEvaluationId.value = null
+  pendingDeleteJudgeName.value = ''
+}
+
+function closeDeleteAnonymousJudgeModal() {
+  if (deletingEvaluationId.value != null) return
+  clearDeleteAnonymousJudgeModalState()
+}
+
+async function confirmDeleteAnonymousJudge() {
+  const evaluationId = Number(pendingDeleteEvaluationId.value)
+  if (!evaluationId) return
+
+  deletingEvaluationId.value = evaluationId
+  error.value = ''
+
+  try {
+    await api.post(`/contest_evaluations:destroy?filterByTk=${evaluationId}`)
+    clearDeleteAnonymousJudgeModalState()
+    await loadData(true)
+  } catch (e) {
+    error.value = e?.response?.data?.errors?.[0]?.message || e?.response?.data?.message || 'Не удалось удалить анонимного судью'
+  } finally {
+    deletingEvaluationId.value = null
+  }
+}
+
 function toggleComment(judgeId, criterionId) {
   const key = `${judgeId}-${criterionId}`
   expandedComments[key] = !expandedComments[key]
@@ -629,25 +677,24 @@ function toggleCriteria(evalId) {
         <div v-for="j in judges" :key="j.evaluation.id"
           class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
           <!-- Judge header -->
-          <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center" :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
-            <h3 class="flex w-full items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-gray-100 sm:w-auto">
-              <svg
-                v-if="isAnonymousJudge(j)"
-                class="h-4 w-4 text-gray-500 dark:text-gray-400"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  fill-rule="evenodd"
+          <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center"
+            :class="hasJudgeAnyScores(j) ? 'mb-3' : ''">
+            <h3
+              class="flex w-full items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-gray-100 sm:w-auto">
+              <svg v-if="isAnonymousJudge(j)" class="h-4 w-4 text-gray-500 dark:text-gray-400"
+                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd"
                   d="M10 2.5a4.25 4.25 0 0 0-4.25 4.25V8a2.75 2.75 0 0 0-1.2 5.225A5.75 5.75 0 0 0 10 17.5a5.75 5.75 0 0 0 5.45-4.275A2.75 2.75 0 0 0 14.25 8V6.75A4.25 4.25 0 0 0 10 2.5Zm-2.75 6a2.75 2.75 0 1 1 5.5 0V8h-5.5v.5Z"
-                  clip-rule="evenodd"
-                />
+                  clip-rule="evenodd" />
               </svg>
               <span>{{ getJudgeDisplayName(j) }}</span>
             </h3>
             <div class="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+              <button v-if="canDeleteAnonymousJudge(j)"
+                class="cursor-pointer rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:bg-gray-800 dark:hover:bg-red-900/20"
+                :disabled="deletingEvaluationId != null" @click="requestDeleteAnonymousJudge(j)">
+                {{ deletingEvaluationId === j.evaluation.id ? 'Удаление...' : 'Удалить судью' }}
+              </button>
               <span class="rounded-full px-3 py-0.5 text-sm font-medium"
                 :class="isJudgeFullyScored(j) ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'">
                 {{ isJudgeFullyScored(j) ? 'Оценено' : 'Не оценено' }}
@@ -718,7 +765,8 @@ function toggleCriteria(evalId) {
                         <div>
                           <span class="text-sm text-gray-700 dark:text-gray-300">{{ criterion.title }}</span>
                           <p v-if="criterion.description"
-                            class="m-0 mt-0.5 whitespace-pre-line text-xs leading-relaxed text-gray-400 dark:text-gray-500">{{
+                            class="m-0 mt-0.5 whitespace-pre-line text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+                            {{
                               criterion.description }}</p>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
@@ -740,20 +788,17 @@ function toggleCriteria(evalId) {
                         {{ getLevelTitle(criterion, j.items[criterion.id]) }}
                       </p>
                       <div v-if="isChecklistCriterion(criterion)" class="mt-1.5 flex flex-col gap-1">
-                        <p
-                          v-for="option in getJudgeChecklistSelectedOptions(j, criterion)"
+                        <p v-for="option in getJudgeChecklistSelectedOptions(j, criterion)"
                           :key="`option-${j.evaluation.id}-${criterion.id}-${option.id}`"
-                          class="m-0 flex items-start justify-between gap-2 text-xs text-gray-600 dark:text-gray-300"
-                        >
+                          class="m-0 flex items-start justify-between gap-2 text-xs text-gray-600 dark:text-gray-300">
                           <span class="min-w-0">{{ option.title || `Пункт #${option.id}` }}</span>
-                          <span class="shrink-0 rounded-full bg-score-light px-2 py-0.5 text-[11px] font-semibold text-score">
+                          <span
+                            class="shrink-0 rounded-full bg-score-light px-2 py-0.5 text-[11px] font-semibold text-score">
                             +{{ formatChecklistOptionPoint(option.point) }}
                           </span>
                         </p>
-                        <p
-                          v-if="!getJudgeChecklistSelectedOptions(j, criterion).length"
-                          class="m-0 text-xs text-gray-400 dark:text-gray-500"
-                        >
+                        <p v-if="!getJudgeChecklistSelectedOptions(j, criterion).length"
+                          class="m-0 text-xs text-gray-400 dark:text-gray-500">
                           Пункты чеклиста не выбраны
                         </p>
                       </div>
@@ -787,5 +832,41 @@ function toggleCriteria(evalId) {
         </div>
       </div>
     </template>
+
+    <div
+      v-if="deleteModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      @click.self="closeDeleteAnonymousJudgeModal"
+    >
+      <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+        <h3 class="mb-2 text-base font-semibold text-gray-900 dark:text-gray-100">Подтвердите удаление</h3>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
+          Удалить судью «{{ pendingDeleteJudgeName || 'Анонимный судья' }}»?
+        </p>
+        <div class="flex justify-end gap-2">
+          <button
+            class="cursor-pointer rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            :disabled="deletingEvaluationId != null"
+            @click="closeDeleteAnonymousJudgeModal"
+          >
+            Отмена
+          </button>
+          <button
+            class="cursor-pointer rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+            :disabled="deletingEvaluationId != null"
+            @click="confirmDeleteAnonymousJudge"
+          >
+            <span v-if="deletingEvaluationId != null" class="inline-flex items-center gap-1.5">
+              <svg class="h-3.5 w-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Удаление...
+            </span>
+            <span v-else>Удалить</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

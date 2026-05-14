@@ -392,10 +392,19 @@ class AnonymousEvaluationService:
 
     async def get_bundle(self, token: str, *, evaluation_id: int | None = None) -> dict:
         if evaluation_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail='Требуется evaluation_id. Начните оценку через кнопку «Начать оценку».',
-            )
+            work = await self._get_work_by_token(token)
+            sheet = await self._get_sheet(work['sheet_id'])
+            self._assert_sheet_allows_anonymous(sheet)
+            return {
+                'token': token,
+                'sheet': sheet,
+                'work': work,
+                'evaluation': None,
+                'criteria': [],
+                'categories': [],
+                'levels': [],
+                'items': [],
+            }
         context = await self._ensure_context(token, evaluation_id, force_evaluation_check=True)
         criteria = await self._ensure_criteria(token, context)
 
