@@ -1,13 +1,15 @@
-FROM python:3.12.11-slim-bullseye
+FROM python:3.12.11-slim-bookworm
 
 WORKDIR /usr/src/app
 
-ENV PYTHONPATH=/usr/src/app:$PYTHONPATH
+ENV PYTHONPATH=/usr/src/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Europe/Moscow
 
-RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -o Acquire::Retries=3 \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 COPY ./requirements.txt ./
