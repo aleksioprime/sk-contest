@@ -2,8 +2,9 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, MetaData, func, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
@@ -16,7 +17,7 @@ NAMING_CONVENTION = {
 }
 
 
-class Base(DeclarativeBase):
+class Base(AsyncAttrs, DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
@@ -33,13 +34,16 @@ class TimestampMixin:
     )
 
 
-engine = create_async_engine(
-    settings.db.dsn,
-    echo=settings.db.echo,
-    pool_pre_ping=True,
-    pool_size=settings.db.pool_size,
-    max_overflow=settings.db.max_overflow,
-)
+if settings.db.null_pool:
+    engine = create_async_engine(settings.db.dsn, echo=settings.db.echo, poolclass=NullPool)
+else:
+    engine = create_async_engine(
+        settings.db.dsn,
+        echo=settings.db.echo,
+        pool_pre_ping=True,
+        pool_size=settings.db.pool_size,
+        max_overflow=settings.db.max_overflow,
+    )
 session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 

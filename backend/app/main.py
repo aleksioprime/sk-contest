@@ -4,6 +4,7 @@ from fastapi.responses import ORJSONResponse
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.csrf import OriginCheckMiddleware
 from app.core.logging import RequestLoggingMiddleware, setup_logging
 
 
@@ -16,6 +17,7 @@ def create_app() -> FastAPI:
         openapi_url='/api/openapi.json',
         default_response_class=ORJSONResponse,
     )
+    app.add_middleware(OriginCheckMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,

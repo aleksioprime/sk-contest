@@ -1,0 +1,74 @@
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentOut(ORMModel):
+    id: int
+    name: str
+
+
+class ClassOut(ORMModel):
+    id: int
+    name: str
+    grade: int | None
+    letter: str
+
+
+class PersonOut(ORMModel):
+    id: int
+    full_name: str
+    short_name: str
+    last_name: str
+    first_name: str
+    middle_name: str
+    email: str | None
+    is_student: bool
+    is_employee: bool
+    is_external: bool
+    is_active: bool
+    organization: str | None
+    study_class: ClassOut | None
+    departments: list[DepartmentOut]
+
+
+class PersonPage(BaseModel):
+    items: list[PersonOut]
+    total: int
+
+
+class UserOut(ORMModel):
+    id: int
+    email: str
+    is_active: bool
+    is_superuser: bool
+    last_login_at: datetime | None
+    person: PersonOut | None
+
+
+class UserPage(BaseModel):
+    items: list[UserOut]
+    total: int
+
+
+class UserUpdate(BaseModel):
+    is_active: bool | None = None
+    is_superuser: bool | None = None
+
+
+class SyncRunOut(ORMModel):
+    id: int
+    mode: str
+    status: str
+    stats: dict
+    error: str | None
+    started_at: datetime
+    finished_at: datetime | None
+
+
+class SyncRequest(BaseModel):
+    mode: str = Field(default='incremental', pattern='^(full|incremental)$')

@@ -13,6 +13,7 @@ class DatabaseSettings(BaseModel):
     echo: bool = False
     pool_size: int = 10
     max_overflow: int = 10
+    null_pool: bool = False  # для тестов: без пула, каждое соединение новое
 
     @property
     def dsn(self) -> str:
@@ -45,6 +46,20 @@ class SkolstreamSettings(BaseModel):
     client_id: str = ''
     client_secret: str = ''
     directory_token: str = ''
+    timeout: float = 20.0
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.base_url and self.client_id)
+
+
+class AuthSettings(BaseModel):
+    access_ttl_minutes: int = 15
+    refresh_ttl_days: int = 30
+    magic_link_ttl_minutes: int = 20
+    magic_link_per_hour: int = 5
+    access_cookie: str = 'ske_access'
+    refresh_cookie: str = 'ske_refresh'
 
 
 class Settings(BaseSettings):
@@ -63,15 +78,26 @@ class Settings(BaseSettings):
     sites_base_domain: str = 'events.skolhub.ru'
     cors_origins: list[str] = ['http://localhost:8501', 'http://localhost:8502']
     storage_dir: str = './.data/files'
+    # Адреса, которые получают права администратора платформы при входе (первичная настройка)
+    bootstrap_admin_emails: list[str] = []
 
     db: DatabaseSettings = DatabaseSettings()
     redis: RedisSettings = RedisSettings()
     smtp: SmtpSettings = SmtpSettings()
     skolstream: SkolstreamSettings = SkolstreamSettings()
+    auth: AuthSettings = AuthSettings()
 
     @cached_property
     def is_local(self) -> bool:
         return self.environment == 'local'
+
+    @property
+    def cookie_secure(self) -> bool:
+        return not self.is_local
+
+    @property
+    def allowed_origins(self) -> set[str]:
+        return {origin.rstrip('/') for origin in [*self.cors_origins, self.app_url]}
 
 
 settings = Settings()
