@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+@import '@sk-events/blocks/styles.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Дизайн-токены приложения. Палитра продолжает фиолетовый бренд sk-contest, баллы — янтарные. */
+@theme {
+  --font-sans: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-brand-50: #f4f0ff;
+  --color-brand-100: #e9e1ff;
+  --color-brand-200: #d4c6fe;
+  --color-brand-500: #7c3aed;
+  --color-brand-600: #6d28d9;
+  --color-brand-700: #5b21b6;
+  --color-brand-900: #2e1065;
+
+  --color-score-100: #fdf1df;
+  --color-score-600: #b45309;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f8f7fc;
+  --color-line: #e4e0f0;
+  --color-ink: #1d1a2b;
+  --color-ink-muted: #5f5a75;
+
+  --radius-control: 10px;
+  --radius-card: 14px;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}
+
+.dark {
+  color-scheme: dark;
+  --color-surface: #1c1927;
+  --color-canvas: #14121c;
+  --color-line: #332d47;
+  --color-ink: #ece9f6;
+  --color-ink-muted: #a29cb9;
+  --color-brand-50: #241b3d;
+  --color-brand-100: #2e2350;
+  --color-score-100: #33270f;
+  --color-score-600: #f59e0b;
+}

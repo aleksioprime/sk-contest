@@ -1,0 +1,20 @@
+{
+  "name": "@sk-events/sites",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "node .output/server/index.mjs",
+    "postinstall": "nuxt prepare || true",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@sk-events/blocks": "^0.1.0",
+    "nuxt": "^4.5.2"
+  }
+}

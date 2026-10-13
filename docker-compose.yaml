@@ -1,0 +1,93 @@
+# Окружение разработки: docker compose -p sk-events up -d --build
+# Приложение: http://localhost:8501 · API: http://localhost:8500/api/docs · Лендинги: http://localhost:8502
+# Почта: http://localhost:8504 · PostgreSQL: localhost:8510 · Redis: localhost:8511
+
+x-backend: &backend
+  build:
+    context: ./backend
+    target: dev
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DB__HOST: postgres
+    DB__PORT: 5432
+    REDIS__HOST: redis
+    REDIS__PORT: 6379
+    STORAGE_DIR: /data/files
+    SMTP__HOST: mailpit
+    SMTP__PORT: 1025
+    CORS_ORIGINS: '["http://localhost:8501","http://localhost:8502"]'
+    RELOAD: '1'
+  volumes:
+    - ./backend:/usr/src/app
+    - files_data:/data/files
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sk_events
+      POSTGRES_PASSWORD: sk_events
+      POSTGRES_DB: sk_events
+    ports: ['8510:5432']
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sk_events']
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ['8511:6379']
+
+  mailpit:
+    image: axllent/mailpit:v1.24
+    ports: ['8504:8025', '8503:1025']
+
+  backend:
+    <<: *backend
+    command: api
+    ports: ['8500:8000']
+
+  worker:
+    <<: *backend
+    command: worker
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: dev
+    environment:
+      VITE_API_PROXY: http://backend:8000
+    volumes:
+      - ./frontend/src:/repo/frontend/src
+      - ./packages/blocks/src:/repo/packages/blocks/src
+    ports: ['8501:5173']
+    depends_on: [backend]
+
+  sites:
+    build:
+      context: .
+      dockerfile: sites/Dockerfile
+      target: dev
+    environment:
+      NUXT_API_INTERNAL_URL: http://backend:8000
+      NUXT_PUBLIC_SITES_BASE_DOMAIN: events.localhost
+      NUXT_PUBLIC_APP_URL: http://localhost:8501
+    volumes:
+      - ./sites/app:/repo/sites/app
+      - ./sites/shared:/repo/sites/shared
+      - ./packages/blocks/src:/repo/packages/blocks/src
+    ports: ['8502:3000']
+    depends_on: [backend]
+
+volumes:
+  postgres_data:
+  files_data:
