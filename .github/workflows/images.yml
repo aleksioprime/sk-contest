@@ -2,9 +2,11 @@ name: Образы
 
 run-name: "Сборка образов SK Events ${{ github.sha }}"
 
-# Образы собираются вручную, пока старое приложение разворачивается из main (см. README).
-# После переключения добавить сюда push в main и деплой UAT в Coolify.
+# Образы для прода в Coolify (infra/coolify/docker-compose.prod.yaml). Старое приложение берёт свои образы
+# sk-contest-*, на него сборка не влияет.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

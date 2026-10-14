@@ -1,14 +1,13 @@
-# Прод SK Events в Coolify: ресурс «Docker Compose» из этого репозитория, сборка на сервере.
+# Прод SK Events в Coolify: ресурс «Docker Compose» из этого репозитория.
+# Образы собирает GitHub Actions (.github/workflows/images.yml) при пуше в main, сервер только скачивает их.
 # Домены в интерфейсе Coolify:
 #   frontend → https://app.events.skolhub.ru          (API проксируется nginx на backend)
 #   sites    → https://events.skolhub.ru, https://*.events.skolhub.ru (wildcard — после DNS-01, docs/domains.md)
 # Переменные — из .env.prod (docs/deploy.md).
-# Локальная проверка: docker compose --project-directory . -f infra/coolify/docker-compose.prod.yaml build
 
 x-backend: &backend
-  build:
-    context: backend  # пути от корня репозитория (так собирает Coolify)
-    target: prod
+  image: ghcr.io/aleksioprime/sk-events-backend:${IMAGE_TAG:-latest}
+  pull_policy: always
   restart: unless-stopped
   environment: &backend-env
     ENVIRONMENT: prod
@@ -17,7 +16,6 @@ x-backend: &backend
     SITES_BASE_DOMAIN: events.skolhub.ru
     CORS_ORIGINS: '["https://app.events.skolhub.ru"]'
     BOOTSTRAP_ADMIN_EMAILS: ${BOOTSTRAP_ADMIN_EMAILS:?}
-    BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     DB__HOST: postgres
     DB__USER: sk_events
     DB__PASSWORD: ${DB__PASSWORD:?}
@@ -55,18 +53,14 @@ services:
       disable: true
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-      target: prod
+    image: ghcr.io/aleksioprime/sk-events-frontend:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     depends_on: [backend]
 
   sites:
-    build:
-      context: .
-      dockerfile: sites/Dockerfile
-      target: prod
+    image: ghcr.io/aleksioprime/sk-events-sites:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NUXT_API_INTERNAL_URL: http://backend:8000
