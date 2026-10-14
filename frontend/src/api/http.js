@@ -42,6 +42,7 @@ http.interceptors.response.use(
 export function errorMessage(error, fallback = 'Что-то пошло не так. Попробуйте ещё раз.') {
   const detail = error?.response?.data?.detail
   if (typeof detail === 'string') return detail
+  if (detail && typeof detail.message === 'string') return detail.message
   if (Array.isArray(detail)) return 'Проверьте правильность заполнения полей'
   if (!error?.response) return 'Сервер недоступен. Проверьте подключение.'
   return fallback

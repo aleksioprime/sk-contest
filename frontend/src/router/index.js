@@ -19,6 +19,19 @@ export const routes = [
       { path: 'events', name: 'events', component: () => import('@/views/events/EventsView.vue') },
       { path: 'events/new', name: 'event-new', component: () => import('@/views/events/EventCreateView.vue') },
       { path: 'events/:id', name: 'event', component: () => import('@/views/events/EventView.vue'), props: true },
+      {
+        path: 'events/:slug/apply',
+        name: 'apply',
+        component: () => import('@/views/applications/ApplyView.vue'),
+        props: true,
+      },
+      { path: 'my/applications', name: 'my-applications', component: () => import('@/views/applications/MyApplicationsView.vue') },
+      {
+        path: 'my/applications/:id',
+        name: 'application',
+        component: () => import('@/views/applications/ApplicationView.vue'),
+        props: true,
+      },
       { path: 'system', name: 'system', component: () => import('@/views/HomeView.vue'), meta: { admin: true } },
       { path: 'ui', name: 'ui-kit', component: () => import('@/views/UiKitView.vue'), meta: { admin: true } },
       {

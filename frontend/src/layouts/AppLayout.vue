@@ -8,6 +8,7 @@ const router = useRouter()
 
 const links = computed(() => [
   { to: { name: 'events' }, label: 'Мероприятия' },
+  { to: { name: 'my-applications' }, label: 'Мои заявки' },
   ...(auth.isAdmin
     ? [
         { to: { name: 'admin-people' }, label: 'Люди' },
