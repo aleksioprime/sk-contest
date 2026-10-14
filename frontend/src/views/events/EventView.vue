@@ -26,6 +26,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const route = useRoute()
@@ -54,7 +55,10 @@ const tabs = computed(() => [
     ? [{ id: 'applications', label: 'Заявки' }]
     : []),
   ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Анкета' }] : []),
-  ...(event.value?.modules.evaluation && event.value.can_manage ? [{ id: 'evaluation', label: 'Оценивание' }] : []),
+  ...(event.value?.modules.evaluation &&
+  (event.value.can_manage || event.value.my_roles.some((r) => ['moderator', 'observer'].includes(r)))
+    ? [{ id: 'evaluation', label: 'Оценивание' }]
+    : []),
   { id: 'team', label: 'Команда' },
 ])
 const tab = computed({
@@ -183,7 +187,7 @@ watch(() => props.id, load, { immediate: true })
 
 <template>
   <p v-if="loadError" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ loadError }}</p>
-  <p v-else-if="!event" class="text-ink-muted">Загрузка…</p>
+  <SkeletonPage v-else-if="!event" :cards="3" />
 
   <div v-else class="grid gap-6">
     <div class="flex flex-wrap items-start justify-between gap-4">

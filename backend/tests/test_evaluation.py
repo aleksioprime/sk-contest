@@ -1,6 +1,10 @@
+from datetime import timedelta
+
 import pytest
+from sqlalchemy import select
 
 from app.core.config import settings
+from app.modules.auth.models import MagicLinkToken
 from app.modules.auth.service import open_session
 from app.modules.people.service import get_user_by_email
 from tests.helpers import login_as
@@ -85,7 +89,11 @@ async def _prepared_sheet(db, client, mode='mixed'):
         await client.put(
             f'{sheet_url}/judges',
             json={
-                'emails': ['judge1@example.org', 'judge2@example.org', 'petrov@example.org'],
+                'judges': [
+                    {'email': 'judge1@example.org'},
+                    {'email': 'judge2@example.org'},
+                    {'email': 'petrov@example.org'},
+                ],
             },
         )
     ).json()
@@ -206,10 +214,12 @@ async def test_scorecard_locked_after_scoring_and_judge_removal(db, client):
     copy = await client.post(f'/api/v1/scorecards/{scorecard["id"]}/copy')
     assert copy.status_code == 201 and len(copy.json()['criteria']) == 2
 
-    removal = await client.put(f'/api/v1/sheets/{sheet["id"]}/judges', json={'emails': ['judge2@example.org']})
+    removal = await client.put(
+        f'/api/v1/sheets/{sheet["id"]}/judges', json={'judges': [{'email': 'judge2@example.org'}]}
+    )
     assert removal.status_code == 400
     forced = await client.put(
-        f'/api/v1/sheets/{sheet["id"]}/judges', json={'emails': ['judge2@example.org'], 'force': True}
+        f'/api/v1/sheets/{sheet["id"]}/judges', json={'judges': [{'email': 'judge2@example.org'}], 'force': True}
     )
     assert [j['email'] for j in forced.json()['judges']] == ['judge2@example.org']
 
@@ -221,3 +231,61 @@ async def test_strangers_cannot_manage_sheets(db, client):
         assert (await stranger.get(f'/api/v1/sheets/{sheet["id"]}')).status_code == 404
         assert (await stranger.get(f'/api/v1/events/{event["id"]}/scorecards')).status_code == 404
         assert (await stranger.get(f'/api/v1/my/sheets/{sheet["id"]}/works')).status_code == 404
+
+
+async def test_judge_qr_login_and_moderator_controls(db, client):
+    event, scorecard, sheet = await _prepared_sheet(db, client)
+    sheet_url = f'/api/v1/sheets/{sheet["id"]}'
+    level = scorecard['criteria'][0]['scale']['levels'][1]['id']
+    criterion = scorecard['criteria'][0]['id']
+
+    # судья без email: заводится по ФИО, входит только по QR
+    judges = [
+        {'email': 'judge1@example.org'},
+        {'email': 'judge2@example.org'},
+        {'full_name': 'Сидорова  Мария Петровна'},
+    ]
+    updated = (await client.put(f'{sheet_url}/judges', json={'judges': judges})).json()
+    no_email = next(j for j in updated['judges'] if j['email'] is None)
+    assert no_email['full_name'] == 'Сидорова Мария Петровна'
+    await client.post(f'{sheet_url}/distribute', json={'mode': 'all'})
+
+    # модератор печатает листы судей и управляет оценкой
+    async with _other(client) as moderator:
+        await login_as(db, moderator, email='moderator@example.org')
+        await client.post(
+            f'/api/v1/events/{event["id"]}/members', json={'email': 'moderator@example.org', 'role': 'moderator'}
+        )
+        cards = (await moderator.post(f'{sheet_url}/judge-cards', json={'user_ids': [no_email['user_id']]})).json()
+        assert len(cards) == 1 and cards[0]['works'] == 2
+        token = cards[0]['login_url'].split('token=')[1]
+
+        async with _other(client) as judge:
+            login = await judge.post('/api/v1/auth/magic-link/verify', json={'token': token})
+            assert login.status_code == 200 and login.json()['next'] == f'/judging/sheets/{sheet["id"]}'
+            assert (await judge.get('/api/v1/auth/me')).json()['judge_mode'] is True
+            again = await _other(client).post('/api/v1/auth/magic-link/verify', json={'token': token})
+            assert again.status_code == 400
+
+            own = (await judge.get(f'/api/v1/my/sheets/{sheet["id"]}/works')).json()[0]
+            url = f'/api/v1/evaluations/{own["evaluation_id"]}/criteria/{criterion}'
+            assert (await judge.put(url, json={'level_id': level})).status_code == 200
+
+            assert (await moderator.post(f'{sheet_url}/status', json={'status': 'closed'})).status_code == 200
+            assert (await judge.put(url, json={'level_id': level})).status_code == 400
+            assert (await judge.get('/api/v1/my/sheets')).json()[0]['editable'] is False
+
+            opened = await moderator.post(f'{sheet_url}/judges/{no_email["user_id"]}/access', json={'open': True})
+            assert next(j for j in opened.json()['judges'] if j['user_id'] == no_email['user_id'])['reopened'] is True
+            assert (await judge.put(url, json={'level_id': level})).status_code == 200
+
+        # модератор не может менять состав листа — это делает организатор
+        assert (await moderator.put(f'{sheet_url}/judges', json={'judges': []})).status_code == 403
+
+
+async def test_judge_qr_link_expires_in_20_minutes(db, client):
+    _, _, sheet = await _prepared_sheet(db, client)
+    cards = (await client.post(f'/api/v1/sheets/{sheet["id"]}/judge-cards', json={})).json()
+    assert len(cards) == 3
+    record = await db.scalar(select(MagicLinkToken).where(MagicLinkToken.purpose == 'judge_qr').limit(1))
+    assert record.expires_at - record.created_at <= timedelta(minutes=20, seconds=5)

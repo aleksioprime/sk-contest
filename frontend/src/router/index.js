@@ -27,6 +27,13 @@ export const routes = [
       { path: 'events/new', name: 'event-new', component: () => import('@/views/events/EventCreateView.vue') },
       { path: 'events/:id', name: 'event', component: () => import('@/views/events/EventView.vue'), props: true },
       {
+        path: 'events/:id/sheets/:sheetId/judge-cards',
+        name: 'judge-cards',
+        component: () => import('@/views/events/JudgeCardsView.vue'),
+        props: true,
+        meta: { print: true },
+      },
+      {
         path: 'events/:id/sheets/:sheetId',
         name: 'event-sheet',
         component: () => import('@/views/events/SheetView.vue'),
@@ -77,9 +84,13 @@ export const router = createRouter({
 })
 
 /** Проверка доступа к маршруту. Вынесена отдельно, чтобы её можно было протестировать. */
+const JUDGE_ROUTES = new Set(['judging', 'judge-sheet', 'judge-evaluation'])
+
 export function resolveAccess(to, auth) {
   if (to.meta.public) return true
   if (!auth.isAuthenticated) return { name: 'login', query: { next: to.fullPath } }
+  // Судье на мероприятии доступны только его оценочные листы
+  if (auth.judgeMode && !JUDGE_ROUTES.has(to.name)) return { name: 'judging' }
   if (to.meta.admin && !auth.isAdmin) return { name: 'home' }
   return true
 }

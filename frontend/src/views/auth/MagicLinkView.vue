@@ -18,7 +18,7 @@ onMounted(async () => {
   }
   try {
     const result = await verifyMagicLink(token)
-    auth.setUser(result.user)
+    await auth.load(true)
     await router.replace(result.next || '/')
   } catch (e) {
     error.value = errorMessage(e)

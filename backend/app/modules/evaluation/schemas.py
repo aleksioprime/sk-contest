@@ -122,10 +122,27 @@ class SheetUpdate(SheetBase):
 
 class JudgeOut(BaseModel):
     user_id: int
-    email: str
+    email: str | None
     full_name: str
     total: int
     scored: int
+    reopened: bool
+
+
+class JudgeAccess(BaseModel):
+    open: bool
+
+
+class JudgeCardsRequest(BaseModel):
+    user_ids: list[int] | None = None
+
+
+class JudgeCard(BaseModel):
+    user_id: int
+    full_name: str
+    login_url: str
+    expires_at: datetime
+    works: int
 
 
 class WorkOut(BaseModel):
@@ -177,8 +194,20 @@ class AddWorks(BaseModel):
     statuses: list[str] = ['accepted']
 
 
+class JudgeIn(BaseModel):
+    full_name: str = Field(default='', max_length=300)
+    email: EmailStr | None = None
+
+    @model_validator(mode='after')
+    def _identity(self):
+        self.full_name = ' '.join(self.full_name.split())
+        if not self.full_name and not self.email:
+            raise ValueError('Укажите ФИО или email судьи')
+        return self
+
+
 class SetJudges(BaseModel):
-    emails: list[EmailStr] = Field(max_length=200)
+    judges: list[JudgeIn] = Field(max_length=200)
     force: bool = Field(default=False, description='Удалить и выставленные оценки убираемых судей')
 
 
@@ -217,6 +246,7 @@ class MySheet(BaseModel):
     id: int
     title: str
     status: str
+    editable: bool
     deadline: datetime | None
     event_title: str
     total: int

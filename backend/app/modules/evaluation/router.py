@@ -3,9 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Response, status
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, Db
 from app.core.security import TokenError, read_state, sign_state
 from app.modules.applications.service import event_form
+from app.modules.audit.service import record
+from app.modules.auth.service import issue_judge_login
 from app.modules.evaluation import service
 from app.modules.evaluation.models import Evaluation, Scale, Scorecard, Sheet, SheetJudge, SheetWork
 from app.modules.evaluation.schemas import (
@@ -17,6 +20,9 @@ from app.modules.evaluation.schemas import (
     EvaluationBundle,
     EvaluationComment,
     ItemOut,
+    JudgeAccess,
+    JudgeCard,
+    JudgeCardsRequest,
     JudgeOut,
     JudgeWork,
     MySheet,
@@ -35,7 +41,7 @@ from app.modules.evaluation.schemas import (
     WorkOut,
 )
 from app.modules.events.models import Event
-from app.modules.events.permissions import ensure_manage, ensure_view
+from app.modules.events.permissions import ensure_manage, ensure_view, roles_of
 from app.modules.events.service import get_event
 from app.modules.people.models import User
 
@@ -53,21 +59,30 @@ def _not_found(what: str = 'Не найдено') -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, what)
 
 
-async def _event(db, event_id: int, user: User, manage: bool = True) -> Event:
+LEVELS = {
+    'manage': {'organizer'},
+    'staff': {'organizer', 'moderator'},  # закрыть оценку, открыть судье, распечатать листы судей
+    'view': {'organizer', 'moderator', 'observer'},
+}
+
+
+async def _event(db, event_id: int, user: User, level: str = 'manage') -> Event:
     event = await get_event(db, event_id)
     if event is None:
         raise _not_found('Мероприятие не найдено')
     ensure_view(user, event)
-    if manage:
+    if user.is_superuser or LEVELS[level] & set(roles_of(user, event)):
+        return event
+    if level == 'manage':
         ensure_manage(user, event)
-    return event
+    raise _not_found('Мероприятие не найдено')
 
 
-async def _sheet(db, sheet_id: int, user: User, manage: bool = True) -> tuple[Sheet, Event]:
+async def _sheet(db, sheet_id: int, user: User, level: str = 'manage') -> tuple[Sheet, Event]:
     sheet = await db.get(Sheet, sheet_id, populate_existing=True)
     if sheet is None:
         raise _not_found('Лист не найден')
-    return sheet, await _event(db, sheet.event_id, user, manage)
+    return sheet, await _event(db, sheet.event_id, user, level)
 
 
 def _scorecard_out(scorecard: Scorecard, in_use: bool = False) -> ScorecardOut:
@@ -88,10 +103,11 @@ def _sheet_out(sheet: Sheet) -> SheetOut:
         judges.append(
             JudgeOut(
                 user_id=judge.user_id,
-                email=judge.user.email,
+                email=judge.user.email if service.has_real_email(judge.user) else None,
                 full_name=_person_name(judge.user),
                 total=len(own),
                 scored=sum(e.is_scored for e in own),
+                reopened=judge.reopened,
             )
         )
     works = []
@@ -320,7 +336,7 @@ async def delete_scorecard(scorecard_id: int, db: Db, user: CurrentUser) -> Resp
 
 @router.get('/events/{event_id}/sheets', response_model=list[SheetListItem], summary='Оценочные листы')
 async def list_sheets(event_id: int, db: Db, user: CurrentUser):
-    await _event(db, event_id, user)
+    await _event(db, event_id, user, 'view')
     sheets = list(
         (await db.scalars(select(Sheet).where(Sheet.event_id == event_id).order_by(Sheet.created_at))).unique()
     )
@@ -359,9 +375,7 @@ async def create_sheet(event_id: int, payload: SheetCreate, db: Db, user: Curren
 
 @router.get('/sheets/{sheet_id}', response_model=SheetOut, summary='Лист с работами, судьями и баллами')
 async def get_sheet(sheet_id: int, db: Db, user: CurrentUser):
-    sheet, event = await _sheet(db, sheet_id, user, manage=False)
-    if not (user.is_superuser or {'organizer', 'observer'} & {m.role for m in event.members if m.user_id == user.id}):
-        raise _not_found('Лист не найден')
+    sheet, _ = await _sheet(db, sheet_id, user, 'view')
     return _sheet_out(sheet)
 
 
@@ -418,7 +432,7 @@ async def remove_work(sheet_id: int, work_id: int, db: Db, user: CurrentUser):
 async def set_judges(sheet_id: int, payload: SetJudges, db: Db, user: CurrentUser):
     sheet, event = await _sheet(db, sheet_id, user)
     try:
-        await service.set_judges(db, user, sheet, event, payload.emails, payload.force)
+        await service.set_judges(db, user, sheet, event, payload.judges, payload.force)
     except service.EvaluationError as exc:
         raise _bad(exc) from exc
     await db.commit()
@@ -440,13 +454,52 @@ async def distribute(sheet_id: int, payload: Distribute, db: Db, user: CurrentUs
 
 @router.post('/sheets/{sheet_id}/status', response_model=SheetOut, summary='Запустить, закрыть или вернуть в черновик')
 async def change_status(sheet_id: int, payload: SheetStatus, db: Db, user: CurrentUser):
-    sheet, _ = await _sheet(db, sheet_id, user)
+    sheet, _ = await _sheet(db, sheet_id, user, 'staff')
     try:
         await service.change_status(db, user, sheet, payload.status)
     except service.EvaluationError as exc:
         raise _bad(exc) from exc
     await db.commit()
     return _sheet_out(sheet)
+
+
+@router.post(
+    '/sheets/{sheet_id}/judges/{user_id}/access', response_model=SheetOut, summary='Открыть или закрыть оценку судье'
+)
+async def judge_access(sheet_id: int, user_id: int, payload: JudgeAccess, db: Db, user: CurrentUser):
+    sheet, _ = await _sheet(db, sheet_id, user, 'staff')
+    judge = next((j for j in sheet.judges if j.user_id == user_id), None)
+    if judge is None:
+        raise _not_found('Судья не найден в листе')
+    if sheet.status != 'closed':
+        raise _bad('Отдельный доступ нужен только для закрытого листа')
+    judge.reopened = payload.open
+    record(db, 'sheet.judge_access', 'sheet', sheet.id, user.id, judge_id=user_id, open=payload.open)
+    await db.commit()
+    return _sheet_out(sheet)
+
+
+@router.post('/sheets/{sheet_id}/judge-cards', response_model=list[JudgeCard], summary='Листы судей с QR для входа')
+async def judge_cards(sheet_id: int, payload: JudgeCardsRequest, db: Db, user: CurrentUser):
+    """Одноразовые ссылки входа на 20 минут для печати. Каждый вызов выпускает новые ссылки."""
+    sheet, _ = await _sheet(db, sheet_id, user, 'staff')
+    cards = []
+    for judge in sheet.judges:
+        if payload.user_ids and judge.user_id not in payload.user_ids:
+            continue
+        token, expires_at = await issue_judge_login(db, judge.user, f'/judging/sheets/{sheet.id}')
+        cards.append(
+            JudgeCard(
+                user_id=judge.user_id,
+                full_name=_person_name(judge.user),
+                login_url=f'{settings.app_url.rstrip("/")}/auth/magic?token={token}',
+                expires_at=expires_at,
+                works=sum(1 for w in sheet.works for e in w.evaluations if e.judge_id == judge.user_id),
+            )
+        )
+    record(db, 'sheet.judge_cards', 'sheet', sheet.id, user.id, count=len(cards))
+    await db.commit()
+    return cards
 
 
 # --- Судья -----------------------------------------------------------------------------------
@@ -471,6 +524,7 @@ async def my_sheets(db: Db, user: CurrentUser):
                 id=sheet.id,
                 title=sheet.title,
                 status=sheet.status,
+                editable=service.judge_can_edit(sheet, user.id),
                 deadline=sheet.deadline,
                 event_title=event.title,
                 total=len(own),
@@ -523,7 +577,8 @@ async def _judge_evaluation(db, evaluation_id: int, user: User) -> tuple[Sheet, 
 @router.get('/evaluations/{evaluation_id}', response_model=EvaluationBundle, summary='Оценка работы судьёй')
 async def get_evaluation(evaluation_id: int, db: Db, user: CurrentUser):
     sheet, evaluation = await _judge_evaluation(db, evaluation_id, user)
-    return _bundle(sheet, evaluation, sheet.status == 'active', True, _own_evaluations(sheet, user))
+    editable = service.judge_can_edit(sheet, user.id)
+    return _bundle(sheet, evaluation, editable, True, _own_evaluations(sheet, user))
 
 
 @router.put(
@@ -531,8 +586,8 @@ async def get_evaluation(evaluation_id: int, db: Db, user: CurrentUser):
 )
 async def set_criterion(evaluation_id: int, criterion_id: int, payload: CriterionValue, db: Db, user: CurrentUser):
     sheet, evaluation = await _judge_evaluation(db, evaluation_id, user)
-    if sheet.status != 'active':
-        raise _bad('Лист закрыт для оценки')
+    if not service.judge_can_edit(sheet, user.id):
+        raise _bad('Оценка закрыта')
     try:
         await service.set_criterion(
             db, sheet, evaluation, criterion_id, payload.level_id, payload.option_ids, payload.comment, payload.clear
@@ -546,8 +601,8 @@ async def set_criterion(evaluation_id: int, criterion_id: int, payload: Criterio
 @router.patch('/evaluations/{evaluation_id}', response_model=EvaluationBundle, summary='Общий комментарий')
 async def set_comment(evaluation_id: int, payload: EvaluationComment, db: Db, user: CurrentUser):
     sheet, evaluation = await _judge_evaluation(db, evaluation_id, user)
-    if sheet.status != 'active':
-        raise _bad('Лист закрыт для оценки')
+    if not service.judge_can_edit(sheet, user.id):
+        raise _bad('Оценка закрыта')
     evaluation.comment = payload.comment.strip()
     await db.commit()
     return _bundle(sheet, evaluation, True, True, _own_evaluations(sheet, user))

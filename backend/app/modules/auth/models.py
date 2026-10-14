@@ -12,6 +12,9 @@ class MagicLinkToken(IdMixin, Base):
     __tablename__ = 'magic_link_tokens'
 
     email: Mapped[str] = mapped_column(String(255), index=True)
+    # judge_qr — вход судьи по QR с распечатанного листа: привязан к учётной записи, а не к email
+    purpose: Mapped[str] = mapped_column(String(20), default='email', server_default='email')
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     next_path: Mapped[str | None] = mapped_column(String(500))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -26,7 +29,7 @@ class AuthSession(IdMixin, Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
     refresh_hash: Mapped[str] = mapped_column(String(64), unique=True)
-    method: Mapped[str] = mapped_column(String(20))  # magic_link | skolstream
+    method: Mapped[str] = mapped_column(String(20))  # magic_link | skolstream | judge_qr
     user_agent: Mapped[str | None] = mapped_column(String(500))
     ip: Mapped[str | None] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

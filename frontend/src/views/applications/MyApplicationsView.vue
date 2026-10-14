@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { APP_STATUS_LABELS, APP_STATUS_TONES, fetchMyApplications } from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
+import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const apps = ref([])
 const loading = ref(true)
@@ -24,7 +25,7 @@ onMounted(async () => {
   <div class="grid gap-6">
     <h1 class="text-2xl font-bold">Мои заявки</h1>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-    <p v-else-if="loading" class="text-ink-muted">Загрузка…</p>
+    <SkeletonList v-else-if="loading" />
     <div v-else-if="!apps.length" class="rounded-card border border-dashed border-line bg-surface p-10 text-center">
       <h2 class="text-lg font-semibold">Заявок пока нет</h2>
       <p class="mt-1 text-ink-muted">Подать заявку можно на странице мероприятия, кнопкой «Подать заявку».</p>

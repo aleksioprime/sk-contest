@@ -5,6 +5,7 @@ import { errorMessage } from '@/api/http'
 import ApplicationReview from '@/components/events/ApplicationReview.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
 
@@ -132,6 +133,7 @@ onMounted(async () => {
     <ApplicationReview v-if="openedId" :application-id="openedId" :fields="fields" @decided="load" @close="openedId = null" />
 
     <div class="overflow-x-auto rounded-card border border-line bg-surface" :aria-busy="loading">
+      <SkeletonTable v-if="loading && !page.items.length" :rows="5" :columns="5" />
       <table class="w-full text-sm">
         <thead class="bg-canvas text-left text-xs text-ink-muted">
           <tr>

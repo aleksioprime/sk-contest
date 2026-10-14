@@ -5,6 +5,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { fetchMyApplications, fetchPublicForm, startApplication } from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ slug: { type: String, required: true } })
 const router = useRouter()
@@ -63,6 +64,6 @@ onMounted(async () => {
         </div>
       </template>
     </template>
-    <p v-else class="text-ink-muted">Загрузка…</p>
+    <SkeletonPage v-else :cards="1" />
   </div>
 </template>

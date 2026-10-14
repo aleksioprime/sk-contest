@@ -6,6 +6,7 @@ import { slugify } from '@/api/events'
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({
   eventId: { type: Number, required: true },
@@ -108,7 +109,7 @@ onMounted(load)
 
 <template>
   <p v-if="!form && error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-  <p v-else-if="!form" class="text-ink-muted">Загрузка…</p>
+  <SkeletonPage v-else-if="!form" :cards="2" />
 
   <form v-else class="grid gap-6" @submit.prevent="save">
     <fieldset :disabled="readonly" class="grid gap-6">

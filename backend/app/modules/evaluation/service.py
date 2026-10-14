@@ -24,7 +24,7 @@ from app.modules.evaluation.models import (
 from app.modules.evaluation.schemas import AddWorks, ScaleIn, ScorecardIn
 from app.modules.events.models import Event
 from app.modules.events.service import add_member
-from app.modules.people.models import User
+from app.modules.people.models import Person, User
 from app.modules.people.service import find_or_create_user_by_email
 
 
@@ -135,10 +135,42 @@ async def remove_work(session: AsyncSession, sheet: Sheet, work_id: int) -> None
     recompute_ranks(sheet)
 
 
-async def set_judges(
-    session: AsyncSession, actor: User, sheet: Sheet, event: Event, emails: list[str], force: bool
-) -> None:
-    users = [await find_or_create_user_by_email(session, email) for email in dict.fromkeys(e.lower() for e in emails)]
+NO_EMAIL_DOMAIN = 'judges.sk-events.local'
+
+
+def split_name(full_name: str) -> tuple[str, str, str]:
+    parts = full_name.split()
+    return (parts + ['', '', ''])[0], (parts + ['', '', ''])[1], ' '.join(parts[2:])
+
+
+def has_real_email(user: User) -> bool:
+    return not user.email.endswith(f'@{NO_EMAIL_DOMAIN}')
+
+
+async def judge_user(session: AsyncSession, sheet: Sheet, full_name: str, email: str | None) -> User:
+    """Учётная запись судьи по email или, если email нет, по ФИО в этом листе (вход только по QR)."""
+    if email:
+        user = await find_or_create_user_by_email(session, email)
+    else:
+        existing = next((j.user for j in sheet.judges if j.user.person and j.user.person.full_name == full_name), None)
+        if existing:
+            return existing
+        person = Person(source='local')
+        user = User(email=f'judge-{secrets.token_hex(6)}@{NO_EMAIL_DOMAIN}', person=person)
+        session.add(user)
+    person = user.person
+    if person is not None and full_name and not person.full_name:
+        person.last_name, person.first_name, person.middle_name = split_name(full_name)
+    await session.flush()
+    return user
+
+
+async def set_judges(session: AsyncSession, actor: User, sheet: Sheet, event: Event, judges: list, force: bool) -> None:
+    users = []
+    for judge in judges:
+        user = await judge_user(session, sheet, judge.full_name, judge.email)
+        if user.id not in {u.id for u in users}:
+            users.append(user)
     keep = {u.id for u in users}
     removed = [j for j in sheet.judges if j.user_id not in keep]
     for judge in removed:
@@ -264,6 +296,13 @@ async def set_criterion(
     await session.flush()
 
 
+def judge_can_edit(sheet: Sheet, user_id: int) -> bool:
+    if sheet.status == 'active':
+        return True
+    judge = next((j for j in sheet.judges if j.user_id == user_id), None)
+    return sheet.status == 'closed' and judge is not None and judge.reopened
+
+
 def work_of(sheet: Sheet, evaluation: Evaluation) -> SheetWork:
     return next(w for w in sheet.works if w.id == evaluation.sheet_work_id)
 
@@ -275,6 +314,8 @@ async def change_status(session: AsyncSession, actor: User, sheet: Sheet, status
         raise EvaluationError('В таблице оценок нет критериев')
     record(session, 'sheet.status', 'sheet', sheet.id, actor.id, old=sheet.status, new=status)
     sheet.status = status
+    for judge in sheet.judges:
+        judge.reopened = False
     await session.flush()
 
 

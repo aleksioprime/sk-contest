@@ -6,6 +6,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import { useAuthStore } from '@/stores/auth'
+import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const auth = useAuthStore()
 const PAGE = 50
@@ -162,6 +163,7 @@ onMounted(() => {
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
 
     <div class="overflow-x-auto rounded-card border border-line bg-surface" :aria-busy="loading">
+      <SkeletonTable v-if="loading && !page.items.length" :rows="6" :columns="4" />
       <table v-if="tab === 'persons'" class="w-full text-sm">
         <thead class="bg-canvas text-left text-xs text-ink-muted">
           <tr><th class="px-4 py-2">ФИО</th><th class="px-4 py-2">Тип</th><th class="px-4 py-2">Класс или подразделение</th><th class="px-4 py-2">Email</th></tr>

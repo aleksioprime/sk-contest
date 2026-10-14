@@ -116,6 +116,8 @@ class SheetJudge(IdMixin, Base):
 
     sheet_id: Mapped[int] = mapped_column(ForeignKey('eval_sheets.id', ondelete='CASCADE'), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    # Модератор может дать судье доступ к закрытому листу, если тот не успел к закрытию
+    reopened: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
 
     user: Mapped[User] = relationship(lazy='joined')
 

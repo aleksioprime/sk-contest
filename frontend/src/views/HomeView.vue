@@ -4,6 +4,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import { useSystemStore } from '@/stores/system'
+import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const system = useSystemStore()
 onMounted(system.load)
@@ -31,7 +32,7 @@ const labels = { database: 'PostgreSQL', redis: 'Redis' }
           <dt class="text-ink-muted">Домен лендингов</dt>
           <dd>*.{{ system.meta.sites_base_domain }}</dd>
         </dl>
-        <p v-else class="text-sm text-ink-muted">Загрузка…</p>
+        <SkeletonTable v-else :rows="3" :columns="2" />
       </UiCard>
 
       <UiCard>
@@ -42,7 +43,7 @@ const labels = { database: 'PostgreSQL', redis: 'Redis' }
             <UiBadge :tone="ok ? 'success' : 'danger'">{{ ok ? 'доступен' : 'недоступен' }}</UiBadge>
           </li>
         </ul>
-        <p v-else class="text-sm text-ink-muted">Загрузка…</p>
+        <SkeletonTable v-else :rows="2" :columns="2" />
       </UiCard>
     </div>
 

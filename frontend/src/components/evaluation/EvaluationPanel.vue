@@ -17,6 +17,7 @@ import {
 import { errorMessage } from '@/api/http'
 import ScaleEditor from '@/components/evaluation/ScaleEditor.vue'
 import ScorecardEditor from '@/components/evaluation/ScorecardEditor.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
@@ -28,6 +29,7 @@ const sheets = ref([])
 const scorecards = ref([])
 const scales = ref([])
 const error = ref('')
+const loaded = ref(false)
 const editingScale = ref(null) // объект шкалы или 'new'
 const editingCard = ref(null)
 const newSheet = reactive({ open: false, title: '', scorecard_id: null, stage_id: null, mode: 'jury' })
@@ -38,11 +40,13 @@ async function load() {
   try {
     ;[sheets.value, scorecards.value, scales.value] = await Promise.all([
       fetchSheets(props.event.id),
-      fetchScorecards(props.event.id),
-      fetchScales(props.event.id),
+      props.event.can_manage ? fetchScorecards(props.event.id) : [],
+      props.event.can_manage ? fetchScales(props.event.id) : [],
     ])
   } catch (e) {
     error.value = errorMessage(e)
+  } finally {
+    loaded.value = true
   }
 }
 
@@ -91,8 +95,9 @@ onMounted(load)
 <template>
   <div class="grid gap-6">
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
+    <SkeletonPage v-if="!loaded" :cards="3" />
 
-    <UiCard>
+    <UiCard v-if="loaded">
       <template #title>Оценочные листы</template>
       <ul v-if="sheets.length" class="mb-4 divide-y divide-line">
         <li v-for="sheet in sheets" :key="sheet.id">
@@ -105,7 +110,7 @@ onMounted(load)
       </ul>
       <p v-else class="mb-4 text-sm text-ink-muted">Лист объединяет работы, судей и таблицу оценок. Обычно это один этап одного направления.</p>
 
-      <form v-if="newSheet.open" class="grid gap-3 rounded-control border border-brand-200 p-4" @submit.prevent="submitSheet">
+      <form v-if="event.can_manage && newSheet.open" class="grid gap-3 rounded-control border border-brand-200 p-4" @submit.prevent="submitSheet">
         <input v-model="newSheet.title" placeholder="Например, Очная защита · Инженерия" aria-label="Название листа" class="h-10 rounded-control border border-line bg-surface px-3" />
         <div class="grid gap-3 sm:grid-cols-3">
           <select v-model="newSheet.scorecard_id" aria-label="Таблица оценок" class="h-10 rounded-control border border-line bg-surface px-3">
@@ -127,10 +132,10 @@ onMounted(load)
           <UiButton size="sm" variant="ghost" @click="newSheet.open = false">Отмена</UiButton>
         </div>
       </form>
-      <UiButton v-else variant="primary" size="sm" @click="newSheet.open = true">Новый лист</UiButton>
+      <UiButton v-else-if="event.can_manage" variant="primary" size="sm" @click="newSheet.open = true">Новый лист</UiButton>
     </UiCard>
 
-    <UiCard>
+    <UiCard v-if="loaded && event.can_manage">
       <template #title>Таблицы оценок</template>
       <ScorecardEditor
         v-if="editingCard"
@@ -156,7 +161,7 @@ onMounted(load)
       </template>
     </UiCard>
 
-    <UiCard>
+    <UiCard v-if="loaded && event.can_manage">
       <template #title>Шкалы</template>
       <ScaleEditor
         v-if="editingScale"

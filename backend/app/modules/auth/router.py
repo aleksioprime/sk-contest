@@ -6,14 +6,18 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy import exists, select
 
 from app.core.config import settings
 from app.core.deps import CurrentUser, Db
 from app.core.queue import Queue, get_queue
 from app.core.redis import get_redis
-from app.core.security import TokenError, new_secret, read_state, sign_state
+from app.core.security import TokenError, decode_access_token, new_secret, read_state, sign_state
+from app.modules.applications.models import Application
 from app.modules.auth import service
+from app.modules.auth.models import AuthSession
 from app.modules.auth.schemas import LoginResult, MagicLinkRequest, MagicLinkVerify, Me, Providers
+from app.modules.events.models import EventMember
 from app.modules.people.schemas import UserOut
 from app.modules.people.service import ensure_user, upsert_person_from_profile
 from app.modules.people.skolstream import SkolstreamClient, SkolstreamError, get_skolstream_client
@@ -73,8 +77,9 @@ async def request_magic_link(payload: MagicLinkRequest, db: Db, queue: Annotated
 @router.post('/magic-link/verify', response_model=LoginResult, summary='Войти по ссылке из письма')
 async def verify_magic_link(payload: MagicLinkVerify, request: Request, response: Response, db: Db) -> LoginResult:
     try:
-        user, next_path = await service.consume_magic_link(db, payload.token)
-        access, refresh = await service.open_session(db, user, 'magic_link', *_client_info(request))
+        user, next_path, purpose = await service.consume_magic_link(db, payload.token)
+        method = 'judge_qr' if purpose == 'judge_qr' else 'magic_link'
+        access, refresh = await service.open_session(db, user, method, *_client_info(request))
     except service.AuthError as exc:
         await db.commit()  # фиксируем погашение ссылки даже при отказе во входе
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -164,6 +169,25 @@ async def logout(request: Request, response: Response, db: Db) -> Response:
     return response
 
 
+async def _judge_mode(db, request: Request, user) -> bool:
+    """Интерфейс только для судейства: вход по QR-листу или у пользователя нет других ролей и заявок."""
+    if user.is_superuser:
+        return False
+    token = request.cookies.get(settings.auth.access_cookie) or ''
+    try:
+        session_id = int(decode_access_token(token)['sid'])
+        if await db.scalar(select(AuthSession.method).where(AuthSession.id == session_id)) == 'judge_qr':
+            return True
+    except (TokenError, KeyError, ValueError):
+        pass
+    if user.person and user.person.is_employee:
+        return False
+    roles = set(await db.scalars(select(EventMember.role).where(EventMember.user_id == user.id)))
+    if roles != {'judge'}:
+        return False
+    return not await db.scalar(select(exists().where(Application.user_id == user.id)))
+
+
 @router.get('/me', response_model=Me, summary='Текущий пользователь')
-async def me(user: CurrentUser) -> Me:
-    return Me(user=UserOut.model_validate(user))
+async def me(request: Request, db: Db, user: CurrentUser) -> Me:
+    return Me(user=UserOut.model_validate(user), judge_mode=await _judge_mode(db, request, user))

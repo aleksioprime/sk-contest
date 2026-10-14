@@ -18,6 +18,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 
@@ -114,7 +115,7 @@ watch(() => props.id, load, { immediate: true })
 
 <template>
   <p v-if="!app && message" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ message }}</p>
-  <p v-else-if="!app" class="text-ink-muted">Загрузка…</p>
+  <SkeletonPage v-else-if="!app" :cards="3" class="max-w-3xl" />
 
   <div v-else class="grid max-w-3xl gap-6">
     <div>

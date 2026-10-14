@@ -24,3 +24,4 @@ class Providers(BaseModel):
 
 class Me(BaseModel):
     user: UserOut
+    judge_mode: bool = False

@@ -6,6 +6,7 @@ import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatRange } from '@/utils/dates'
+import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const auth = useAuthStore()
 const events = ref([])
@@ -55,7 +56,7 @@ onMounted(load)
     </div>
 
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-    <p v-else-if="loading" class="text-ink-muted">Загрузка…</p>
+    <SkeletonList v-else-if="loading" />
 
     <div v-else-if="!events.length" class="rounded-card border border-dashed border-line bg-surface p-10 text-center">
       <h2 class="text-lg font-semibold">Здесь появятся ваши мероприятия</h2>

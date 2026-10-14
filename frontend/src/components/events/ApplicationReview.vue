@@ -5,6 +5,7 @@ import { APP_STATUS_LABELS, APP_STATUS_TONES, decide, fetchApplication } from '@
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const props = defineProps({
   applicationId: { type: Number, required: true },
@@ -64,7 +65,7 @@ watch(() => props.applicationId, load, { immediate: true })
 
 <template>
   <section class="rounded-card border border-brand-200 bg-surface p-5" aria-label="Заявка">
-    <p v-if="!app && !error" class="text-ink-muted">Загрузка…</p>
+    <SkeletonTable v-if="!app && !error" :rows="4" :columns="2" />
     <template v-if="app">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>

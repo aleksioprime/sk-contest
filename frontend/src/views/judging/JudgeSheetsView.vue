@@ -1,10 +1,14 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { SHEET_STATUS_LABELS, SHEET_STATUS_TONES, fetchMySheets } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
+import { useAuthStore } from '@/stores/auth'
+import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
+const auth = useAuthStore()
+const router = useRouter()
 const sheets = ref([])
 const loading = ref(true)
 const error = ref('')
@@ -12,6 +16,10 @@ const error = ref('')
 onMounted(async () => {
   try {
     sheets.value = await fetchMySheets()
+    // На мероприятии у судьи обычно один лист — открываем его сразу
+    if (auth.judgeMode && sheets.value.length === 1) {
+      await router.replace({ name: 'judge-sheet', params: { id: sheets.value[0].id } })
+    }
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -24,7 +32,7 @@ onMounted(async () => {
   <div class="grid gap-6">
     <h1 class="text-2xl font-bold">Оценивание</h1>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-    <p v-else-if="loading" class="text-ink-muted">Загрузка…</p>
+    <SkeletonList v-else-if="loading" :rows="2" />
     <div v-else-if="!sheets.length" class="rounded-card border border-dashed border-line bg-surface p-10 text-center">
       <h2 class="text-lg font-semibold">Работ для оценки пока нет</h2>
       <p class="mt-1 text-ink-muted">Когда организаторы запустят оценочный лист с вашим участием, он появится здесь.</p>
@@ -40,7 +48,8 @@ onMounted(async () => {
               <p class="font-semibold">{{ sheet.title }}</p>
               <p class="text-sm text-ink-muted">{{ sheet.event_title }}</p>
             </div>
-            <UiBadge :tone="SHEET_STATUS_TONES[sheet.status]">{{ SHEET_STATUS_LABELS[sheet.status] }}</UiBadge>
+            <UiBadge v-if="sheet.status === 'closed' && sheet.editable" tone="warning">Открыт для вас</UiBadge>
+            <UiBadge v-else :tone="SHEET_STATUS_TONES[sheet.status]">{{ SHEET_STATUS_LABELS[sheet.status] }}</UiBadge>
           </div>
           <div class="flex items-center gap-3 text-sm">
             <div class="h-2 flex-1 overflow-hidden rounded-full bg-canvas" role="progressbar" :aria-valuenow="sheet.scored" :aria-valuemax="sheet.total">

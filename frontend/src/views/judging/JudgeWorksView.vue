@@ -1,19 +1,25 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { fetchMyWorks, formatPoints } from '@/api/evaluation'
+import { fetchMySheets, fetchMyWorks, formatPoints } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
+import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const works = ref([])
+const sheet = ref(null)
+const sheetsCount = ref(0)
 const error = ref('')
 const loading = ref(true)
 const left = computed(() => works.value.filter((w) => !w.is_scored).length)
 
 onMounted(async () => {
   try {
-    works.value = await fetchMyWorks(props.id)
+    const [list, sheets] = await Promise.all([fetchMyWorks(props.id), fetchMySheets()])
+    works.value = list
+    sheet.value = sheets.find((s) => String(s.id) === String(props.id)) ?? null
+    sheetsCount.value = sheets.length
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -25,12 +31,16 @@ onMounted(async () => {
 <template>
   <div class="grid gap-6">
     <div>
-      <RouterLink :to="{ name: 'judging' }" class="text-sm text-ink-muted hover:text-ink">← Оценивание</RouterLink>
-      <h1 class="mt-2 text-2xl font-bold">Работы для оценки</h1>
+      <RouterLink v-if="sheetsCount > 1" :to="{ name: 'judging' }" class="text-sm text-ink-muted hover:text-ink">← Все листы</RouterLink>
+      <p v-if="sheet" class="mt-2 text-sm text-ink-muted">{{ sheet.event_title }}</p>
+      <h1 class="text-2xl font-bold">{{ sheet?.title ?? 'Работы для оценки' }}</h1>
       <p v-if="!loading && works.length" class="mt-1 text-ink-muted">{{ left ? `Осталось оценить: ${left}` : 'Все работы оценены' }}</p>
     </div>
+    <p v-if="sheet && !sheet.editable" class="rounded-control bg-amber-50 px-4 py-3 text-amber-900">
+      Оценка закрыта модератором. Выставленные баллы можно посмотреть, но не изменить.
+    </p>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-    <p v-else-if="loading" class="text-ink-muted">Загрузка…</p>
+    <SkeletonList v-else-if="loading" :rows="5" />
     <ol v-else class="grid gap-2">
       <li v-for="work in works" :key="work.evaluation_id">
         <RouterLink

@@ -13,6 +13,9 @@ import {
   deleteSheet,
   distribute,
   fetchSheet,
+  formatJudges,
+  parseJudges,
+  setJudgeAccess,
   formatPoints,
   removeWork,
   setJudges,
@@ -24,6 +27,7 @@ import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })
 const router = useRouter()
@@ -40,6 +44,8 @@ const qr = ref(null) // { title, url, image }
 const sortBy = ref('rank')
 
 const canPublic = computed(() => sheet.value?.mode !== 'jury')
+const canManage = computed(() => !!event.value?.can_manage)
+const isStaff = computed(() => canManage.value || !!event.value?.my_roles.includes('moderator'))
 const works = computed(() => {
   const list = [...(sheet.value?.works ?? [])]
   if (sortBy.value === 'rank') list.sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.number - b.number)
@@ -56,7 +62,7 @@ async function load() {
   error.value = ''
   try {
     ;[sheet.value, event.value] = await Promise.all([fetchSheet(props.sheetId), fetchEvent(props.id)])
-    judgesText.value = sheet.value.judges.map((j) => j.email).join('\n')
+    judgesText.value = formatJudges(sheet.value.judges)
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -78,8 +84,7 @@ async function run(fn, message = '') {
 }
 
 async function saveJudges(force = false) {
-  const emails = judgesText.value.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean)
-  const ok = await run(() => setJudges(sheet.value.id, emails, force), 'Список судей сохранён')
+  const ok = await run(() => setJudges(sheet.value.id, parseJudges(judgesText.value), force), 'Список судей сохранён')
   confirmForce.value = !ok && error.value.includes('Подтвердите')
 }
 
@@ -97,7 +102,7 @@ watch(() => props.sheetId, load, { immediate: true })
 
 <template>
   <p v-if="!sheet && error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-  <p v-else-if="!sheet" class="text-ink-muted">Загрузка…</p>
+  <SkeletonPage v-else-if="!sheet" :cards="3" />
 
   <div v-else class="grid gap-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -110,11 +115,18 @@ watch(() => props.sheetId, load, { immediate: true })
         <p class="mt-1 text-sm text-ink-muted">{{ sheet.scorecard_title }} · {{ SHEET_MODE_LABELS[sheet.mode] }} · оценено {{ progress.scored }} из {{ progress.total }}</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <UiButton v-if="sheet.status !== 'active'" variant="primary" @click="run(() => setSheetStatus(sheet.id, 'active'), 'Оценка запущена')">
+        <UiButton v-if="isStaff && sheet.status !== 'active'" variant="primary" @click="run(() => setSheetStatus(sheet.id, 'active'), 'Оценка запущена')">
           {{ sheet.status === 'closed' ? 'Открыть снова' : 'Запустить оценку' }}
         </UiButton>
-        <UiButton v-if="sheet.status === 'active'" @click="run(() => setSheetStatus(sheet.id, 'closed'), 'Лист закрыт')">Закрыть лист</UiButton>
-        <UiButton v-if="sheet.status === 'draft'" variant="ghost" @click="remove">Удалить</UiButton>
+        <UiButton v-if="isStaff && sheet.status === 'active'" @click="run(() => setSheetStatus(sheet.id, 'closed'), 'Лист закрыт')">Закрыть лист</UiButton>
+        <RouterLink
+          v-if="isStaff && sheet.judges.length"
+          :to="{ name: 'judge-cards', params: { id, sheetId } }"
+          class="inline-flex h-10 items-center rounded-control border border-line bg-surface px-4 font-medium hover:bg-brand-50"
+        >
+          Листы судей с QR
+        </RouterLink>
+        <UiButton v-if="canManage && sheet.status === 'draft'" variant="ghost" @click="remove">Удалить</UiButton>
       </div>
     </div>
 
@@ -122,7 +134,7 @@ watch(() => props.sheetId, load, { immediate: true })
     <p v-if="notice" role="status" class="rounded-control bg-green-100 px-4 py-3 text-green-800">{{ notice }}</p>
 
     <div class="grid gap-6 lg:grid-cols-2">
-      <UiCard>
+      <UiCard v-if="canManage">
         <template #title>Работы</template>
         <p class="text-sm text-ink-muted">Добавляются принятые заявки. Повторно добавить уже включённые работы нельзя.</p>
         <div v-if="event?.directions.length" class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
@@ -137,31 +149,51 @@ watch(() => props.sheetId, load, { immediate: true })
 
       <UiCard>
         <template #title>Судьи</template>
-        <label class="grid gap-1.5 text-sm">
-          <span class="text-ink-muted">Email судей, по одному в строке. Новые люди войдут по ссылке на почту.</span>
-          <textarea v-model="judgesText" rows="4" class="rounded-control border border-line bg-surface px-3 py-2" />
-        </label>
-        <div class="mt-3 flex flex-wrap items-center gap-2">
-          <UiButton size="sm" @click="saveJudges(false)">Сохранить судей</UiButton>
-          <UiButton v-if="confirmForce" size="sm" variant="danger" @click="saveJudges(true)">Удалить вместе с оценками</UiButton>
-        </div>
-        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4 text-sm">
-          <span>Распределить работы:</span>
-          <UiButton size="sm" @click="run(() => distribute(sheet.id, 'all', 1), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">Каждому судье все</UiButton>
-          <span>или по</span>
-          <input v-model.number="perWork" type="number" min="1" aria-label="Судей на работу" class="h-8 w-16 rounded-control border border-line bg-surface px-2" />
-          <UiButton size="sm" @click="run(() => distribute(sheet.id, 'per_work', perWork), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">судьи на работу</UiButton>
-        </div>
+        <template v-if="canManage">
+          <label class="grid gap-1.5 text-sm">
+            <span class="text-ink-muted">По одному в строке: «Фамилия Имя Отчество, email». Без email судья входит только по QR с листа судьи.</span>
+            <textarea v-model="judgesText" rows="5" placeholder="Петров Иван Сергеевич, petrov@example.ru&#10;Сидорова Мария Петровна" class="rounded-control border border-line bg-surface px-3 py-2" />
+          </label>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <UiButton size="sm" @click="saveJudges(false)">Сохранить судей</UiButton>
+            <UiButton v-if="confirmForce" size="sm" variant="danger" @click="saveJudges(true)">Удалить вместе с оценками</UiButton>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4 text-sm">
+            <span>Распределить работы:</span>
+            <UiButton size="sm" @click="run(() => distribute(sheet.id, 'all', 1), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">Каждому судье все</UiButton>
+            <span>или по</span>
+            <input v-model.number="perWork" type="number" min="1" aria-label="Судей на работу" class="h-8 w-16 rounded-control border border-line bg-surface px-2" />
+            <UiButton size="sm" @click="run(() => distribute(sheet.id, 'per_work', perWork), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">судьи на работу</UiButton>
+          </div>
+        </template>
+        <p v-if="sheet.status === 'closed'" class="mt-4 text-sm text-ink-muted">Лист закрыт. Судье, который не успел, можно открыть оценку отдельно.</p>
         <ul v-if="sheet.judges.length" class="mt-4 grid gap-2 text-sm">
-          <li v-for="judge in sheet.judges" :key="judge.user_id" class="flex items-center gap-3">
-            <span class="min-w-0 flex-1 truncate">{{ judge.full_name }}</span>
+          <li v-for="judge in sheet.judges" :key="judge.user_id" class="flex flex-wrap items-center gap-3">
+            <span class="min-w-0 flex-1 truncate">
+              {{ judge.full_name }}<span v-if="!judge.email" class="text-ink-muted"> · вход по QR</span>
+            </span>
             <span class="tabular-nums" :class="judge.total && judge.scored === judge.total ? 'text-green-700' : 'text-ink-muted'">{{ judge.scored }} / {{ judge.total }}</span>
+            <RouterLink
+              v-if="isStaff"
+              :to="{ name: 'judge-cards', params: { id, sheetId }, query: { user: judge.user_id } }"
+              class="text-brand-700 hover:underline"
+            >
+              QR
+            </RouterLink>
+            <UiButton
+              v-if="isStaff && sheet.status === 'closed'"
+              size="sm"
+              :variant="judge.reopened ? 'secondary' : 'ghost'"
+              @click="run(() => setJudgeAccess(sheet.id, judge.user_id, !judge.reopened), judge.reopened ? 'Оценка для судьи закрыта' : 'Судья может продолжить оценку')"
+            >
+              {{ judge.reopened ? 'Закрыть доступ' : 'Открыть доступ' }}
+            </UiButton>
           </li>
         </ul>
       </UiCard>
     </div>
 
-    <UiCard>
+    <UiCard v-if="canManage">
       <template #title>Настройки подсчёта</template>
       <div class="flex flex-wrap gap-4 text-sm">
         <label class="flex items-center gap-2">
@@ -229,7 +261,7 @@ watch(() => props.sheetId, load, { immediate: true })
             <td v-if="canPublic" class="px-3 py-2 tabular-nums">{{ work.anonymous_count }}</td>
             <td class="px-3 py-2 whitespace-nowrap text-right">
               <UiButton v-if="canPublic" size="sm" variant="ghost" @click="showQr(work)">QR</UiButton>
-              <UiButton v-if="!work.evaluations_scored && !work.anonymous_count" size="sm" variant="ghost" @click="run(() => removeWork(sheet.id, work.id))">Убрать</UiButton>
+              <UiButton v-if="canManage && !work.evaluations_scored && !work.anonymous_count" size="sm" variant="ghost" @click="run(() => removeWork(sheet.id, work.id))">Убрать</UiButton>
             </td>
           </tr>
         </tbody>

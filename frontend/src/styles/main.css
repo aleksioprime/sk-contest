@@ -38,6 +38,24 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-500;
   }
+  /* Tailwind 4 убрал cursor: pointer у кнопок — возвращаем для всего кликабельного */
+  button:not(:disabled),
+  [role='button'],
+  [role='tab'],
+  [role='radio'],
+  select:not(:disabled),
+  summary,
+  label:has(> input[type='checkbox']:not(:disabled)),
+  label:has(> input[type='radio']:not(:disabled)),
+  label:has(> input[type='file']),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled) {
+    cursor: pointer;
+  }
+  :disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
 }
 
 .dark {

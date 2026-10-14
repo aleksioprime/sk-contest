@@ -26,7 +26,26 @@ export const updateSheet = async (id, data) => (await http.patch(`/v1/sheets/${i
 export const deleteSheet = async (id) => http.delete(`/v1/sheets/${id}`)
 export const addWorks = async (id, data) => (await http.post(`/v1/sheets/${id}/works`, data)).data
 export const removeWork = async (id, workId) => (await http.delete(`/v1/sheets/${id}/works/${workId}`)).data
-export const setJudges = async (id, emails, force = false) => (await http.put(`/v1/sheets/${id}/judges`, { emails, force })).data
+export const setJudges = async (id, judges, force = false) => (await http.put(`/v1/sheets/${id}/judges`, { judges, force })).data
+export const setJudgeAccess = async (id, userId, open) => (await http.post(`/v1/sheets/${id}/judges/${userId}/access`, { open })).data
+export const issueJudgeCards = async (id, userIds = null) => (await http.post(`/v1/sheets/${id}/judge-cards`, { user_ids: userIds })).data
+
+/** Строки «Фамилия Имя Отчество, email» → судьи. Email необязателен: без него вход только по QR. */
+export function parseJudges(text) {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const email = line.match(/[^\s,;]+@[^\s,;]+/)?.[0] ?? null
+      const fullName = line.replace(email ?? '', '').replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim()
+      return { full_name: fullName, email }
+    })
+}
+
+export function formatJudges(judges) {
+  return judges.map((j) => [j.full_name !== j.email ? j.full_name : '', j.email].filter(Boolean).join(', ')).join('\n')
+}
 export const distribute = async (id, mode, perWork) => (await http.post(`/v1/sheets/${id}/distribute`, { mode, per_work: perWork })).data
 export const setSheetStatus = async (id, status) => (await http.post(`/v1/sheets/${id}/status`, { status })).data
 

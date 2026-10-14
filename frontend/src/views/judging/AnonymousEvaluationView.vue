@@ -6,6 +6,7 @@ import { errorMessage } from '@/api/http'
 import EvaluationForm from '@/components/evaluation/EvaluationForm.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ token: { type: String, required: true } })
 const work = ref(null)
@@ -50,7 +51,7 @@ async function start() {
       SK Events
     </div>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-    <p v-else-if="!work" class="text-ink-muted">Загрузка…</p>
+    <SkeletonPage v-else-if="!work" :cards="2" />
 
     <template v-if="work">
       <div>

@@ -15,9 +15,10 @@ export async function verifyMagicLink(token) {
   return data
 }
 
+/** Текущий пользователь и признак режима судьи (интерфейс только с оценочными листами). */
 export async function fetchMe() {
   const { data } = await http.get('/v1/auth/me')
-  return data.user
+  return data
 }
 
 export async function logout() {

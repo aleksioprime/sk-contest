@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 from redis.asyncio import Redis
@@ -69,15 +69,41 @@ async def request_magic_link(
     await queue.enqueue('send_email', email, 'Вход в SK Events', text, html)
 
 
-async def consume_magic_link(session: AsyncSession, token: str) -> tuple[User, str]:
+JUDGE_QR_TTL_MINUTES = 20
+
+
+async def issue_judge_login(session: AsyncSession, user: User, next_path: str) -> tuple[str, datetime]:
+    """Одноразовый вход судьи по QR с распечатанного листа. Действует 20 минут."""
+    token = new_secret()
+    expires_at = now_utc() + timedelta(minutes=JUDGE_QR_TTL_MINUTES)
+    session.add(
+        MagicLinkToken(
+            email=user.email,
+            purpose='judge_qr',
+            user_id=user.id,
+            token_hash=hash_secret(token),
+            next_path=safe_next_path(next_path),
+            expires_at=expires_at,
+        )
+    )
+    await session.flush()
+    return token, expires_at
+
+
+async def consume_magic_link(session: AsyncSession, token: str) -> tuple[User, str, str]:
     record_ = await session.scalar(
         select(MagicLinkToken).where(MagicLinkToken.token_hash == hash_secret(token)).with_for_update()
     )
     if record_ is None or record_.used_at is not None or record_.expires_at < now_utc():
         raise AuthError('Ссылка недействительна или уже использована. Запросите новую.')
     record_.used_at = now_utc()
-    user = await find_or_create_user_by_email(session, record_.email)
-    return user, record_.next_path or '/'
+    if record_.user_id:
+        user = await session.get(User, record_.user_id)
+        if user is None:
+            raise AuthError('Учётная запись не найдена. Обратитесь к организаторам.')
+    else:
+        user = await find_or_create_user_by_email(session, record_.email)
+    return user, record_.next_path or '/', record_.purpose
 
 
 # --- Сессии ---------------------------------------------------------------------------------

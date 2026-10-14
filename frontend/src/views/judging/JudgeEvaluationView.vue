@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { judgeClient } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
 import EvaluationForm from '@/components/evaluation/EvaluationForm.vue'
+import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const bundle = ref(null)
@@ -25,7 +26,7 @@ watch(() => props.id, load, { immediate: true })
 
 <template>
   <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-  <p v-else-if="!bundle" class="text-ink-muted">Загрузка…</p>
+  <SkeletonPage v-else-if="!bundle" :cards="3" class="max-w-3xl" />
 
   <div v-else class="grid max-w-3xl gap-6">
     <div>
