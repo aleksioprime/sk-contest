@@ -29,10 +29,10 @@ async def upload(
     db: Db,
     user: CurrentUser,
     file: Annotated[UploadFile, File()],
-    purpose: Annotated[str, Form(pattern='^(document|image)$')] = 'document',
+    purpose: Annotated[str, Form(pattern='^(document|image|site_document)$')] = 'document',
 ) -> dict:
     try:
-        stored = await save_upload(db, file, user.id, purpose, is_public=purpose == 'image')
+        stored = await save_upload(db, file, user.id, purpose, is_public=purpose in {'image', 'site_document'})
     except FileError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     await db.commit()

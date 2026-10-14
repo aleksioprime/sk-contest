@@ -1,12 +1,13 @@
 <script setup>
 import { computed } from 'vue'
+import SkbBlockFrame from './SkbBlockFrame.vue'
 import { blocks } from './registry.js'
 import { themeToCssVars } from './theme.js'
 
 const props = defineProps({
   page: { type: Object, required: true },
   theme: { type: Object, default: () => ({}) },
-  event: { type: Object, default: () => ({}) },
+  data: { type: Object, default: () => ({}) },
   phase: { type: String, default: 'always' }, // registration | results | always
 })
 
@@ -17,19 +18,27 @@ const visibleBlocks = computed(() =>
     return rule === 'always' || rule === props.phase
   }),
 )
+const menu = computed(() =>
+  visibleBlocks.value
+    .filter((item) => item.common?.anchor && item.common?.menuTitle)
+    .map((item) => ({ anchor: item.common.anchor, title: item.common.menuTitle })),
+)
+const blockData = computed(() => ({
+  event: {},
+  registration: {},
+  stages: [],
+  directions: [],
+  results: [],
+  program: [],
+  stats: {},
+  ...props.data,
+  menu: menu.value,
+}))
 const style = computed(() => themeToCssVars(props.theme))
 </script>
 
 <template>
-  <div class="skb-site" :style="style">
-    <div
-      v-for="item in visibleBlocks"
-      :id="item.common?.anchor || undefined"
-      :key="item.id"
-      class="skb-section"
-      :class="`skb-section--${item.common?.background ?? 'default'}`"
-    >
-      <component :is="blocks[item.type].component" :variant="item.variant" :props="item.props" :event="event" />
-    </div>
+  <div class="skb-site" :class="{ 'skb-site--dark': theme?.mode === 'dark' }" :style="style">
+    <SkbBlockFrame v-for="item in visibleBlocks" :key="item.id" :item="item" :data="blockData" />
   </div>
 </template>

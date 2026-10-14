@@ -88,6 +88,11 @@ class Settings(BaseSettings):
 
     app_url: str = 'http://localhost:8501'
     sites_base_domain: str = 'events.skolhub.ru'
+    # Свои домены лендингов: CNAME на этот адрес, маршрут в Traefik ведёт на сервис sites
+    sites_cname_target: str = 'sites.events.skolhub.ru'
+    sites_upstream_url: str = 'http://sites:3000'
+    traefik_dynamic_dir: str = ''  # пусто — файлы маршрутов не пишутся (локальная разработка)
+    traefik_certresolver: str = 'letsencrypt'
     cors_origins: list[str] = ['http://localhost:8501', 'http://localhost:8502']
     storage_dir: str = './.data/files'
     # Адреса, которые получают права администратора платформы при входе (первичная настройка)

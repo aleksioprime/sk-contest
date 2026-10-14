@@ -15,12 +15,11 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'ru' },
+      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      // Шрифты темы подключает страница сайта (themeFontsHref)
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        {
-          rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap',
-        },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
       ],
     },
   },

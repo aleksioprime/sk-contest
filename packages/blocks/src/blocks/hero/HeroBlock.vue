@@ -1,25 +1,47 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import SkbText from '../../SkbText.vue'
+import { assetUrl, safeHref } from '../../links.js'
 
 const props = defineProps({
   variant: { type: String, default: 'image-bg' },
-  props: { type: Object, required: true },
-  event: { type: Object, default: () => ({}) },
+  content: { type: Object, required: true },
+  data: { type: Object, required: true },
 })
 
-const p = computed(() => props.props)
-const dates = computed(() => [props.event.dates, props.event.place].filter(Boolean).join(' · '))
+const meta = computed(() => [props.data.event.dates, props.data.event.place].filter(Boolean).join(' · '))
+const image = computed(() => (props.variant === 'text-only' ? '' : assetUrl(props.data, props.content.image || props.data.event.cover)))
+const href = computed(() => safeHref(props.content.ctaHref) || (props.data.registration.open ? props.data.registration.url : ''))
+
+const now = ref(Date.now())
+let timer
+onMounted(() => (timer = setInterval(() => (now.value = Date.now()), 60000)))
+onBeforeUnmount(() => clearInterval(timer))
+
+const countdown = computed(() => {
+  const closes = props.data.registration.closesAt
+  if (!props.content.countdown || !props.data.registration.open || !closes) return ''
+  const minutes = Math.floor((new Date(closes).getTime() - now.value) / 60000)
+  if (minutes <= 0) return ''
+  const days = Math.floor(minutes / 1440)
+  const hours = Math.floor((minutes % 1440) / 60)
+  return days ? `${days} дн. ${hours} ч.` : `${hours} ч. ${minutes % 60} мин.`
+})
 </script>
 
 <template>
-  <section class="skb-hero" :class="`skb-hero--${variant}`">
+  <section class="skb-hero" :class="[`skb-hero--${variant}`, { 'skb-hero--has-image': image }]">
+    <img v-if="image && variant === 'image-bg'" class="skb-hero__bg" :src="image" alt="" />
     <div class="skb-hero__body">
-      <p v-if="p.eyebrow" class="skb-hero__eyebrow">{{ p.eyebrow }}</p>
-      <h1 class="skb-hero__title">{{ p.title || event.title }}</h1>
-      <p v-if="p.subtitle" class="skb-hero__subtitle">{{ p.subtitle }}</p>
-      <p v-if="dates" class="skb-hero__meta">{{ dates }}</p>
-      <a v-if="p.ctaLabel" class="skb-button" :href="p.ctaHref || '#registration'">{{ p.ctaLabel }}</a>
+      <SkbText as="p" class="skb-hero__eyebrow" path="eyebrow" :value="content.eyebrow" placeholder="Надзаголовок" />
+      <SkbText as="h1" class="skb-hero__title" path="title" :value="content.title" :fallback="data.event.title" />
+      <SkbText as="p" class="skb-hero__subtitle" path="subtitle" :value="content.subtitle" :fallback="data.event.shortDescription" multiline />
+      <p v-if="meta" class="skb-hero__meta">{{ meta }}</p>
+      <div class="skb-hero__actions">
+        <a v-if="href && content.ctaLabel" class="skb-button" :href="href">{{ content.ctaLabel }}</a>
+        <p v-if="countdown" class="skb-hero__countdown">До конца приёма заявок: <strong>{{ countdown }}</strong></p>
+      </div>
     </div>
-    <img v-if="p.image?.url && variant !== 'text-only'" class="skb-hero__image" :src="p.image.url" :alt="p.image.alt || ''" />
+    <img v-if="image && variant === 'image-right'" class="skb-hero__image" :src="image" :alt="content.image?.alt || ''" />
   </section>
 </template>

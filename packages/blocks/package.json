@@ -9,7 +9,8 @@
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "schema": "UPDATE_SCHEMA=1 vitest run tests/schema-export.test.js"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.9",

@@ -9,6 +9,8 @@ from app.modules.events.router import router as events_router
 from app.modules.files.router import public_router as public_files_router
 from app.modules.files.router import router as files_router
 from app.modules.people.router import router as people_router
+from app.modules.sites.router import public_router as public_sites_router
+from app.modules.sites.router import router as sites_router
 from app.modules.stages.router import public_router as public_stages_router
 from app.modules.stages.router import router as stages_router
 from app.modules.system.router import router as system_router
@@ -26,3 +28,5 @@ api_router.include_router(public_evaluation_router)
 api_router.include_router(stages_router)
 api_router.include_router(public_stages_router)
 api_router.include_router(public_files_router)
+api_router.include_router(sites_router)
+api_router.include_router(public_sites_router)

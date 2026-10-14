@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.core.deps import CurrentUser, Db
+from app.core.redis import get_redis
 from app.core.security import now_utc
 from app.modules.applications.models import Application
 from app.modules.audit.service import record
@@ -21,7 +22,6 @@ from app.modules.stages.schemas import (
     ParticipantOut,
     ParticipantUpdate,
     PublicDirectionResults,
-    PublicWinner,
     ResultRow,
     SlotIn,
     SlotOut,
@@ -313,6 +313,11 @@ async def publish(event_id: int, db: Db, user: CurrentUser, published: bool = Tr
     event.results_published_at = now_utc() if published else None
     record(db, 'event.results', 'event', event.id, user.id, published=published)
     await db.commit()
+    # Итоги видны на лендинге: сбрасываем кэш сайта
+    from app.modules.sites.service import get_site, invalidate
+
+    site = await get_site(db, event.id)
+    await invalidate(get_redis(), event, site.domains if site else [])
     return await event_results(event_id, db, user)
 
 
@@ -391,17 +396,4 @@ async def public_results(slug: str, db: Db):
     event = await get_by_slug(db, slug)
     if event is None or event.results_published_at is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Итоги не опубликованы')
-    groups: dict[str, list[PublicWinner]] = {}
-    for row in await service.results(db, event):
-        if row['award'] == 'participant':
-            continue
-        app = row['application']
-        groups.setdefault(app.direction.title if app.direction else '', []).append(
-            PublicWinner(
-                rank=row['rank'],
-                award=row['award'],
-                title=app.title,
-                participants=[m.full_name for m in app.members if m.role == 'participant'],
-            )
-        )
-    return [PublicDirectionResults(direction=d, winners=w) for d, w in groups.items()]
+    return await service.published_winners(db, event)

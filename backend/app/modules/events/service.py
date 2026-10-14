@@ -118,6 +118,18 @@ async def change_status(session: AsyncSession, user: User, event: Event, new_sta
     return event
 
 
+def public_event_payload(event: Event) -> dict:
+    """Публичные данные мероприятия для лендинга (схема PublicEvent)."""
+    from app.modules.events.schemas import PublicEvent
+
+    fields = {c: getattr(event, c) for c in PublicEvent.model_fields if c not in ('registration_open', 'cover_url')}
+    return {
+        **fields,
+        'registration_open': registration_open(event),
+        'cover_url': f'/api/v1/public/files/{event.cover_file_id}' if event.cover_file_id else None,
+    }
+
+
 def registration_open(event: Event, at: datetime | None = None) -> bool:
     if event.status != 'registration' or not event.modules.get('registration'):
         return False

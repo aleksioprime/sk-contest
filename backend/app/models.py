@@ -8,6 +8,7 @@ from app.modules.evaluation import models as evaluation_models
 from app.modules.events import models as events_models
 from app.modules.files import models as files_models
 from app.modules.people import models as people_models
+from app.modules.sites import models as sites_models
 from app.modules.stages import models as stages_models
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     'events_models',
     'files_models',
     'people_models',
+    'sites_models',
     'stages_models',
 ]

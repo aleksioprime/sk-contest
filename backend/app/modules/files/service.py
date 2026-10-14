@@ -19,7 +19,8 @@ DOCUMENT_TYPES = IMAGE_TYPES | {
     'application/zip',
     'text/plain',
 }
-PURPOSES = {'document': DOCUMENT_TYPES, 'image': IMAGE_TYPES}
+# site_document — положения и шаблоны на лендинге, доступны всем по ссылке
+PURPOSES = {'document': DOCUMENT_TYPES, 'image': IMAGE_TYPES, 'site_document': DOCUMENT_TYPES}
 
 
 class FileError(Exception):

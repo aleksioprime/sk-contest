@@ -254,3 +254,23 @@ async def results(session: AsyncSession, event: Event) -> list[dict]:
         )
     )
     return result
+
+
+async def published_winners(session: AsyncSession, event: Event) -> list[dict]:
+    """Победители и призёры по направлениям для лендинга. Без опубликованных итогов — пусто."""
+    if event.results_published_at is None:
+        return []
+    groups: dict[str, list[dict]] = {}
+    for row in await results(session, event):
+        if row['award'] == 'participant':
+            continue
+        app = row['application']
+        groups.setdefault(app.direction.title if app.direction else '', []).append(
+            {
+                'rank': row['rank'],
+                'award': row['award'],
+                'title': app.title,
+                'participants': [m.full_name for m in app.members if m.role == 'participant'],
+            }
+        )
+    return [{'direction': direction, 'winners': winners} for direction, winners in groups.items()]

@@ -1,0 +1,926 @@
+{
+  "common": [
+    "anchor",
+    "menuTitle",
+    "background",
+    "visibility"
+  ],
+  "blocks": {
+    "header": {
+      "$id": "block:header",
+      "type": "object",
+      "properties": {
+        "logo": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "file_id": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "alt": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 80
+        },
+        "showCta": {
+          "type": "boolean"
+        },
+        "ctaLabel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "sticky",
+        "overlay"
+      ]
+    },
+    "hero": {
+      "$id": "block:hero",
+      "type": "object",
+      "properties": {
+        "eyebrow": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 80
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "subtitle": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 240
+        },
+        "image": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "file_id": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "alt": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "ctaLabel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        },
+        "ctaHref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000,
+          "anyOf": [
+            {
+              "const": ""
+            },
+            {
+              "pattern": "^(https?://|mailto:|tel:|#|/)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "countdown": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "image-bg",
+        "image-right",
+        "text-only"
+      ]
+    },
+    "text": {
+      "$id": "block:text",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "body": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 50000,
+          "x-richtext": true
+        },
+        "image": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "file_id": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "alt": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "single",
+        "with-image",
+        "two-columns"
+      ]
+    },
+    "dates": {
+      "$id": "block:dates",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "source": {
+          "enum": [
+            "event",
+            "manual",
+            null
+          ]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 60
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              },
+              "text": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "horizontal",
+        "vertical"
+      ]
+    },
+    "directions": {
+      "$id": "block:directions",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "intro": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "cards",
+        "chips"
+      ]
+    },
+    "stats": {
+      "$id": "block:stats",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "source": {
+          "enum": [
+            "event",
+            "manual",
+            null
+          ]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 20
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 80
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "row",
+        "cards"
+      ]
+    },
+    "program": {
+      "$id": "block:program",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "source": {
+          "enum": [
+            "event",
+            "manual",
+            null
+          ]
+        },
+        "showWorks": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              },
+              "time": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "place": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "tabs",
+        "list"
+      ]
+    },
+    "people": {
+      "$id": "block:people",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "properties": {
+              "photo": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "file_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "alt": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "text": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 600
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "grid",
+        "list"
+      ]
+    },
+    "registration": {
+      "$id": "block:registration",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 50000,
+          "x-richtext": true
+        },
+        "buttonLabel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "card",
+        "steps"
+      ]
+    },
+    "results": {
+      "$id": "block:results",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "intro": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "cards",
+        "table"
+      ]
+    },
+    "documents": {
+      "$id": "block:documents",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "file": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "file_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "alt": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "list",
+        "cards"
+      ]
+    },
+    "partners": {
+      "$id": "block:partners",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "properties": {
+              "logo": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "file_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "alt": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1000,
+                "anyOf": [
+                  {
+                    "const": ""
+                  },
+                  {
+                    "pattern": "^(https?://|mailto:|tel:|#|/)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "strip",
+        "grid"
+      ]
+    },
+    "faq": {
+      "$id": "block:faq",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              },
+              "answer": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 3000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "default"
+      ]
+    },
+    "gallery": {
+      "$id": "block:gallery",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 80,
+          "items": {
+            "type": "object",
+            "properties": {
+              "image": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "file_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "alt": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              "caption": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "grid",
+        "strip"
+      ]
+    },
+    "footer": {
+      "$id": "block:footer",
+      "type": "object",
+      "properties": {
+        "organizer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "email": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "phone": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        },
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "socials": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1000,
+                "anyOf": [
+                  {
+                    "const": ""
+                  },
+                  {
+                    "pattern": "^(https?://|mailto:|tel:|#|/)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "privacyUrl": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000,
+          "anyOf": [
+            {
+              "const": ""
+            },
+            {
+              "pattern": "^(https?://|mailto:|tel:|#|/)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "x-variants": [
+        "columns",
+        "row"
+      ]
+    }
+  }
+}

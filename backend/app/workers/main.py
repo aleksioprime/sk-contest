@@ -15,6 +15,8 @@ from app.modules.people.models import SyncRun
 from app.modules.people.skolstream import get_skolstream_client
 from app.modules.people.sync import run_directory_sync
 from app.modules.reminders.service import run_hourly
+from app.modules.sites.domains import get_dns_checker
+from app.modules.sites.service import recheck_pending_domains
 
 logger = logging.getLogger('sk_events.worker')
 
@@ -47,6 +49,12 @@ async def hourly_reminders(ctx: dict) -> dict:
         return await run_hourly(uow.session, get_queue())
 
 
+async def check_domains(ctx: dict) -> int:
+    """Свои домены лендингов, которые ещё ждут настройки DNS."""
+    async with UnitOfWork() as uow:
+        return await recheck_pending_domains(uow.session, get_dns_checker())
+
+
 async def startup(ctx: dict) -> None:
     setup_logging()
     logger.info('Воркер запущен, окружение %s', settings.environment)
@@ -54,7 +62,11 @@ async def startup(ctx: dict) -> None:
 
 class WorkerSettings:
     functions = [send_email, sync_directory]
-    cron_jobs = [cron(nightly_sync, hour={3}, minute={0}), cron(hourly_reminders, minute={5})]
+    cron_jobs = [
+        cron(nightly_sync, hour={3}, minute={0}),
+        cron(hourly_reminders, minute={5}),
+        cron(check_domains, minute=set(range(0, 60, 10))),
+    ]
     on_startup = startup
     max_tries = 3
     redis_settings = RedisSettings(host=settings.redis.host, port=settings.redis.port, database=settings.redis.db)

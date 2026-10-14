@@ -1,16 +1,23 @@
 <script setup>
+import SkbEmpty from '../../SkbEmpty.vue'
+import SkbText from '../../SkbText.vue'
+import { assetUrl } from '../../links.js'
+
 defineProps({
   variant: { type: String, default: 'single' },
-  props: { type: Object, required: true },
-  event: { type: Object, default: () => ({}) },
+  content: { type: Object, required: true },
+  data: { type: Object, required: true },
 })
 </script>
 
 <template>
   <section class="skb-text" :class="`skb-text--${variant}`">
-    <h2 v-if="props.title" class="skb-title">{{ props.title }}</h2>
-    <!-- HTML приходит только из Tiptap и очищается на сервере перед сохранением -->
-    <div class="skb-text__content" v-html="props.body" />
-    <img v-if="props.image?.url && variant === 'with-image'" class="skb-text__image" :src="props.image.url" :alt="props.image.alt || ''" />
+    <SkbText as="h2" class="skb-title" path="title" :value="content.title" placeholder="Заголовок" />
+    <div class="skb-text__grid">
+      <!-- HTML приходит только из редактора и очищается на сервере перед сохранением -->
+      <div v-if="content.body" class="skb-richtext skb-text__content" v-html="content.body" />
+      <SkbEmpty v-else text="Текст правится в панели настроек справа." />
+      <img v-if="content.image && variant === 'with-image'" class="skb-text__image" :src="assetUrl(data, content.image)" :alt="content.image.alt || ''" />
+    </div>
   </section>
 </template>
