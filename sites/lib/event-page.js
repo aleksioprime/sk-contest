@@ -48,6 +48,11 @@ export function buildEventPage(event, appUrl) {
   hero.props.subtitle = event.short_description
   hero.props.ctaLabel = event.registration_open ? 'Подать заявку' : ''
   hero.props.ctaHref = `${appUrl.replace(/\/$/, '')}/events/${event.slug}/apply`
+  if (event.cover_url) {
+    // Файлы отдаёт API на домене приложения
+    hero.props.image = { url: `${appUrl.replace(/\/$/, '')}${event.cover_url}`, alt: '' }
+    hero.variant = 'image-right'
+  }
   blocks.push(hero)
 
   if (event.description) {

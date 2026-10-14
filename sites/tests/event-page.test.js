@@ -43,4 +43,10 @@ describe('buildEventPage', () => {
     expect(site.page.blocks).toHaveLength(1)
     expect(site.page.blocks[0].props.ctaLabel).toBe('')
   })
+
+  it('ставит обложку справа от заголовка', () => {
+    const site = buildEventPage({ ...event, cover_url: '/api/v1/public/files/7' }, 'https://app.events.skolhub.ru')
+    expect(site.page.blocks[0].variant).toBe('image-right')
+    expect(site.page.blocks[0].props.image.url).toBe('https://app.events.skolhub.ru/api/v1/public/files/7')
+  })
 })

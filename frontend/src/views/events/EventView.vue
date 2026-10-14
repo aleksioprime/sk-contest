@@ -17,7 +17,10 @@ import {
   updateEvent,
 } from '@/api/events'
 import { errorMessage } from '@/api/http'
+import { uploadFile } from '@/api/applications'
+import ApplicationsPanel from '@/components/events/ApplicationsPanel.vue'
 import EventItemsEditor from '@/components/events/EventItemsEditor.vue'
+import FormBuilder from '@/components/events/FormBuilder.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
@@ -46,6 +49,10 @@ const tabs = computed(() => [
   { id: 'directions', label: 'Направления' },
   ...(event.value?.modules.stages ? [{ id: 'stages', label: 'Этапы' }] : []),
   { id: 'forms', label: 'Формы участия' },
+  ...(event.value?.modules.registration && (event.value.can_manage || event.value.my_roles.includes('moderator'))
+    ? [{ id: 'applications', label: 'Заявки' }]
+    : []),
+  ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Анкета' }] : []),
   { id: 'team', label: 'Команда' },
 ])
 const tab = computed({
@@ -107,6 +114,22 @@ async function save() {
     saveError.value = errorMessage(e)
   } finally {
     saving.value = false
+  }
+}
+
+const coverError = ref('')
+const coverUploading = ref(false)
+
+async function setCover(file) {
+  coverError.value = ''
+  coverUploading.value = true
+  try {
+    const cover_file_id = file ? (await uploadFile(file, 'image')).id : null
+    event.value = await updateEvent(event.value.id, { cover_file_id })
+  } catch (e) {
+    coverError.value = errorMessage(e)
+  } finally {
+    coverUploading.value = false
   }
 }
 
@@ -219,6 +242,20 @@ watch(() => props.id, load, { immediate: true })
         </UiCard>
 
         <UiCard>
+          <template #title>Обложка</template>
+          <div class="flex flex-wrap items-center gap-4">
+            <img v-if="event.cover_file_id" :src="`/api/v1/public/files/${event.cover_file_id}`" alt="Обложка мероприятия" class="h-24 w-40 rounded-control object-cover" />
+            <p v-else class="text-sm text-ink-muted">Картинка для лендинга и карточки мероприятия: JPEG, PNG или WebP, лучше 1600×900.</p>
+            <label v-if="!readonly" class="cursor-pointer rounded-control border border-line bg-surface px-3 py-2 text-sm hover:bg-brand-50">
+              {{ coverUploading ? 'Загрузка…' : event.cover_file_id ? 'Заменить' : 'Загрузить' }}
+              <input type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" @change="setCover($event.target.files[0]); $event.target.value = ''" />
+            </label>
+            <UiButton v-if="event.cover_file_id && !readonly" size="sm" variant="ghost" @click="setCover(null)">Убрать</UiButton>
+          </div>
+          <p v-if="coverError" role="alert" class="mt-2 text-sm text-red-700">{{ coverError }}</p>
+        </UiCard>
+
+        <UiCard>
           <template #title>Когда и где</template>
           <div class="grid gap-4 sm:grid-cols-2">
             <UiInput v-model="form.date_start" type="date" label="Начало" />
@@ -304,6 +341,10 @@ watch(() => props.id, load, { immediate: true })
       empty-text="Форм участия пока нет."
       :fields="[{ key: 'title', label: 'Название', type: 'text' }]"
     />
+
+    <ApplicationsPanel v-else-if="tab === 'applications'" :event="event" />
+
+    <FormBuilder v-else-if="tab === 'form'" :event-id="event.id" :readonly="readonly" />
 
     <div v-else-if="tab === 'team'" class="grid gap-4">
       <form v-if="!readonly" class="flex flex-wrap items-start gap-3" novalidate @submit.prevent="invite">
