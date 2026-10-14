@@ -142,6 +142,15 @@ watch(() => props.sheetId, load, { immediate: true })
             <input v-model="directionIds" type="checkbox" :value="d.id" class="size-4 accent-brand-600" /> {{ d.title }}
           </label>
         </div>
+        <UiButton
+          v-if="sheet.stage_id"
+          class="mt-3 mr-2"
+          size="sm"
+          variant="primary"
+          @click="run(() => addWorks(sheet.id, { source: 'stage', direction_ids: directionIds.length ? directionIds : null }), 'Добавлены участники этапа')"
+        >
+          Добавить участников этапа
+        </UiButton>
         <UiButton class="mt-3" size="sm" @click="run(() => addWorks(sheet.id, { direction_ids: directionIds.length ? directionIds : null }), 'Работы добавлены')">
           Добавить принятые заявки{{ directionIds.length ? ' выбранных направлений' : '' }}
         </UiButton>

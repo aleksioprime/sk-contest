@@ -40,7 +40,9 @@ export function textToHtml(text) {
     .join('')
 }
 
-export function buildEventPage(event, appUrl) {
+const AWARDS = { winner: 'Победитель', prize: 'Призёр' }
+
+export function buildEventPage(event, appUrl, results = []) {
   const blocks = []
 
   const hero = createBlockInstance(getBlock('hero'), 'hero')
@@ -83,6 +85,22 @@ export function buildEventPage(event, appUrl) {
       })
       .join('')}</ul>`
     blocks.push(stages)
+  }
+
+  if (results.length) {
+    const winners = createBlockInstance(getBlock('text'), 'results')
+    winners.props.title = 'Победители и призёры'
+    winners.props.body = results
+      .map((group) => {
+        const items = group.winners
+          .map((w) => `<li><strong>${w.rank} место · ${AWARDS[w.award]}</strong> — ${escapeHtml(w.participants.join(', '))}, «${escapeHtml(w.title)}»</li>`)
+          .join('')
+        return `${group.direction ? `<h3>${escapeHtml(group.direction)}</h3>` : ''}<ul>${items}</ul>`
+      })
+      .join('')
+    winners.common.background = 'accent'
+    // Итоги — сразу после обложки: после публикации это главное на странице
+    blocks.splice(1, 0, winners)
   }
 
   return {

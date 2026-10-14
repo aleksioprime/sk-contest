@@ -49,4 +49,12 @@ describe('buildEventPage', () => {
     expect(site.page.blocks[0].variant).toBe('image-right')
     expect(site.page.blocks[0].props.image.url).toBe('https://app.events.skolhub.ru/api/v1/public/files/7')
   })
+
+  it('ставит победителей сразу после обложки', () => {
+    const results = [{ direction: 'Инженерия', winners: [{ rank: 1, award: 'winner', title: 'Теплица', participants: ['Анна <b>'] }] }]
+    const site = buildEventPage(event, '/', results)
+    expect(site.page.blocks[1].id).toBe('results')
+    expect(site.page.blocks[1].props.body).toContain('1 место · Победитель')
+    expect(site.page.blocks[1].props.body).toContain('Анна &lt;b&gt;')
+  })
 })

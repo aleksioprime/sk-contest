@@ -13,6 +13,7 @@ import {
   withdrawApplication,
 } from '@/api/applications'
 import { errorMessage } from '@/api/http'
+import { AWARD_LABELS, diplomaUrl, fetchMyResults } from '@/api/stages'
 import FieldInput from '@/components/applications/FieldInput.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -30,6 +31,7 @@ const message = ref('')
 const notice = ref('')
 const busy = ref('')
 const confirmWithdraw = ref(false)
+const result = ref(null)
 
 const form = computed(() => schema.value?.form ?? { fields: [], team: {}, consents: [] })
 const editable = computed(() => !!app.value?.can_edit)
@@ -56,6 +58,7 @@ async function load() {
     const data = await fetchApplication(props.id)
     schema.value = await fetchPublicForm(data.event.slug)
     fill(data)
+    result.value = (await fetchMyResults().catch(() => [])).find((r) => r.application_id === data.id) ?? null
   } catch (e) {
     message.value = errorMessage(e)
   }
@@ -127,6 +130,15 @@ watch(() => props.id, load, { immediate: true })
       <p class="mt-1 text-ink-muted">{{ app.event.title }}</p>
     </div>
 
+    <div v-if="result" class="flex flex-wrap items-center gap-4 rounded-card border border-score-600/30 bg-score-100 p-4">
+      <div class="flex-1">
+        <p class="text-sm text-score-600">Итоги</p>
+        <p class="text-xl font-bold text-score-600">
+          {{ AWARD_LABELS[result.award] }}<template v-if="result.award !== 'participant'"> · {{ result.rank }} место</template>
+        </p>
+      </div>
+      <a :href="diplomaUrl(app.id)" class="rounded-control bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700">Скачать диплом</a>
+    </div>
     <p v-if="notice" role="status" class="rounded-control bg-green-100 px-4 py-3 text-green-800">{{ notice }}</p>
     <div v-if="app.moderator_comment && app.status !== 'draft'" class="rounded-card border border-amber-300 bg-amber-50 p-4 text-amber-900">
       <p class="font-semibold">Комментарий организаторов</p>

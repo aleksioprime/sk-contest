@@ -62,23 +62,23 @@ def diplomas_pdf(entries: list[dict], event_title: str, awards: dict) -> bytes:
 
         c.setFillColor(MUTED)
         c.setFont(regular, 14)
-        c.drawCentredString(width / 2, height - 90, event_title)
+        c.drawCentredString(width / 2, height - 120, event_title)
 
         c.setFillColor(BRAND)
         c.setFont(bold, 40)
-        c.drawCentredString(width / 2, height - 160, AWARD_TITLES[entry['award']].upper())
+        c.drawCentredString(width / 2, height - 200, AWARD_TITLES[entry['award']].upper())
 
         place = ''
         if entry['award'] != 'participant' and entry.get('rank'):
             place = f'{entry["rank"]} место'
         c.setFillColor(INK)
         c.setFont(regular, 16)
-        c.drawCentredString(width / 2, height - 205, 'награждается' if place else 'выдан')
+        c.drawCentredString(width / 2, height - 250, 'награждается' if place else 'выдан')
         c.setFont(bold, 30)
-        c.drawCentredString(width / 2, height - 250, entry['name'])
+        c.drawCentredString(width / 2, height - 300, entry['name'])
 
         details = ' · '.join(filter(None, [place, entry.get('direction')]))
-        y = height - 290
+        y = height - 345
         if details:
             c.setFont(regular, 16)
             c.drawCentredString(width / 2, y, details)

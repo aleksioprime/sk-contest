@@ -20,6 +20,8 @@ import { errorMessage } from '@/api/http'
 import { uploadFile } from '@/api/applications'
 import ApplicationsPanel from '@/components/events/ApplicationsPanel.vue'
 import EvaluationPanel from '@/components/evaluation/EvaluationPanel.vue'
+import ResultsPanel from '@/components/stages/ResultsPanel.vue'
+import StageProgress from '@/components/stages/StageProgress.vue'
 import EventItemsEditor from '@/components/events/EventItemsEditor.vue'
 import FormBuilder from '@/components/events/FormBuilder.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
@@ -59,8 +61,13 @@ const tabs = computed(() => [
   (event.value.can_manage || event.value.my_roles.some((r) => ['moderator', 'observer'].includes(r)))
     ? [{ id: 'evaluation', label: 'Оценивание' }]
     : []),
+  ...(event.value?.modules.stages && event.value.stages.length && canView.value ? [{ id: 'progress', label: 'Ход по этапам' }] : []),
+  ...(event.value?.modules.results && canView.value ? [{ id: 'results', label: 'Итоги' }] : []),
   { id: 'team', label: 'Команда' },
 ])
+const canView = computed(
+  () => !!event.value && (event.value.can_manage || event.value.my_roles.some((r) => ['moderator', 'observer'].includes(r))),
+)
 const tab = computed({
   get: () => (tabs.value.some((t) => t.id === route.query.tab) ? route.query.tab : 'main'),
   set: (value) => router.replace({ query: { ...route.query, tab: value } }),
@@ -217,7 +224,7 @@ watch(() => props.id, load, { immediate: true })
     </div>
     <p v-if="statusError" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ statusError }}</p>
 
-    <div class="flex gap-1 overflow-x-auto border-b border-line" role="tablist">
+    <div class="flex flex-wrap gap-x-1 border-b border-line" role="tablist">
       <button
         v-for="item in tabs"
         :key="item.id"
@@ -353,6 +360,10 @@ watch(() => props.id, load, { immediate: true })
     <FormBuilder v-else-if="tab === 'form'" :event-id="event.id" :readonly="readonly" />
 
     <EvaluationPanel v-else-if="tab === 'evaluation'" :event="event" />
+
+    <StageProgress v-else-if="tab === 'progress'" :event="event" />
+
+    <ResultsPanel v-else-if="tab === 'results'" :event="event" />
 
     <div v-else-if="tab === 'team'" class="grid gap-4">
       <form v-if="!readonly" class="flex flex-wrap items-start gap-3" novalidate @submit.prevent="invite">

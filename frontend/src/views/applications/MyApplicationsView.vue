@@ -3,16 +3,20 @@ import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { APP_STATUS_LABELS, APP_STATUS_TONES, fetchMyApplications } from '@/api/applications'
 import { errorMessage } from '@/api/http'
+import { AWARD_LABELS, AWARD_TONES, fetchMyResults } from '@/api/stages'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const apps = ref([])
+const resultsById = ref({})
 const loading = ref(true)
 const error = ref('')
 
 onMounted(async () => {
   try {
-    apps.value = await fetchMyApplications()
+    const [list, results] = await Promise.all([fetchMyApplications(), fetchMyResults()])
+    apps.value = list
+    resultsById.value = Object.fromEntries(results.map((r) => [r.application_id, r]))
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -40,6 +44,9 @@ onMounted(async () => {
             <p class="truncate font-semibold">{{ app.title || 'Без названия' }}</p>
             <p class="text-sm text-ink-muted">{{ app.event.title }} · заявка №{{ app.number }}</p>
           </div>
+          <UiBadge v-if="resultsById[app.id]" :tone="AWARD_TONES[resultsById[app.id].award]">
+            {{ AWARD_LABELS[resultsById[app.id].award] }}<template v-if="resultsById[app.id].award !== 'participant'"> · {{ resultsById[app.id].rank }} место</template>
+          </UiBadge>
           <span v-if="app.status === 'needs_changes'" class="text-sm text-amber-800">Внесите правки</span>
           <UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge>
         </RouterLink>

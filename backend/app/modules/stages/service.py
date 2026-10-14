@@ -45,14 +45,21 @@ async def participations(session: AsyncSession, stage_id: int) -> list[StagePart
 
 
 async def sheet_scores(session: AsyncSession, event_id: int, stage_id: int | None) -> dict[int, Decimal]:
-    """Балл заявки на этапе: среднее по оценочным листам этапа (обычно лист один)."""
+    """Балл заявки на этапе: среднее по оценочным листам этапа (обычно лист один).
+
+    Если у этапа нет своих листов, учитываются листы без этапа — так работают мероприятия,
+    где листы создали, не привязывая к этапам.
+    """
     query = (
         select(SheetWork.application_id, SheetWork.score)
         .join(Sheet, Sheet.id == SheetWork.sheet_id)
         .where(Sheet.event_id == event_id, SheetWork.score.is_not(None))
     )
     if stage_id is not None:
-        query = query.where(Sheet.stage_id == stage_id)
+        has_own = await session.scalar(
+            select(Sheet.id).where(Sheet.event_id == event_id, Sheet.stage_id == stage_id).limit(1)
+        )
+        query = query.where(Sheet.stage_id == stage_id if has_own else Sheet.stage_id.is_(None))
     scores: dict[int, list[Decimal]] = defaultdict(list)
     for application_id, score in await session.execute(query):
         scores[application_id].append(Decimal(score))
