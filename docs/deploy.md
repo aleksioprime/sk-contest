@@ -46,15 +46,15 @@ python3 infra/coolify/deploy.py
 
 ## 5. Перенос истории из NocoBase
 
-В Coolify: ресурс `sk-events` → контейнер `backend` → *Terminal*:
+Разовая операция, приложение с NocoBase не связано. Выгрузка делается на любой машине с доступом к NocoBase
+(ключ API только на время выгрузки), затем JSON-файлы копируются в том `nocobase_data` контейнера `backend`:
 
 ```bash
-python -m app.cli nocobase-fetch /data/nocobase
-python -m app.cli nocobase-load /data/nocobase
+NOCOBASE_URL=https://flow.skolhub.ru NOCOBASE_API_KEY=… python -m app.cli nocobase-fetch ./nocobase
+python -m app.cli nocobase-load /data/nocobase   # в контейнере backend на сервере
 ```
 
-Первая команда только читает API NocoBase и сохраняет коллекции в JSON (том `nocobase_data`).
-Вторая переносит конкурсы в архив SK Events с исходными ID, пересчитывает баллы и места
+Первая команда только читает API NocoBase и сохраняет коллекции в JSON. Вторая переносит конкурсы в архив SK Events с исходными ID, пересчитывает баллы и места
 и пишет `report.json`: что пропущено и у каких работ изменился балл (в NocoBase часть баллов посчитана
 по первым 20 оценкам). Повторный запуск не дублирует уже перенесённые конкурсы.
 

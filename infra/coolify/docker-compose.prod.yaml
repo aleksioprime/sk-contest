@@ -35,8 +35,6 @@ x-backend: &backend
     SITES_CNAME_TARGET: sites.events.skolhub.ru
     SITES_UPSTREAM_URL: ${SITES_UPSTREAM_URL:-http://sites:3000}
     TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
-    NOCOBASE_URL: ${NOCOBASE_URL:-https://flow.skolhub.ru}
-    NOCOBASE_API_KEY: ${NOCOBASE_API_KEY:-}
   volumes:
     - files_data:/data/files
     - nocobase_data:/data/nocobase
