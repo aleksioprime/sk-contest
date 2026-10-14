@@ -30,6 +30,9 @@ class Event(IdMixin, TimestampMixin, Base):
     cover_file_id: Mapped[int | None] = mapped_column(ForeignKey('files.id', ondelete='SET NULL'))
     # Анкета заявки: поля, команда, ограничения и согласия (схема в app/modules/applications/form.py)
     application_form: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
+    results_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Награды и оформление дипломов: {"winners": 1, "prize_places": 3, "signatory": "...", "signatory_title": "..."}
+    awards: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'))
 
     academic_year: Mapped[AcademicYear | None] = relationship(lazy='joined')
@@ -72,6 +75,8 @@ class Stage(IdMixin, TimestampMixin, Base):
     date_start: Mapped[date | None] = mapped_column(Date)
     date_end: Mapped[date | None] = mapped_column(Date)
     order: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    # Правило перехода на следующий этап: {"type": "top_n|threshold|manual", "n", "per_direction", "threshold"}
+    advance_rule: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
 
     event: Mapped[Event] = relationship(back_populates='stages')
 

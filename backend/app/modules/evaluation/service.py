@@ -106,7 +106,17 @@ def max_score(scorecard: Scorecard) -> Decimal:
 
 
 async def add_works(session: AsyncSession, sheet: Sheet, data: AddWorks) -> int:
-    query = select(Application).where(Application.event_id == sheet.event_id, Application.status.in_(data.statuses))
+    if data.source == 'stage':
+        if sheet.stage_id is None:
+            raise EvaluationError('Лист не привязан к этапу')
+        from app.modules.stages.models import IN_STAGE, StageParticipation
+
+        on_stage = select(StageParticipation.application_id).where(
+            StageParticipation.stage_id == sheet.stage_id, StageParticipation.status.in_(IN_STAGE)
+        )
+        query = select(Application).where(Application.event_id == sheet.event_id, Application.id.in_(on_stage))
+    else:
+        query = select(Application).where(Application.event_id == sheet.event_id, Application.status.in_(data.statuses))
     if data.application_ids:
         query = query.where(Application.id.in_(data.application_ids))
     if data.direction_ids:

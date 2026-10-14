@@ -189,6 +189,7 @@ class SheetListItem(BaseModel):
 
 
 class AddWorks(BaseModel):
+    source: str = Field(default='accepted', pattern='^(accepted|stage)$', description='stage — участники этапа листа')
     application_ids: list[int] | None = None
     direction_ids: list[int] | None = None
     statuses: list[str] = ['accepted']

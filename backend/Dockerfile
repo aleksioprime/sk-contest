@@ -6,7 +6,8 @@ ENV PYTHONPATH=/usr/src/app \
     PYTHONUNBUFFERED=1 \
     TZ=Europe/Moscow
 
-RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd tzdata ca-certificates \
+# fonts-dejavu-core — кириллический шрифт для дипломов в PDF
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd tzdata ca-certificates fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

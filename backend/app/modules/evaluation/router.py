@@ -411,7 +411,10 @@ async def delete_sheet(sheet_id: int, db: Db, user: CurrentUser) -> Response:
 @router.post('/sheets/{sheet_id}/works', response_model=SheetOut, summary='Добавить работы')
 async def add_works(sheet_id: int, payload: AddWorks, db: Db, user: CurrentUser):
     sheet, _ = await _sheet(db, sheet_id, user)
-    await service.add_works(db, sheet, payload)
+    try:
+        await service.add_works(db, sheet, payload)
+    except service.EvaluationError as exc:
+        raise _bad(exc) from exc
     await db.commit()
     sheet, _ = await _sheet(db, sheet_id, user)
     return _sheet_out(sheet)
