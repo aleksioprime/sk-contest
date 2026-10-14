@@ -5,9 +5,12 @@
     python3 infra/coolify/deploy.py --dry-run  # показать, что будет сделано
 
 Берёт COOLIFY_URL, COOLIFY_API_TOKEN и переменные приложения из .env.prod.
-Проект, окружение, сервер и источник GitHub — те же, что у старого приложения «contest» (LEGACY_APP).
+Ресурс создаётся в проекте Events; сервер — тот же, что у старого приложения «contest» (LEGACY_APP).
+Репозиторий публичный, сборка из ветки main.
 Только стандартная библиотека Python.
 """
+
+from __future__ import annotations
 
 import json
 import sys
@@ -18,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 LEGACY_APP = 'xbzrf3pmtpyslst9d29fuy68'
 NAME = 'sk-events'
+PROJECT = 'Events'
 COMPOSE = '/infra/coolify/docker-compose.prod.yaml'
 DOMAINS = {
     'frontend': 'https://app.events.skolhub.ru',
@@ -77,34 +81,36 @@ def main() -> None:
         sys.exit(f'Заполните в .env.prod: {", ".join(missing)}')
     api = Coolify(env['COOLIFY_URL'], env['COOLIFY_API_TOKEN'])
 
-    legacy = api.call('GET', f'/applications/{LEGACY_APP}')
-    environment = api.call('GET', '/environments/' + str(legacy['environment_id'])) if 'environment_id' in legacy else None
+    project = next((p for p in api.call('GET', '/projects') if p['name'] == PROJECT), None)
+    if project is None:
+        sys.exit(f'Создайте в Coolify проект {PROJECT}')
+    legacy = api.call('GET', f'/applications/{LEGACY_APP}')  # сервер и destination — как у старого приложения
     apps = api.call('GET', '/applications')
     app = next((a for a in apps if a.get('name') == NAME), None)
 
     if app is None:
         body = {
-            'project_uuid': legacy.get('project_uuid') or (environment or {}).get('project_uuid'),
-            'environment_name': (environment or {}).get('name', 'production'),
+            'project_uuid': project['uuid'],
+            'environment_name': 'production',
             'server_uuid': legacy['destination']['server']['uuid'],
             'destination_uuid': legacy['destination']['uuid'],
-            'github_app_uuid': legacy['source']['uuid'],
-            'git_repository': legacy['git_repository'],
+            'git_repository': f'https://github.com/{legacy["git_repository"]}',
             'git_branch': 'main',
             'build_pack': 'dockercompose',
             'docker_compose_location': COMPOSE,
+            'ports_exposes': '80',
             'name': NAME,
             'description': 'SK Events: мероприятия, заявки, оценивание, лендинги',
             'instant_deploy': False,
-            'ports_exposes': '80',
         }
         print('Создаю ресурс', json.dumps({k: v for k, v in body.items() if 'uuid' not in k}, ensure_ascii=False))
         if dry:
             return
-        app = api.call('POST', '/applications/private-github-app', body)
+        app = api.call('POST', '/applications/public', body)
     uuid = app['uuid']
+    print('Ресурс', uuid)
 
-    variables = [{'key': k, 'value': env.get(k, ''), 'is_preview': False} for k in APP_VARS if k in env]
+    variables = [{'key': k, 'value': env[k], 'is_preview': False} for k in APP_VARS if env.get(k)]
     print('Переменные:', ', '.join(v['key'] for v in variables))
     domains = [{'name': service, 'domain': domain} for service, domain in DOMAINS.items()]
     print('Домены:', domains)
@@ -112,7 +118,7 @@ def main() -> None:
         return
     api.call('PATCH', f'/applications/{uuid}/envs/bulk', {'data': variables})
     api.call('PATCH', f'/applications/{uuid}', {'docker_compose_domains': domains})
-    deployment = api.call('POST', f'/deploy?uuid={uuid}&force=false')
+    deployment = api.call('GET', f'/deploy?uuid={uuid}&force=false')
     print('Сборка запущена:', json.dumps(deployment, ensure_ascii=False))
 
 

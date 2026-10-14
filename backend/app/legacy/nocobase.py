@@ -493,8 +493,9 @@ class Loader:
 
         chosen: dict[int, list[int]] = defaultdict(list)
         for row in d['contest_evaluation_item_options']:
-            if int(row.get('item_id') or 0) in options:
-                chosen[int(row.get('evaluation_item_id') or 0)].append(int(row['item_id']))
+            option_id = int(row.get('option_id') or row.get('item_id') or 0)  # в NocoBase поле option_id
+            if option_id in options:
+                chosen[int(row.get('evaluation_item_id') or 0)].append(option_id)
         pairs = set()
         for row in d['contest_evaluation_items']:
             eid, crid = int(row.get('evaluation_id') or 0), int(row.get('criterion_id') or 0)
