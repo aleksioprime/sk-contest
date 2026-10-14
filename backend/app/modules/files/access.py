@@ -1,4 +1,4 @@
-"""Кто может скачать файл: владелец, администратор и организаторы или модераторы мероприятия с этой заявкой."""
+"""Кто может скачать файл: владелец, администратор, организаторы и модераторы мероприятия, судьи листа с работой."""
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,4 +26,15 @@ async def can_read(session: AsyncSession, user: User, stored: StoredFile) -> boo
         )
         .limit(1)
     )
-    return await session.scalar(query) is not None
+    if await session.scalar(query) is not None:
+        return True
+    from app.modules.evaluation.models import SheetJudge, SheetWork
+
+    judge_query = (
+        select(ApplicationFile.file_id)
+        .join(SheetWork, SheetWork.application_id == ApplicationFile.application_id)
+        .join(SheetJudge, SheetJudge.sheet_id == SheetWork.sheet_id)
+        .where(ApplicationFile.file_id == stored.id, SheetJudge.user_id == user.id)
+        .limit(1)
+    )
+    return await session.scalar(judge_query) is not None
