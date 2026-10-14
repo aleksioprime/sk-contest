@@ -244,8 +244,9 @@ async def public_event(slug: str, db: Db) -> PublicEvent:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Мероприятие не найдено')
     result = PublicEvent.model_validate(
         {
-            **{c: getattr(event, c) for c in PublicEvent.model_fields if c != 'registration_open'},
+            **{c: getattr(event, c) for c in PublicEvent.model_fields if c not in ('registration_open', 'cover_url')},
             'registration_open': service.registration_open(event),
+            'cover_url': f'/api/v1/public/files/{event.cover_file_id}' if event.cover_file_id else None,
         }
     )
     return result

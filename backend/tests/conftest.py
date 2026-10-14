@@ -5,6 +5,7 @@ import os
 os.environ.setdefault('DB__NAME', 'sk_events_test')
 os.environ['DB__NULL_POOL'] = 'true'
 os.environ['REDIS__DB'] = '1'  # тесты очищают Redis, dev-очередь в базе 0 не трогаем
+os.environ['STORAGE_DIR'] = '/tmp/sk-events-test-files'  # не смешиваем с файлами dev-окружения
 os.environ.setdefault('ENVIRONMENT', 'local')
 
 import asyncio  # noqa: E402

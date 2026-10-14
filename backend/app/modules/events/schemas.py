@@ -109,6 +109,7 @@ class EventUpdate(BaseModel):
     registration_opens_at: datetime | None = None
     registration_closes_at: datetime | None = None
     academic_year_id: int | None = None
+    cover_file_id: int | None = None
     modules: dict[str, bool] | None = None
 
     _slug = field_validator('slug')(_check_slug)
@@ -173,6 +174,7 @@ class EventOut(ORMModel):
     registration_opens_at: datetime | None
     registration_closes_at: datetime | None
     academic_year_id: int | None
+    cover_file_id: int | None
     modules: dict[str, bool]
     directions: list[DirectionOut]
     stages: list[StageOut]
@@ -208,5 +210,6 @@ class PublicEvent(ORMModel):
     registration_opens_at: datetime | None
     registration_closes_at: datetime | None
     registration_open: bool
+    cover_url: str | None = None
     directions: list[PublicDirection]
     stages: list[PublicStage]

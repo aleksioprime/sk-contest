@@ -4,9 +4,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import now_utc
+from app.modules.applications.form import default_form
 from app.modules.audit.service import record
 from app.modules.events.models import Direction, Event, EventMember, ParticipationForm, Stage
 from app.modules.events.templates import EVENT_TYPES, TRANSITIONS
+from app.modules.files.models import StoredFile
 from app.modules.people.models import User
 
 
@@ -46,10 +48,17 @@ async def create_event(
     if await slug_taken(session, slug):
         raise EventError('Этот адрес уже занят')
 
-    event = Event(type=type_, title=title, slug=slug, created_by_id=user.id, modules=dict(template['modules']))
+    event = Event(
+        type=type_,
+        title=title,
+        slug=slug,
+        created_by_id=user.id,
+        modules=dict(template['modules']),
+        application_form=default_form(type_),
+    )
     if copy_from is not None:
         event.copied_from_id = copy_from.id
-        for field in ('short_description', 'description', 'level', 'format', 'place', 'modules'):
+        for field in ('short_description', 'description', 'level', 'format', 'place', 'modules', 'application_form'):
             setattr(event, field, getattr(copy_from, field))
         event.directions = [
             Direction(title=d.title, description=d.description, order=d.order) for d in copy_from.directions
@@ -76,6 +85,10 @@ async def create_event(
 async def update_event(session: AsyncSession, user: User, event: Event, changes: dict) -> Event:
     if 'slug' in changes and await slug_taken(session, changes['slug'], exclude_id=event.id):
         raise EventError('Этот адрес уже занят')
+    if changes.get('cover_file_id'):
+        cover = await session.get(StoredFile, changes['cover_file_id'])
+        if cover is None or not cover.is_public or not cover.content_type.startswith('image/'):
+            raise EventError('Обложка должна быть загруженной картинкой')
     if 'modules' in changes:
         changes['modules'] = {**event.modules, **changes['modules']}
     for field, value in changes.items():

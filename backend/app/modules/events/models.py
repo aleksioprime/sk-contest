@@ -27,6 +27,9 @@ class Event(IdMixin, TimestampMixin, Base):
     modules: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
     academic_year_id: Mapped[int | None] = mapped_column(ForeignKey('academic_years.id', ondelete='SET NULL'))
     copied_from_id: Mapped[int | None] = mapped_column(ForeignKey('events.id', ondelete='SET NULL'))
+    cover_file_id: Mapped[int | None] = mapped_column(ForeignKey('files.id', ondelete='SET NULL'))
+    # Анкета заявки: поля, команда, ограничения и согласия (схема в app/modules/applications/form.py)
+    application_form: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'))
 
     academic_year: Mapped[AcademicYear | None] = relationship(lazy='joined')
