@@ -31,13 +31,15 @@
 
 ## 1. Ядро: люди, вход, права
 
-- [ ] Модели `users`, `persons`, `classes`, `departments`, `academic_years`, `files`, `audit_log`
-- [ ] Вход через SkolStream: OAuth2 authorization code ([skolstream.md](integrations/skolstream.md))
-- [ ] Вход для внешних: email + magic-link, подтверждение адреса
-- [ ] Сессии: access JWT + refresh в httpOnly cookie
-- [ ] Синхронизация справочников из SkolStream: ночью и по кнопке, upsert по UUID, мягкое отключение
-- [ ] Права: администратор платформы; на мероприятие: организатор, модератор, судья, наблюдатель. Проверка на сервере в каждом эндпоинте
-- [ ] Со стороны SkolStream: OAuth2-приложение, PKCE, эндпоинт профиля, сервисный доступ на чтение
+- [x] Модели `users`, `persons`, `classes`, `departments`, `academic_years`, `audit_log`, `sync_runs`
+- [x] Вход через SkolStream: OAuth2 authorization code + PKCE ([skolstream.md](integrations/skolstream.md))
+- [x] Вход для внешних: email + одноразовая ссылка, лимит запросов
+- [x] Сессии: access JWT + ротируемый refresh в httpOnly cookie, проверка Origin
+- [x] Синхронизация справочников из SkolStream: ночью и по кнопке, upsert по UUID, мягкое отключение
+- [x] Права: администратор платформы, проверка на сервере
+- [ ] Права на мероприятие: организатор, модератор, судья, наблюдатель (вместе с этапом 2)
+- [x] Frontend: вход, ссылка из письма, продление сессии, защита маршрутов, раздел «Люди»
+- [ ] Со стороны SkolStream: OAuth2-приложение SK Events, PKCE, эндпоинт выгрузки справочников по контракту
 
 ## 2. Мероприятия
 

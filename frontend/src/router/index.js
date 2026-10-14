@@ -1,18 +1,57 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { setUnauthorizedHandler } from '@/api/http'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { useAuthStore } from '@/stores/auth'
 
 export const routes = [
+  { path: '/login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { public: true } },
+  {
+    path: '/auth/magic',
+    name: 'magic-link',
+    component: () => import('@/views/auth/MagicLinkView.vue'),
+    meta: { public: true },
+  },
   {
     path: '/',
     component: AppLayout,
     children: [
       { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
       { path: 'ui', name: 'ui-kit', component: () => import('@/views/UiKitView.vue') },
+      {
+        path: 'admin/people',
+        name: 'admin-people',
+        component: () => import('@/views/admin/PeopleView.vue'),
+        meta: { admin: true },
+      },
     ],
   },
+  { path: '/:pathMatch(.*)*', redirect: { name: 'home' } },
 ]
 
 export const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+/** Проверка доступа к маршруту. Вынесена отдельно, чтобы её можно было протестировать. */
+export function resolveAccess(to, auth) {
+  if (to.meta.public) return true
+  if (!auth.isAuthenticated) return { name: 'login', query: { next: to.fullPath } }
+  if (to.meta.admin && !auth.isAdmin) return { name: 'home' }
+  return true
+}
+
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  await auth.load()
+  return resolveAccess(to, auth)
+})
+
+setUnauthorizedHandler(() => {
+  const auth = useAuthStore()
+  auth.setUser(null)
+  const current = router.currentRoute.value
+  // До завершения первой навигации маршрута ещё нет: доступ решит beforeEach
+  if (!current.matched.length || current.meta.public) return
+  router.push({ name: 'login', query: { next: current.fullPath } })
 })
