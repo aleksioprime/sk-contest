@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import now_utc
 from app.modules.applications.models import Application
 from app.modules.audit.service import record
 from app.modules.evaluation import scoring
@@ -306,11 +307,21 @@ async def set_criterion(
     await session.flush()
 
 
+def deadline_passed(sheet: Sheet) -> bool:
+    return sheet.deadline is not None and sheet.deadline <= now_utc()
+
+
+def public_open(sheet: Sheet) -> bool:
+    """Анонимная оценка по QR открыта, пока лист активен и дедлайн не прошёл."""
+    return sheet.status == 'active' and not deadline_passed(sheet)
+
+
 def judge_can_edit(sheet: Sheet, user_id: int) -> bool:
-    if sheet.status == 'active':
+    """Активный лист до дедлайна; после закрытия или дедлайна — только судьям с открытым доступом."""
+    if sheet.status == 'active' and not deadline_passed(sheet):
         return True
     judge = next((j for j in sheet.judges if j.user_id == user_id), None)
-    return sheet.status == 'closed' and judge is not None and judge.reopened
+    return sheet.status != 'draft' and judge is not None and judge.reopened
 
 
 def work_of(sheet: Sheet, evaluation: Evaluation) -> SheetWork:
@@ -322,6 +333,8 @@ async def change_status(session: AsyncSession, actor: User, sheet: Sheet, status
         raise EvaluationError('Перед запуском добавьте в лист работы и судей')
     if status == 'active' and not sheet.scorecard.criteria:
         raise EvaluationError('В таблице оценок нет критериев')
+    if status == 'active' and deadline_passed(sheet):
+        raise EvaluationError('Дедлайн листа уже прошёл. Перенесите или уберите его в настройках')
     record(session, 'sheet.status', 'sheet', sheet.id, actor.id, old=sheet.status, new=status)
     sheet.status = status
     for judge in sheet.judges:

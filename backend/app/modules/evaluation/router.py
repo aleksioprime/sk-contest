@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.deps import CurrentUser, Db
+from app.core.queue import Queue, get_queue
 from app.core.security import TokenError, read_state, sign_state
 from app.modules.applications.service import event_form
 from app.modules.audit.service import record
@@ -27,6 +28,7 @@ from app.modules.evaluation.schemas import (
     JudgeWork,
     MySheet,
     PublicWork,
+    RemindResult,
     ScaleIn,
     ScaleOut,
     ScorecardIn,
@@ -44,6 +46,7 @@ from app.modules.events.models import Event
 from app.modules.events.permissions import ensure_manage, ensure_view, roles_of
 from app.modules.events.service import get_event
 from app.modules.people.models import User
+from app.modules.reminders.service import remind_sheet_judges
 
 router = APIRouter(prefix='/v1', tags=['evaluation'])
 public_router = APIRouter(prefix='/v1/public/evaluate', tags=['public'])
@@ -389,6 +392,9 @@ async def update_sheet(sheet_id: int, payload: SheetUpdate, db: Db, user: Curren
         scorecard = await db.get(Scorecard, changes['scorecard_id'])
         if scorecard is None or scorecard.event_id != event.id:
             raise _bad('Таблица оценок не найдена в этом мероприятии')
+    if 'deadline' in changes and changes['deadline'] != sheet.deadline:
+        for judge in sheet.judges:
+            judge.reminded_at = None  # новый дедлайн — новое напоминание
     for field, value in changes.items():
         setattr(sheet, field, value)
     await db.flush()
@@ -466,6 +472,17 @@ async def change_status(sheet_id: int, payload: SheetStatus, db: Db, user: Curre
     return _sheet_out(sheet)
 
 
+@router.post('/sheets/{sheet_id}/remind', response_model=RemindResult, summary='Напомнить судьям о неоценённых работах')
+async def remind_judges(sheet_id: int, db: Db, user: CurrentUser, queue: Annotated[Queue, Depends(get_queue)]):
+    sheet, _ = await _sheet(db, sheet_id, user, 'staff')
+    if sheet.status == 'draft':
+        raise _bad('Оценка по листу ещё не запущена')
+    sent, no_email = await remind_sheet_judges(db, queue, sheet)
+    record(db, 'sheet.remind', 'sheet', sheet.id, user.id, sent=sent)
+    await db.commit()
+    return RemindResult(sent=sent, no_email=no_email)
+
+
 @router.post(
     '/sheets/{sheet_id}/judges/{user_id}/access', response_model=SheetOut, summary='Открыть или закрыть оценку судье'
 )
@@ -474,7 +491,7 @@ async def judge_access(sheet_id: int, user_id: int, payload: JudgeAccess, db: Db
     judge = next((j for j in sheet.judges if j.user_id == user_id), None)
     if judge is None:
         raise _not_found('Судья не найден в листе')
-    if sheet.status != 'closed':
+    if sheet.status != 'closed' and not service.deadline_passed(sheet):
         raise _bad('Отдельный доступ нужен только для закрытого листа')
     judge.reopened = payload.open
     record(db, 'sheet.judge_access', 'sheet', sheet.id, user.id, judge_id=user_id, open=payload.open)
@@ -642,7 +659,7 @@ async def public_work(token: str, db: Db):
     return PublicWork(
         sheet_title=sheet.title,
         event_title=work.application.event.title,
-        open=sheet.status == 'active',
+        open=service.public_open(sheet),
         work=_work_info(work, full=False),
     )
 
@@ -650,7 +667,7 @@ async def public_work(token: str, db: Db):
 @public_router.post('/{token}/start', response_model=AnonymousStarted, summary='Начать анонимную оценку')
 async def anonymous_start(token: str, payload: AnonymousStart, db: Db):
     sheet, work = await _public_work(db, token)
-    if sheet.status != 'active':
+    if not service.public_open(sheet):
         raise _bad('Оценка этой работы закрыта')
     evaluation = Evaluation(is_anonymous=True, anonymous_name=payload.name, items=[])
     work.evaluations.append(evaluation)
@@ -662,7 +679,7 @@ async def anonymous_start(token: str, payload: AnonymousStart, db: Db):
 @public_router.get('/{token}/evaluation', response_model=EvaluationBundle, summary='Моя анонимная оценка')
 async def anonymous_get(token: str, db: Db, x_anonymous_token: Annotated[str | None, Header()] = None):
     sheet, evaluation = await _anonymous_evaluation(db, token, x_anonymous_token)
-    return _bundle(sheet, evaluation, sheet.status == 'active', False)
+    return _bundle(sheet, evaluation, service.public_open(sheet), False)
 
 
 @public_router.put(
@@ -676,7 +693,7 @@ async def anonymous_set(
     x_anonymous_token: Annotated[str | None, Header()] = None,
 ):
     sheet, evaluation = await _anonymous_evaluation(db, token, x_anonymous_token)
-    if sheet.status != 'active':
+    if not service.public_open(sheet):
         raise _bad('Оценка этой работы закрыта')
     try:
         await service.set_criterion(
@@ -693,7 +710,7 @@ async def anonymous_comment(
     token: str, payload: EvaluationComment, db: Db, x_anonymous_token: Annotated[str | None, Header()] = None
 ):
     sheet, evaluation = await _anonymous_evaluation(db, token, x_anonymous_token)
-    if sheet.status != 'active':
+    if not service.public_open(sheet):
         raise _bad('Оценка этой работы закрыта')
     evaluation.comment = payload.comment.strip()
     await db.commit()

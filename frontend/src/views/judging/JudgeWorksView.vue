@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { fetchMySheets, fetchMyWorks, formatPoints } from '@/api/evaluation'
+import { deadlinePassed, fetchMySheets, fetchMyWorks, formatDeadline, formatPoints } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import SkeletonList from '@/components/skeleton/SkeletonList.vue'
@@ -34,10 +34,14 @@ onMounted(async () => {
       <RouterLink v-if="sheetsCount > 1" :to="{ name: 'judging' }" class="text-sm text-ink-muted hover:text-ink">← Все листы</RouterLink>
       <p v-if="sheet" class="mt-2 text-sm text-ink-muted">{{ sheet.event_title }}</p>
       <h1 class="text-2xl font-bold">{{ sheet?.title ?? 'Работы для оценки' }}</h1>
-      <p v-if="!loading && works.length" class="mt-1 text-ink-muted">{{ left ? `Осталось оценить: ${left}` : 'Все работы оценены' }}</p>
+      <p v-if="!loading && works.length" class="mt-1 text-ink-muted">
+        {{ left ? `Осталось оценить: ${left}` : 'Все работы оценены' }}
+        <span v-if="sheet?.editable && sheet.deadline"> · оценить до {{ formatDeadline(sheet.deadline) }}</span>
+      </p>
     </div>
     <p v-if="sheet && !sheet.editable" class="rounded-control bg-amber-50 px-4 py-3 text-amber-900">
-      Оценка закрыта модератором. Выставленные баллы можно посмотреть, но не изменить.
+      {{ deadlinePassed(sheet.deadline) && sheet.status === 'active' ? 'Время оценки истекло' : 'Оценка закрыта модератором' }}.
+      Выставленные баллы можно посмотреть, но не изменить.
     </p>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
     <SkeletonList v-else-if="loading" :rows="5" />

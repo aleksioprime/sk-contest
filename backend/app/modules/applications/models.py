@@ -39,6 +39,8 @@ class Application(IdMixin, TimestampMixin, Base):
     moderator_comment: Mapped[str] = mapped_column(Text, default='', server_default='')
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Когда отправлено напоминание о незаконченном черновике
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_by_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'))
 
     event: Mapped[Event] = relationship(lazy='joined')

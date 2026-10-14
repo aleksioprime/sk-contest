@@ -3,13 +3,16 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchProviders, requestMagicLink, skolstreamLoginUrl } from '@/api/auth'
 import { errorMessage } from '@/api/http'
+import SmartCaptcha from '@/components/SmartCaptcha.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 
 const route = useRoute()
 const next = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
 
-const providers = ref({ magic_link: true, skolstream: false })
+const providers = ref({ magic_link: true, skolstream: false, captcha_site_key: null })
+const captchaToken = ref('')
+const captcha = ref(null)
 const email = ref('')
 const sending = ref(false)
 const sentTo = ref('')
@@ -31,14 +34,19 @@ async function submit() {
     fieldError.value = 'Введите адрес электронной почты'
     return
   }
+  if (providers.value.captcha_site_key && !captchaToken.value) {
+    error.value = 'Подтвердите, что вы не робот'
+    return
+  }
   sending.value = true
   try {
-    await requestMagicLink(email.value.trim(), next.value)
+    await requestMagicLink(email.value.trim(), next.value, captchaToken.value || null)
     sentTo.value = email.value.trim()
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
     sending.value = false
+    captcha.value?.reset() // токен капчи одноразовый
   }
 }
 </script>
@@ -89,6 +97,7 @@ async function submit() {
             :error="fieldError"
             @input="fieldError = ''"
           />
+          <SmartCaptcha v-if="providers.captcha_site_key" ref="captcha" v-model="captchaToken" :sitekey="providers.captcha_site_key" />
           <UiButton type="submit" :variant="providers.skolstream ? 'secondary' : 'primary'" :loading="sending">
             Получить ссылку для входа
           </UiButton>

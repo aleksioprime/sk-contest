@@ -6,6 +6,7 @@ from app.modules.people.schemas import UserOut
 class MagicLinkRequest(BaseModel):
     email: EmailStr
     next: str | None = Field(default=None, max_length=500)
+    captcha_token: str | None = Field(default=None, max_length=4000)
 
 
 class MagicLinkVerify(BaseModel):
@@ -20,6 +21,7 @@ class LoginResult(BaseModel):
 class Providers(BaseModel):
     magic_link: bool = True
     skolstream: bool
+    captcha_site_key: str | None = None
 
 
 class Me(BaseModel):

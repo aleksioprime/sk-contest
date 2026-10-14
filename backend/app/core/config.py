@@ -53,11 +53,23 @@ class SkolstreamSettings(BaseModel):
         return bool(self.base_url and self.client_id)
 
 
+class CaptchaSettings(BaseModel):
+    """Yandex SmartCaptcha: ключ клиента для виджета, ключ сервера для проверки."""
+
+    client_key: str = ''
+    server_key: str = ''
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_key and self.server_key)
+
+
 class AuthSettings(BaseModel):
     access_ttl_minutes: int = 15
     refresh_ttl_days: int = 30
     magic_link_ttl_minutes: int = 20
     magic_link_per_hour: int = 5
+    magic_link_per_ip_hour: int = 30
     access_cookie: str = 'ske_access'
     refresh_cookie: str = 'ske_refresh'
 
@@ -86,6 +98,7 @@ class Settings(BaseSettings):
     smtp: SmtpSettings = SmtpSettings()
     skolstream: SkolstreamSettings = SkolstreamSettings()
     auth: AuthSettings = AuthSettings()
+    captcha: CaptchaSettings = CaptchaSettings()
 
     @cached_property
     def is_local(self) -> bool:

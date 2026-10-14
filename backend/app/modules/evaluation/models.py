@@ -118,6 +118,8 @@ class SheetJudge(IdMixin, Base):
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
     # Модератор может дать судье доступ к закрытому листу, если тот не успел к закрытию
     reopened: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    # Когда отправлено автоматическое напоминание о дедлайне
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(lazy='joined')
 

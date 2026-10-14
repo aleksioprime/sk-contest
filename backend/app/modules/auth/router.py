@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import exists, select
 
+from app.core.captcha import Captcha, get_captcha
 from app.core.config import settings
 from app.core.deps import CurrentUser, Db
 from app.core.queue import Queue, get_queue
-from app.core.redis import get_redis
+from app.core.redis import get_redis, hit_limit
 from app.core.security import TokenError, decode_access_token, new_secret, read_state, sign_state
 from app.modules.applications.models import Application
 from app.modules.auth import service
@@ -61,11 +62,25 @@ def _callback_url() -> str:
 
 @router.get('/providers', response_model=Providers, summary='Доступные способы входа')
 async def providers() -> Providers:
-    return Providers(skolstream=settings.skolstream.enabled)
+    return Providers(
+        skolstream=settings.skolstream.enabled,
+        captcha_site_key=settings.captcha.client_key if settings.captcha.enabled else None,
+    )
 
 
 @router.post('/magic-link', status_code=status.HTTP_202_ACCEPTED, summary='Отправить ссылку для входа на email')
-async def request_magic_link(payload: MagicLinkRequest, db: Db, queue: Annotated[Queue, Depends(get_queue)]) -> dict:
+async def request_magic_link(
+    payload: MagicLinkRequest,
+    request: Request,
+    db: Db,
+    queue: Annotated[Queue, Depends(get_queue)],
+    captcha: Annotated[Captcha, Depends(get_captcha)],
+) -> dict:
+    _, ip = _client_info(request)
+    if not await captcha.verify(payload.captcha_token, ip):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Подтвердите, что вы не робот')
+    if ip and await hit_limit(get_redis(), f'magic-ip:{ip}', settings.auth.magic_link_per_ip_hour, 3600):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, 'Слишком много запросов. Попробуйте через час.')
     try:
         await service.request_magic_link(db, get_redis(), queue, payload.email, payload.next)
     except service.RateLimited as exc:

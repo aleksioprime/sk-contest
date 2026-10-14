@@ -16,7 +16,11 @@ import {
   formatJudges,
   parseJudges,
   setJudgeAccess,
+  deadlinePassed,
+  formatDeadline,
   formatPoints,
+  remindJudges,
+  toLocalInput,
   removeWork,
   setJudges,
   setSheetStatus,
@@ -112,13 +116,25 @@ watch(() => props.sheetId, load, { immediate: true })
           <h1 class="text-2xl font-bold">{{ sheet.title }}</h1>
           <UiBadge :tone="SHEET_STATUS_TONES[sheet.status]">{{ SHEET_STATUS_LABELS[sheet.status] }}</UiBadge>
         </div>
-        <p class="mt-1 text-sm text-ink-muted">{{ sheet.scorecard_title }} · {{ SHEET_MODE_LABELS[sheet.mode] }} · оценено {{ progress.scored }} из {{ progress.total }}</p>
+        <p class="mt-1 text-sm text-ink-muted">
+          {{ sheet.scorecard_title }} · {{ SHEET_MODE_LABELS[sheet.mode] }} · оценено {{ progress.scored }} из {{ progress.total }}
+          <span v-if="sheet.deadline" :class="{ 'font-medium text-red-700': deadlinePassed(sheet.deadline) }">
+            · {{ deadlinePassed(sheet.deadline) ? 'дедлайн прошёл' : 'дедлайн' }} {{ formatDeadline(sheet.deadline) }}
+          </span>
+        </p>
       </div>
       <div class="flex flex-wrap gap-2">
         <UiButton v-if="isStaff && sheet.status !== 'active'" variant="primary" @click="run(() => setSheetStatus(sheet.id, 'active'), 'Оценка запущена')">
           {{ sheet.status === 'closed' ? 'Открыть снова' : 'Запустить оценку' }}
         </UiButton>
         <UiButton v-if="isStaff && sheet.status === 'active'" @click="run(() => setSheetStatus(sheet.id, 'closed'), 'Лист закрыт')">Закрыть лист</UiButton>
+        <UiButton
+          v-if="isStaff && sheet.status !== 'draft' && progress.scored < progress.total"
+          variant="ghost"
+          @click="run(() => remindJudges(sheet.id), (r) => `Напоминания отправлены: ${r.sent}` + (r.no_email ? `. Без email (сообщите лично): ${r.no_email}` : ''))"
+        >
+          Напомнить судьям
+        </UiButton>
         <RouterLink
           v-if="isStaff && sheet.judges.length"
           :to="{ name: 'judge-cards', params: { id, sheetId } }"
@@ -175,7 +191,9 @@ watch(() => props.sheetId, load, { immediate: true })
             <UiButton size="sm" @click="run(() => distribute(sheet.id, 'per_work', perWork), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">судьи на работу</UiButton>
           </div>
         </template>
-        <p v-if="sheet.status === 'closed'" class="mt-4 text-sm text-ink-muted">Лист закрыт. Судье, который не успел, можно открыть оценку отдельно.</p>
+        <p v-if="sheet.status === 'closed' || deadlinePassed(sheet.deadline)" class="mt-4 text-sm text-ink-muted">
+          {{ sheet.status === 'closed' ? 'Лист закрыт' : 'Дедлайн прошёл' }}. Судье, который не успел, можно открыть оценку отдельно.
+        </p>
         <ul v-if="sheet.judges.length" class="mt-4 grid gap-2 text-sm">
           <li v-for="judge in sheet.judges" :key="judge.user_id" class="flex flex-wrap items-center gap-3">
             <span class="min-w-0 flex-1 truncate">
@@ -190,7 +208,7 @@ watch(() => props.sheetId, load, { immediate: true })
               QR
             </RouterLink>
             <UiButton
-              v-if="isStaff && sheet.status === 'closed'"
+              v-if="isStaff && (sheet.status === 'closed' || deadlinePassed(sheet.deadline))"
               size="sm"
               :variant="judge.reopened ? 'secondary' : 'ghost'"
               @click="run(() => setJudgeAccess(sheet.id, judge.user_id, !judge.reopened), judge.reopened ? 'Оценка для судьи закрыта' : 'Судья может продолжить оценку')"
@@ -203,7 +221,10 @@ watch(() => props.sheetId, load, { immediate: true })
     </div>
 
     <UiCard v-if="canManage">
-      <template #title>Настройки подсчёта</template>
+      <template #title>Настройки листа</template>
+      <p class="mb-3 text-sm text-ink-muted">
+        За сутки до дедлайна судьи, которые не закончили, получают письмо. В дедлайн лист закрывается сам.
+      </p>
       <div class="flex flex-wrap gap-4 text-sm">
         <label class="flex items-center gap-2">
           Кто оценивает
@@ -222,6 +243,15 @@ watch(() => props.sheetId, load, { immediate: true })
           <select :value="sheet.rank_method" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { rank_method: $event.target.value }))">
             <option v-for="(label, value) in RANK_LABELS" :key="value" :value="value">{{ label }}</option>
           </select>
+        </label>
+        <label class="flex items-center gap-2">
+          Дедлайн оценки
+          <input
+            type="datetime-local"
+            :value="toLocalInput(sheet.deadline)"
+            class="h-9 rounded-control border border-line bg-surface px-2"
+            @change="run(() => updateSheet(sheet.id, { deadline: $event.target.value ? new Date($event.target.value).toISOString() : null }), 'Дедлайн сохранён')"
+          />
         </label>
         <label v-if="sheet.mode === 'mixed'" class="flex items-center gap-2">
           <input type="checkbox" :checked="sheet.include_anonymous" class="size-4 accent-brand-600" @change="run(() => updateSheet(sheet.id, { include_anonymous: $event.target.checked }))" />

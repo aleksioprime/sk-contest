@@ -133,6 +133,11 @@ class JudgeAccess(BaseModel):
     open: bool
 
 
+class RemindResult(BaseModel):
+    sent: int
+    no_email: int = Field(description='Судьи без email: им напоминание не ушло')
+
+
 class JudgeCardsRequest(BaseModel):
     user_ids: list[int] | None = None
 

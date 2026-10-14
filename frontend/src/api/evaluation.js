@@ -47,6 +47,19 @@ export function formatJudges(judges) {
   return judges.map((j) => [j.full_name !== j.email ? j.full_name : '', j.email].filter(Boolean).join(', ')).join('\n')
 }
 export const distribute = async (id, mode, perWork) => (await http.post(`/v1/sheets/${id}/distribute`, { mode, per_work: perWork })).data
+export const remindJudges = async (id) => (await http.post(`/v1/sheets/${id}/remind`)).data
+
+export const formatDeadline = (value) =>
+  value ? new Date(value).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : ''
+export const deadlinePassed = (value) => !!value && new Date(value) <= new Date()
+
+/** ISO-дата → значение для <input type="datetime-local"> в часовом поясе браузера. */
+export function toLocalInput(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
 export const setSheetStatus = async (id, status) => (await http.post(`/v1/sheets/${id}/status`, { status })).data
 
 // Судья

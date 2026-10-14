@@ -9,10 +9,12 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.mail import send_mail
+from app.core.queue import get_queue
 from app.core.uow import UnitOfWork
 from app.modules.people.models import SyncRun
 from app.modules.people.skolstream import get_skolstream_client
 from app.modules.people.sync import run_directory_sync
+from app.modules.reminders.service import run_hourly
 
 logger = logging.getLogger('sk_events.worker')
 
@@ -39,6 +41,12 @@ async def nightly_sync(ctx: dict) -> None:
     await run_directory_sync(get_skolstream_client(), run_id)
 
 
+async def hourly_reminders(ctx: dict) -> dict:
+    """Напоминания о черновиках и дедлайнах листов, закрытие просроченных листов."""
+    async with UnitOfWork() as uow:
+        return await run_hourly(uow.session, get_queue())
+
+
 async def startup(ctx: dict) -> None:
     setup_logging()
     logger.info('Воркер запущен, окружение %s', settings.environment)
@@ -46,7 +54,7 @@ async def startup(ctx: dict) -> None:
 
 class WorkerSettings:
     functions = [send_email, sync_directory]
-    cron_jobs = [cron(nightly_sync, hour={3}, minute={0})]
+    cron_jobs = [cron(nightly_sync, hour={3}, minute={0}), cron(hourly_reminders, minute={5})]
     on_startup = startup
     max_tries = 3
     redis_settings = RedisSettings(host=settings.redis.host, port=settings.redis.port, database=settings.redis.db)

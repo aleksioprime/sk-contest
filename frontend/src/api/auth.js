@@ -5,8 +5,8 @@ export async function fetchProviders() {
   return data
 }
 
-export async function requestMagicLink(email, next) {
-  const { data } = await http.post('/v1/auth/magic-link', { email, next })
+export async function requestMagicLink(email, next, captchaToken = null) {
+  const { data } = await http.post('/v1/auth/magic-link', { email, next, captcha_token: captchaToken })
   return data
 }
 

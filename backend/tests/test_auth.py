@@ -133,5 +133,5 @@ async def test_skolstream_callback_with_wrong_state(db, client, monkeypatch):
 
 async def test_skolstream_disabled_by_default(db, client):
     providers = await client.get('/api/v1/auth/providers')
-    assert providers.json() == {'magic_link': True, 'skolstream': False}
+    assert providers.json() == {'magic_link': True, 'skolstream': False, 'captcha_site_key': None}
     assert (await client.get('/api/v1/auth/skolstream/login')).status_code == 404
