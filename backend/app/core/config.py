@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     storage_dir: str = './.data/files'
     # Адреса, которые получают права администратора платформы при входе (первичная настройка)
     bootstrap_admin_emails: list[str] = []
+    # Начальный пароль этих администраторов (задаётся один раз, пока пароля нет)
+    bootstrap_admin_password: str = ''
 
     db: DatabaseSettings = DatabaseSettings()
     redis: RedisSettings = RedisSettings()

@@ -11,18 +11,13 @@ import {
   addWorks,
   anonymousUrl,
   deleteSheet,
-  distribute,
   fetchSheet,
-  formatJudges,
-  parseJudges,
-  setJudgeAccess,
   deadlinePassed,
   formatDeadline,
   formatPoints,
   remindJudges,
   toLocalInput,
   removeWork,
-  setJudges,
   setSheetStatus,
   updateSheet,
 } from '@/api/evaluation'
@@ -31,6 +26,7 @@ import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import JudgesPanel from '@/components/evaluation/JudgesPanel.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })
@@ -40,10 +36,24 @@ const sheet = ref(null)
 const event = ref(null)
 const error = ref('')
 const notice = ref('')
-const judgesText = ref('')
-const confirmForce = ref(false)
 const directionIds = ref([])
-const perWork = ref(3)
+const numbersText = ref('')
+
+/** «1, 4, 7–12» → [1, 4, 7, 8, …, 12] */
+function parseNumbers(text) {
+  const result = []
+  for (const part of text.split(/[,;\s]+/).filter(Boolean)) {
+    const [from, to] = part.split(/[-–]/).map(Number)
+    if (!Number.isInteger(from)) continue
+    for (let n = from; n <= (Number.isInteger(to) ? to : from) && result.length < 1000; n++) result.push(n)
+  }
+  return result
+}
+
+function worksFilter() {
+  const numbers = parseNumbers(numbersText.value)
+  return { direction_ids: directionIds.value.length ? directionIds.value : null, numbers: numbers.length ? numbers : null }
+}
 const qr = ref(null) // { title, url, image }
 const sortBy = ref('rank')
 
@@ -66,7 +76,6 @@ async function load() {
   error.value = ''
   try {
     ;[sheet.value, event.value] = await Promise.all([fetchSheet(props.sheetId), fetchEvent(props.id)])
-    judgesText.value = formatJudges(sheet.value.judges)
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -87,10 +96,6 @@ async function run(fn, message = '') {
   }
 }
 
-async function saveJudges(force = false) {
-  const ok = await run(() => setJudges(sheet.value.id, parseJudges(judgesText.value), force), 'Список судей сохранён')
-  confirmForce.value = !ok && error.value.includes('Подтвердите')
-}
 
 async function showQr(work) {
   const url = anonymousUrl(work.public_token)
@@ -149,10 +154,17 @@ watch(() => props.sheetId, load, { immediate: true })
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
     <p v-if="notice" role="status" class="rounded-control bg-green-100 px-4 py-3 text-green-800">{{ notice }}</p>
 
-    <div class="grid gap-6 lg:grid-cols-2">
+    <div class="grid gap-6">
       <UiCard v-if="canManage">
         <template #title>Работы</template>
-        <p class="text-sm text-ink-muted">Добавляются принятые заявки. Повторно добавить уже включённые работы нельзя.</p>
+        <p class="text-sm text-ink-muted">
+          Добавляются принятые заявки или участники этапа листа. Можно ограничить направлениями и номерами —
+          например, когда этап идёт несколько дней и на каждый день свой лист. Уже включённые работы не дублируются.
+        </p>
+        <label class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          Номера работ
+          <input v-model="numbersText" placeholder="все или, например, 1, 4, 7–12" class="h-9 min-w-56 flex-1 rounded-control border border-line bg-surface px-3" />
+        </label>
         <div v-if="event?.directions.length" class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
           <label v-for="d in event.directions" :key="d.id" class="flex items-center gap-2">
             <input v-model="directionIds" type="checkbox" :value="d.id" class="size-4 accent-brand-600" /> {{ d.title }}
@@ -163,62 +175,20 @@ watch(() => props.sheetId, load, { immediate: true })
           class="mt-3 mr-2"
           size="sm"
           variant="primary"
-          @click="run(() => addWorks(sheet.id, { source: 'stage', direction_ids: directionIds.length ? directionIds : null }), 'Добавлены участники этапа')"
+          @click="run(() => addWorks(sheet.id, { source: 'stage', ...worksFilter() }), 'Добавлены участники этапа')"
         >
           Добавить участников этапа
         </UiButton>
-        <UiButton class="mt-3" size="sm" @click="run(() => addWorks(sheet.id, { direction_ids: directionIds.length ? directionIds : null }), 'Работы добавлены')">
-          Добавить принятые заявки{{ directionIds.length ? ' выбранных направлений' : '' }}
+        <UiButton class="mt-3" size="sm" @click="run(() => addWorks(sheet.id, worksFilter()), 'Работы добавлены')">
+          Добавить принятые заявки
         </UiButton>
       </UiCard>
-
-      <UiCard>
-        <template #title>Судьи</template>
-        <template v-if="canManage">
-          <label class="grid gap-1.5 text-sm">
-            <span class="text-ink-muted">По одному в строке: «Фамилия Имя Отчество, email». Без email судья входит только по QR с листа судьи.</span>
-            <textarea v-model="judgesText" rows="5" placeholder="Петров Иван Сергеевич, petrov@example.ru&#10;Сидорова Мария Петровна" class="rounded-control border border-line bg-surface px-3 py-2" />
-          </label>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <UiButton size="sm" @click="saveJudges(false)">Сохранить судей</UiButton>
-            <UiButton v-if="confirmForce" size="sm" variant="danger" @click="saveJudges(true)">Удалить вместе с оценками</UiButton>
-          </div>
-          <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4 text-sm">
-            <span>Распределить работы:</span>
-            <UiButton size="sm" @click="run(() => distribute(sheet.id, 'all', 1), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">Каждому судье все</UiButton>
-            <span>или по</span>
-            <input v-model.number="perWork" type="number" min="1" aria-label="Судей на работу" class="h-8 w-16 rounded-control border border-line bg-surface px-2" />
-            <UiButton size="sm" @click="run(() => distribute(sheet.id, 'per_work', perWork), (r) => `Назначено оценок: ${r.created}. Конфликт интересов: ${r.conflicts}.`)">судьи на работу</UiButton>
-          </div>
-        </template>
-        <p v-if="sheet.status === 'closed' || deadlinePassed(sheet.deadline)" class="mt-4 text-sm text-ink-muted">
-          {{ sheet.status === 'closed' ? 'Лист закрыт' : 'Дедлайн прошёл' }}. Судье, который не успел, можно открыть оценку отдельно.
-        </p>
-        <ul v-if="sheet.judges.length" class="mt-4 grid gap-2 text-sm">
-          <li v-for="judge in sheet.judges" :key="judge.user_id" class="flex flex-wrap items-center gap-3">
-            <span class="min-w-0 flex-1 truncate">
-              {{ judge.full_name }}<span v-if="!judge.email" class="text-ink-muted"> · вход по QR</span>
-            </span>
-            <span class="tabular-nums" :class="judge.total && judge.scored === judge.total ? 'text-green-700' : 'text-ink-muted'">{{ judge.scored }} / {{ judge.total }}</span>
-            <RouterLink
-              v-if="isStaff"
-              :to="{ name: 'judge-cards', params: { id, sheetId }, query: { user: judge.user_id } }"
-              class="text-brand-700 hover:underline"
-            >
-              QR
-            </RouterLink>
-            <UiButton
-              v-if="isStaff && (sheet.status === 'closed' || deadlinePassed(sheet.deadline))"
-              size="sm"
-              :variant="judge.reopened ? 'secondary' : 'ghost'"
-              @click="run(() => setJudgeAccess(sheet.id, judge.user_id, !judge.reopened), judge.reopened ? 'Оценка для судьи закрыта' : 'Судья может продолжить оценку')"
-            >
-              {{ judge.reopened ? 'Закрыть доступ' : 'Открыть доступ' }}
-            </UiButton>
-          </li>
-        </ul>
-      </UiCard>
     </div>
+
+    <UiCard>
+      <template #title>Судьи</template>
+      <JudgesPanel :sheet="sheet" :event-id="id" :can-manage="canManage" :is-staff="isStaff" :run="run" />
+    </UiCard>
 
     <UiCard v-if="canManage">
       <template #title>Настройки листа</template>
@@ -236,6 +206,13 @@ watch(() => props.sheetId, load, { immediate: true })
           Итог по оценкам
           <select :value="sheet.aggregate" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { aggregate: $event.target.value }))">
             <option v-for="(label, value) in AGGREGATE_LABELS" :key="value" :value="value">{{ label }}</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-2">
+          Рейтинг
+          <select :value="sheet.rank_scope" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { rank_scope: $event.target.value }), 'Места пересчитаны')">
+            <option value="overall">Общий по листу</option>
+            <option value="direction">Внутри направлений</option>
           </select>
         </label>
         <label class="flex items-center gap-2">

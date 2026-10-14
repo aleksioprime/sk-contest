@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from app.core.config import settings
 from app.core.deps import CurrentUser, Db
@@ -39,13 +39,14 @@ from app.modules.evaluation.schemas import (
     SheetOut,
     SheetStatus,
     SheetUpdate,
+    UserSearchItem,
     WorkInfo,
     WorkOut,
 )
 from app.modules.events.models import Event
 from app.modules.events.permissions import ensure_manage, ensure_view, roles_of
 from app.modules.events.service import get_event
-from app.modules.people.models import User
+from app.modules.people.models import Person, User
 from app.modules.reminders.service import remind_sheet_judges
 
 router = APIRouter(prefix='/v1', tags=['evaluation'])
@@ -111,6 +112,7 @@ def _sheet_out(sheet: Sheet) -> SheetOut:
                 total=len(own),
                 scored=sum(e.is_scored for e in own),
                 reopened=judge.reopened,
+                has_password=bool(judge.user.password_hash),
             )
         )
     works = []
@@ -145,6 +147,7 @@ def _sheet_out(sheet: Sheet) -> SheetOut:
         mode=sheet.mode,
         aggregate=sheet.aggregate,
         rank_method=sheet.rank_method,
+        rank_scope=sheet.rank_scope,
         include_anonymous=sheet.include_anonymous,
         deadline=sheet.deadline,
         judges=judges,
@@ -435,6 +438,33 @@ async def remove_work(sheet_id: int, work_id: int, db: Db, user: CurrentUser):
         raise _bad(exc) from exc
     await db.commit()
     return _sheet_out(sheet)
+
+
+@router.get('/events/{event_id}/user-search', response_model=list[UserSearchItem], summary='Поиск людей в базе')
+async def user_search(event_id: int, db: Db, user: CurrentUser, q: str = ''):
+    """Для выбора судей: по ФИО или email. Нужны права организатора или модератора мероприятия."""
+    await _event(db, event_id, user, 'staff')
+    q = ' '.join(q.split())
+    if len(q) < 2:
+        return []
+    pattern = f'%{q.lower()}%'
+    full_name = func.lower(func.concat_ws(' ', Person.last_name, Person.first_name, Person.middle_name))
+    rows = await db.scalars(
+        select(User)
+        .outerjoin(Person, Person.id == User.person_id)
+        .where(User.is_active.is_(True), or_(func.lower(User.email).like(pattern), full_name.like(pattern)))
+        .order_by(Person.last_name, User.email)
+        .limit(20)
+    )
+    return [
+        UserSearchItem(
+            id=u.id,
+            full_name=u.person.full_name if u.person and u.person.full_name else '',
+            email=u.email if service.has_real_email(u) else None,
+            has_password=bool(u.password_hash),
+        )
+        for u in rows.unique()
+    ]
 
 
 @router.put('/sheets/{sheet_id}/judges', response_model=SheetOut, summary='Судьи листа')

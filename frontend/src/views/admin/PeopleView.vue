@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { errorMessage } from '@/api/http'
-import { fetchPersons, fetchSyncRuns, fetchUsers, startSync, updateUser } from '@/api/people'
+import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, startSync, updateUser } from '@/api/people'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
@@ -92,6 +92,52 @@ async function toggle(user, field) {
   }
 }
 
+const newUser = ref({ email: '', full_name: '', password: '', is_employee: true, is_superuser: false })
+const creating = ref(false)
+const notice = ref('')
+const passwordFor = ref(null)
+const newPassword = ref('')
+
+async function create() {
+  error.value = ''
+  notice.value = ''
+  creating.value = true
+  try {
+    const payload = { ...newUser.value, password: newUser.value.password || null }
+    const user = await createUser(payload)
+    notice.value = `Создан ${user.email}${user.has_password ? ': можно входить по паролю' : ''}`
+    newUser.value = { email: '', full_name: '', password: '', is_employee: true, is_superuser: false }
+    tab.value = 'users'
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    creating.value = false
+  }
+}
+
+async function setPassword(user) {
+  error.value = ''
+  notice.value = ''
+  try {
+    Object.assign(user, await updateUser(user.id, { password: newPassword.value }))
+    notice.value = `Пароль для ${user.email} задан. Передайте его лично.`
+    passwordFor.value = null
+    newPassword.value = ''
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+async function setEmployee(user, value) {
+  error.value = ''
+  try {
+    Object.assign(user, await updateUser(user.id, { is_employee: value }))
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—'
 }
@@ -131,6 +177,26 @@ onMounted(() => {
         </li>
       </ul>
     </UiCard>
+
+    <UiCard>
+      <template #title>Новый пользователь</template>
+      <form class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4" @submit.prevent="create">
+        <label class="grid gap-1"><span class="font-medium">Email</span><input v-model="newUser.email" type="email" required class="h-10 rounded-control border border-line bg-surface px-3" /></label>
+        <label class="grid gap-1"><span class="font-medium">ФИО</span><input v-model="newUser.full_name" class="h-10 rounded-control border border-line bg-surface px-3" /></label>
+        <label class="grid gap-1">
+          <span class="font-medium">Пароль <span class="font-normal text-ink-muted">(необязательно)</span></span>
+          <input v-model="newUser.password" type="text" minlength="8" autocomplete="off" class="h-10 rounded-control border border-line bg-surface px-3" />
+        </label>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="flex h-10 items-center gap-2"><input v-model="newUser.is_employee" type="checkbox" class="size-4 accent-brand-600" /> Сотрудник</label>
+          <label class="flex h-10 items-center gap-2"><input v-model="newUser.is_superuser" type="checkbox" class="size-4 accent-brand-600" /> Админ</label>
+          <UiButton type="submit" variant="primary" :loading="creating">Создать</UiButton>
+        </div>
+      </form>
+      <p class="mt-3 text-sm text-ink-muted">Сотрудники могут создавать мероприятия. Пароль нужен, пока не настроена отправка писем.</p>
+    </UiCard>
+
+    <p v-if="notice" role="status" class="rounded-control bg-green-100 px-4 py-3 text-green-800">{{ notice }}</p>
 
     <div class="flex flex-wrap items-center gap-3">
       <div class="flex rounded-control border border-line bg-surface p-1 text-sm" role="tablist">
@@ -187,7 +253,10 @@ onMounted(() => {
 
       <table v-else class="w-full text-sm">
         <thead class="bg-canvas text-left text-xs text-ink-muted">
-          <tr><th class="px-4 py-2">Email</th><th class="px-4 py-2">Персона</th><th class="px-4 py-2">Последний вход</th><th class="px-4 py-2">Администратор</th><th class="px-4 py-2">Доступ</th></tr>
+          <tr>
+            <th class="px-4 py-2">Email</th><th class="px-4 py-2">Персона</th><th class="px-4 py-2">Последний вход</th>
+            <th class="px-4 py-2">Сотрудник</th><th class="px-4 py-2">Администратор</th><th class="px-4 py-2">Пароль</th><th class="px-4 py-2">Доступ</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-for="user in page.items" :key="user.id" class="border-t border-line">
@@ -197,11 +266,28 @@ onMounted(() => {
             <td class="px-4 py-2">
               <input
                 type="checkbox"
+                :checked="!!user.person?.is_employee"
+                :aria-label="`Сотрудник: ${user.email}`"
+                @change="setEmployee(user, $event.target.checked)"
+              />
+            </td>
+            <td class="px-4 py-2">
+              <input
+                type="checkbox"
                 :checked="user.is_superuser"
                 :disabled="user.id === auth.user?.id"
                 :aria-label="`Администратор: ${user.email}`"
                 @change="toggle(user, 'is_superuser')"
               />
+            </td>
+            <td class="px-4 py-2">
+              <form v-if="passwordFor === user.id" class="flex items-center gap-1" @submit.prevent="setPassword(user)">
+                <input v-model="newPassword" minlength="8" required autocomplete="off" aria-label="Новый пароль" class="h-8 w-32 rounded-control border border-line px-2" />
+                <UiButton size="sm" type="submit">OK</UiButton>
+              </form>
+              <button v-else type="button" class="text-brand-700 hover:underline" @click="(passwordFor = user.id), (newPassword = '')">
+                {{ user.has_password ? 'Сменить' : 'Задать' }}
+              </button>
             </td>
             <td class="px-4 py-2">
               <UiButton size="sm" variant="ghost" :disabled="user.id === auth.user?.id" @click="toggle(user, 'is_active')">

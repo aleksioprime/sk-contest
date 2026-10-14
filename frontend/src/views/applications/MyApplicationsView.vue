@@ -47,6 +47,7 @@ onMounted(async () => {
           <UiBadge v-if="resultsById[app.id]" :tone="AWARD_TONES[resultsById[app.id].award]">
             {{ AWARD_LABELS[resultsById[app.id].award] }}<template v-if="resultsById[app.id].award !== 'participant'"> · {{ resultsById[app.id].rank }} место</template>
           </UiBadge>
+          <UiBadge v-for="n in resultsById[app.id]?.nominations ?? []" :key="n" tone="warning">{{ n }}</UiBadge>
           <span v-if="app.status === 'needs_changes'" class="text-sm text-amber-800">Внесите правки</span>
           <UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge>
         </RouterLink>

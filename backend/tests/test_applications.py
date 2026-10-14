@@ -198,3 +198,29 @@ async def test_export_and_bulk_decision(db, client):
     sheet = load_workbook(BytesIO(export.content)).active
     assert sheet['A1'].value == '№' and sheet.max_row == 3
     assert sheet['B2'].value == 'принята' and sheet['F2'].value == 'Иванова Анна'
+
+
+async def test_staff_creates_and_edits_application(db, client):
+    event = await _open_event(db, client)
+    url = f'/api/v1/events/{event["id"]}/applications/manual'
+    created = await client.post(url, json={**_payload(event), 'consents': [], 'owner_email': 'parent@example.org'})
+    assert created.status_code == 201, created.text
+    app = created.json()
+    assert app['status'] == 'accepted' and app['number'] == 1 and app['applicant_email'] == 'parent@example.org'
+
+    # контактное лицо видит заявку в кабинете
+    from tests.test_evaluation import _as
+
+    async with await _as(db, client, 'parent@example.org') as parent:
+        mine = (await parent.get('/api/v1/my/applications')).json()
+        assert [a['id'] for a in mine] == [app['id']]
+        # и не может создать заявку от имени оргкомитета
+        assert (await parent.post(url, json=_payload(event))).status_code == 404
+
+    edited = await client.put(
+        f'/api/v1/applications/{app["id"]}/manage', json={**_payload(event), 'title': 'Новое название'}
+    )
+    assert edited.status_code == 200 and edited.json()['title'] == 'Новое название'
+
+    bad = await client.post(url, json={**_payload(event), 'direction_id': 1})
+    assert bad.status_code == 422

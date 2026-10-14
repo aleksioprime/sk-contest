@@ -41,7 +41,14 @@ async function logout() {
         <OverflowNav v-if="links.length" :links="links" />
         <span v-else class="min-w-0 flex-1 truncate text-sm text-ink-muted">Судья: <span class="font-medium text-ink">{{ auth.displayName }}</span></span>
         <div class="flex shrink-0 items-center gap-3 text-sm">
-          <span v-if="!auth.judgeMode" class="hidden max-w-48 truncate text-ink-muted md:inline">{{ auth.displayName }}</span>
+          <RouterLink
+            v-if="!auth.judgeMode"
+            :to="{ name: 'profile' }"
+            class="hidden max-w-48 truncate text-ink-muted hover:text-ink md:inline"
+            title="Профиль и пароль"
+          >
+            {{ auth.displayName }}
+          </RouterLink>
           <button type="button" class="rounded-control px-3 py-1.5 hover:bg-brand-50" @click="logout">Выйти</button>
         </div>
       </div>

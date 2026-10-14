@@ -94,7 +94,7 @@ async def _overview(db, event: Event, stage: Stage, with_proposal: bool = True) 
     return StageOverview(
         stage_id=stage.id,
         title=stage.title,
-        rule=StageRule(**rule),
+        rule=StageRule(**rule, rank_scope=stage.rank_scope, score_combine=stage.score_combine),
         has_next=following is not None,
         next_title=following.title if following else None,
         participants=[_participant(p, proposals.get(p.id)) for p in items],
@@ -137,6 +137,8 @@ async def set_rule(event_id: int, stage_id: int, payload: StageRule, db: Db, use
     event, stage = await _stage(db, event_id, stage_id, user)
     try:
         stage.advance_rule = service.validate_rule(payload.model_dump(mode='json'))
+        stage.rank_scope = payload.rank_scope
+        stage.score_combine = payload.score_combine
     except service.StageError as exc:
         raise _bad(exc) from exc
     result = await _overview(db, event, stage)
@@ -281,6 +283,7 @@ def _row(item: dict) -> ResultRow:
         score=item['score'],
         rank=item['rank'],
         award=item['award'],
+        nominations=item['nominations'],
     )
 
 
@@ -302,6 +305,9 @@ async def set_awards(event_id: int, payload: Awards, db: Db, user: CurrentUser):
     event = await _event(db, event_id, user)
     if payload.stage_id and payload.stage_id not in {s.id for s in event.stages}:
         raise _bad(service.StageError('Этап не найден'))
+    own = set(await db.scalars(select(Application.id).where(Application.event_id == event.id)))
+    if any(set(n.application_ids) - own for n in payload.nominations):
+        raise _bad(service.StageError('В номинации есть заявки другого мероприятия'))
     event.awards = payload.model_dump()
     await db.commit()
     return payload
@@ -322,19 +328,19 @@ async def publish(event_id: int, db: Db, user: CurrentUser, published: bool = Tr
 
 
 def _diploma_entries(rows: list[dict]) -> list[dict]:
+    """Страница на участника за место и отдельная — за каждую номинацию."""
     entries = []
     for row in rows:
         app = row['application']
         for member in (m for m in app.members if m.role == 'participant'):
-            entries.append(
-                {
-                    'name': member.full_name,
-                    'award': row['award'],
-                    'rank': row['rank'],
-                    'direction': app.direction.title if app.direction else '',
-                    'work_title': app.title,
-                }
-            )
+            base = {
+                'name': member.full_name,
+                'direction': app.direction.title if app.direction else '',
+                'work_title': app.title,
+            }
+            entries.append({**base, 'award': row['award'], 'rank': row['rank']})
+            for title in row['nominations']:
+                entries.append({**base, 'award': 'nomination', 'rank': None, 'nomination': title})
     return entries
 
 
@@ -386,7 +392,13 @@ async def my_results(db: Db, user: CurrentUser) -> list[dict]:
             if app.id in rows:
                 row = rows[app.id]
                 result.append(
-                    {'application_id': app.id, 'rank': row['rank'], 'award': row['award'], 'score': row['score']}
+                    {
+                        'application_id': app.id,
+                        'rank': row['rank'],
+                        'award': row['award'],
+                        'score': row['score'],
+                        'nominations': row['nominations'],
+                    }
                 )
     return result
 

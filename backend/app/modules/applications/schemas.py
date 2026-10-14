@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class MemberIn(BaseModel):
@@ -23,6 +23,11 @@ class ApplicationSave(BaseModel):
     answers: dict = {}
     members: list[MemberIn] = []
     consents: list[str] = []
+
+
+class StaffApplication(ApplicationSave):
+    owner_email: EmailStr | None = Field(default=None, description='Контактное лицо: увидит заявку в кабинете')
+    status: str = Field(default='accepted', pattern='^(submitted|accepted)$')
 
 
 class FileRef(BaseModel):
@@ -72,6 +77,7 @@ class ApplicationOut(BaseModel):
     can_edit: bool = False
     can_submit: bool = False
     can_withdraw: bool = False
+    can_manage: bool = False
 
 
 class ApplicationListItem(BaseModel):

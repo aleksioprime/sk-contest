@@ -6,6 +6,7 @@ from app.core.queue import Queue
 from app.core.security import now_utc
 from app.modules.applications import form as forms
 from app.modules.applications.models import (
+    ACCEPTED,
     ACTIVE,
     DECISIONS,
     DRAFT,
@@ -25,6 +26,7 @@ from app.modules.events.models import Event
 from app.modules.events.service import registration_open
 from app.modules.files.models import StoredFile
 from app.modules.people.models import User
+from app.modules.people.service import find_or_create_user_by_email
 
 STATUS_TITLES = {
     DRAFT: 'черновик',
@@ -53,15 +55,45 @@ def can_edit(app: Application) -> bool:
     return app.status == DRAFT and registration_open(app.event)
 
 
+# --- Заявка от оргкомитета -----------------------------------------------------------------
+
+
+async def create_by_staff(session: AsyncSession, event: Event, actor: User, data, ip: str | None) -> Application:
+    """Заявка, которую вносит оргкомитет (приём на месте, заявки по почте). Окно приёма не проверяется.
+
+    Владелец — контактное лицо по email (увидит заявку в кабинете) или сам сотрудник.
+    Согласия на обработку данных в этом случае собирает оргкомитет, в заявке они не отмечаются.
+    """
+    owner = await find_or_create_user_by_email(session, data.owner_email) if data.owner_email else actor
+    number = await _next_number(session, event)
+    app = Application(event_id=event.id, number=number, user_id=owner.id, members=[], consents=[], files=[])
+    session.add(app)
+    await session.flush()
+    await session.refresh(app, ['event'])
+    await save(session, app, actor, data, ip, staff=True)
+    app.status = data.status
+    app.submitted_at = now_utc()
+    if data.status == ACCEPTED:
+        app.decided_at = app.submitted_at
+        app.decided_by_id = actor.id
+    record(session, 'application.create_by_staff', 'application', app.id, actor.id, event_id=event.id)
+    await session.flush()
+    return app
+
+
 # --- Заявитель -------------------------------------------------------------------------------
+
+
+async def _next_number(session: AsyncSession, event: Event) -> int:
+    locked = await session.scalar(select(Event.id).where(Event.id == event.id).with_for_update())
+    return ((await session.scalar(select(func.max(Application.number)).where(Application.event_id == locked))) or 0) + 1
 
 
 async def create_draft(session: AsyncSession, event: Event, user: User) -> Application:
     if not registration_open(event):
         raise ApplicationError('Приём заявок сейчас закрыт')
-    locked = await session.scalar(select(Event.id).where(Event.id == event.id).with_for_update())
-    number = (await session.scalar(select(func.max(Application.number)).where(Application.event_id == locked))) or 0
-    app = Application(event_id=event.id, number=number + 1, user_id=user.id, members=[], consents=[], files=[])
+    number = await _next_number(session, event)
+    app = Application(event_id=event.id, number=number, user_id=user.id, members=[], consents=[], files=[])
     person = user.person
     if person and person.full_name:
         role = 'supervisor' if person.is_employee and not person.is_student else 'participant'
@@ -81,8 +113,11 @@ async def create_draft(session: AsyncSession, event: Event, user: User) -> Appli
     return app
 
 
-async def save(session: AsyncSession, app: Application, user: User, data: ApplicationSave, ip: str | None) -> None:
-    if not can_edit(app):
+async def save(
+    session: AsyncSession, app: Application, user: User, data: ApplicationSave, ip: str | None, staff: bool = False
+) -> None:
+    """staff — правка оргкомитетом: в любом статусе, файлы загружает сотрудник."""
+    if not staff and not can_edit(app):
         raise ApplicationError('Эту заявку сейчас нельзя изменить')
     event = app.event
     form = event_form(event)

@@ -52,6 +52,8 @@ class StageRule(BaseModel):
     n: int | None = Field(default=None, ge=1)
     per_direction: bool = True
     threshold: Decimal | None = None
+    rank_scope: str = Field(default='direction', pattern='^(direction|overall)$')
+    score_combine: str = Field(default='avg', pattern='^(avg|sum|max)$')
 
 
 class StageOverview(BaseModel):
@@ -68,7 +70,16 @@ class AdvanceApply(BaseModel):
     decisions: dict[int, str]
 
 
+class Nomination(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    title: str = Field(min_length=1, max_length=200)
+    application_ids: list[int] = Field(default=[], max_length=200)
+
+
 class Awards(BaseModel):
+    # direction — места и награды в каждом направлении; overall — один общий рейтинг
+    rank_scope: str = Field(default='direction', pattern='^(direction|overall)$')
+    nominations: list[Nomination] = Field(default=[], max_length=50)
     winners: int = Field(default=1, ge=0, le=10)
     prize_places: int = Field(default=3, ge=0, le=20)
     stage_id: int | None = None
@@ -92,6 +103,7 @@ class ResultRow(BaseModel):
     score: Decimal | None
     rank: int | None
     award: str
+    nominations: list[str] = []
 
 
 class EventResults(BaseModel):
@@ -102,7 +114,7 @@ class EventResults(BaseModel):
 
 
 class PublicWinner(BaseModel):
-    rank: int
+    rank: int | None
     award: str
     title: str
     participants: list[str]
@@ -111,3 +123,4 @@ class PublicWinner(BaseModel):
 class PublicDirectionResults(BaseModel):
     direction: str
     winners: list[PublicWinner]
+    nomination: bool = False

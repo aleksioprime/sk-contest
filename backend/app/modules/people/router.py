@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.deps import AdminUser, Db
 from app.core.queue import Queue, get_queue
+from app.core.security import hash_password
 from app.modules.audit.service import record
 from app.modules.people import service
 from app.modules.people.models import Department, StudyClass, SyncRun, User
@@ -15,6 +16,7 @@ from app.modules.people.schemas import (
     PersonPage,
     SyncRequest,
     SyncRunOut,
+    UserCreate,
     UserOut,
     UserPage,
     UserUpdate,
@@ -56,11 +58,35 @@ async def update_user(user_id: int, payload: UserUpdate, db: Db, admin: AdminUse
     changes = payload.model_dump(exclude_none=True)
     if user.id == admin.id and (changes.get('is_superuser') is False or changes.get('is_active') is False):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Нельзя снять права или отключить самого себя')
+    if password := changes.pop('password', None):
+        user.password_hash = hash_password(password)
+    if (full_name := changes.pop('full_name', None)) is not None:
+        await service.set_full_name(db, user, full_name)
+    if (is_employee := changes.pop('is_employee', None)) is not None:
+        await service.set_employee(db, user, is_employee)
     for field, value in changes.items():
         setattr(user, field, value)
-    record(db, 'people.user.update', 'user', user.id, admin.id, **changes)
+    record(db, 'people.user.update', 'user', user.id, admin.id, **changes, password_set=bool(password))
     await db.commit()
     await db.refresh(user)
+    return UserOut.model_validate(user)
+
+
+@router.post('/users', response_model=UserOut, status_code=201, summary='Создать учётную запись')
+async def create_user(payload: UserCreate, db: Db, admin: AdminUser) -> UserOut:
+    if await service.get_user_by_email(db, payload.email):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Пользователь с таким email уже есть')
+    user = await service.find_or_create_user_by_email(db, payload.email)
+    if payload.full_name:
+        await service.set_full_name(db, user, payload.full_name)
+    if payload.password:
+        user.password_hash = hash_password(payload.password)
+    user.is_superuser = payload.is_superuser
+    if payload.is_employee:
+        await service.set_employee(db, user, True)
+    record(db, 'people.user.create', 'user', user.id, admin.id)
+    await db.commit()
+    user = await db.get(User, user.id, populate_existing=True)
     return UserOut.model_validate(user)
 
 

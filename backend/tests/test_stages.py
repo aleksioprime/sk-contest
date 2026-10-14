@@ -143,7 +143,9 @@ async def test_stage_advancement_schedule_and_results(db, client):
     winner_app = results['rows'][0]['application_id']
     async with await _as(db, client, 'anna@example.org') as anna:
         mine = (await anna.get('/api/v1/my/results')).json()
-        assert mine == [{'application_id': winner_app, 'rank': 1, 'award': 'winner', 'score': '4.00'}]
+        assert mine == [
+            {'application_id': winner_app, 'rank': 1, 'award': 'winner', 'score': '4.00', 'nominations': []}
+        ]
         diploma = await anna.get(f'/api/v1/applications/{winner_app}/diploma.pdf')
         assert diploma.status_code == 200 and diploma.content.startswith(b'%PDF')
         assert (await anna.get(f'{url}/results')).status_code == 404
@@ -159,3 +161,38 @@ async def test_threshold_rule_and_permissions(db, client):
     async with await _as(db, client, 'judge1@example.org') as judge:
         assert (await judge.get(f'{url}/stages/{first["id"]}')).status_code == 404
         assert (await judge.post(f'{url}/results/publish')).status_code == 403
+
+
+async def test_overall_ranking_combined_sheets_and_nominations(db, client):
+    event, first, _ = await _contest(db, client)
+    url = f'/api/v1/events/{event["id"]}'
+    # общий рейтинг этапа и объединение листов суммой
+    overview = (
+        await client.put(
+            f'{url}/stages/{first["id"]}/rule', json={'type': 'manual', 'rank_scope': 'overall', 'score_combine': 'sum'}
+        )
+    ).json()
+    assert overview['rule']['rank_scope'] == 'overall' and overview['rule']['score_combine'] == 'sum'
+
+    results = (await client.get(f'{url}/results')).json()
+    third = next(r for r in results['rows'] if r['rank'] == 3)
+    awards = {
+        'rank_scope': 'overall',
+        'winners': 1,
+        'prize_places': 2,
+        'stage_id': first['id'],
+        'nominations': [{'id': 'n1', 'title': 'Лучший дизайн', 'application_ids': [third['application_id']]}],
+    }
+    assert (await client.put(f'{url}/awards', json=awards)).status_code == 200
+    results = (await client.get(f'{url}/results')).json()
+    nominated = next(r for r in results['rows'] if r['application_id'] == third['application_id'])
+    assert nominated['nominations'] == ['Лучший дизайн'] and nominated['award'] == 'participant'
+
+    await client.post(f'{url}/results/publish')
+    public = (await client.get(f'/api/v1/public/events/{SLUG}/results')).json()
+    assert [g['direction'] for g in public] == ['', 'Номинация «Лучший дизайн»']
+    assert public[1]['nomination'] is True and public[1]['winners'][0]['award'] == 'nomination'
+
+    # заявка чужого мероприятия в номинации не принимается
+    bad = {**awards, 'nominations': [{'id': 'n2', 'title': 'X', 'application_ids': [1]}]}
+    assert (await client.put(f'{url}/awards', json=bad)).status_code == 400

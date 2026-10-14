@@ -28,7 +28,7 @@ const data = ref(null)
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
-const rule = reactive({ type: 'manual', n: 3, per_direction: true, threshold: null })
+const rule = reactive({ type: 'manual', n: 3, per_direction: true, threshold: null, rank_scope: 'direction', score_combine: 'avg' })
 const decisions = ref({})
 const slot = reactive({ title: '', room: '', starts_at: '', ends_at: '' })
 const confirmApply = ref(false)
@@ -156,6 +156,31 @@ watch(stageId, load, { immediate: true })
           </label>
           <UiButton type="submit">Показать предложение</UiButton>
         </form>
+        <details class="mt-4 text-sm">
+          <summary class="font-medium">Баллы и места на этапе</summary>
+          <form class="mt-3 flex flex-wrap items-end gap-4" @submit.prevent="run(() => setStageRule(event.id, stageId, rule), 'Места пересчитаны')">
+            <label class="grid gap-1">
+              <span>Места</span>
+              <select v-model="rule.rank_scope" class="h-10 rounded-control border border-line bg-surface px-3">
+                <option value="direction">Внутри каждого направления</option>
+                <option value="overall">Общий рейтинг всех работ</option>
+              </select>
+            </label>
+            <label class="grid gap-1">
+              <span>Работа в нескольких листах этапа</span>
+              <select v-model="rule.score_combine" class="h-10 rounded-control border border-line bg-surface px-3">
+                <option value="avg">Средний балл</option>
+                <option value="sum">Сумма баллов</option>
+                <option value="max">Лучший балл</option>
+              </select>
+            </label>
+            <UiButton type="submit">Применить</UiButton>
+          </form>
+          <p class="mt-2 text-ink-muted">
+            Баллы берутся из всех оценочных листов этапа: например, по листу на каждый день защит.
+            Общий рейтинг подходит для финала, где все направления защищаются по одним критериям.
+          </p>
+        </details>
         <p class="mt-3 text-sm text-ink-muted">
           Предложение можно поправить в таблице. При равенстве баллов на границе проходят все.
         </p>

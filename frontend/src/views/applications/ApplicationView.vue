@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import {
   APP_STATUS_LABELS,
   APP_STATUS_TONES,
@@ -8,6 +8,7 @@ import {
   fetchPublicForm,
   fieldErrors,
   isVisible,
+  manageApplication,
   saveApplication,
   submitApplication,
   withdrawApplication,
@@ -22,6 +23,7 @@ import UiInput from '@/components/ui/UiInput.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
+const route = useRoute()
 
 const app = ref(null)
 const schema = ref(null)
@@ -34,7 +36,9 @@ const confirmWithdraw = ref(false)
 const result = ref(null)
 
 const form = computed(() => schema.value?.form ?? { fields: [], team: {}, consents: [] })
-const editable = computed(() => !!app.value?.can_edit)
+// Правка оргкомитетом: в любом статусе, без отправки и согласий
+const staffMode = computed(() => !!app.value?.can_manage && route.query.manage === '1')
+const editable = computed(() => !!app.value?.can_edit || staffMode.value)
 const participants = computed(() => draft.members.filter((m) => m.role === 'participant'))
 const supervisors = computed(() => draft.members.filter((m) => m.role === 'supervisor'))
 const maxParticipants = computed(() => (form.value.team.enabled ? form.value.team.max : 1))
@@ -97,6 +101,10 @@ async function run(action, fn) {
 }
 
 async function save() {
+  if (staffMode.value) {
+    if (await run('save', () => manageApplication(app.value.id, payload()))) notice.value = 'Заявка сохранена'
+    return
+  }
   if (await run('save', () => saveApplication(app.value.id, payload()))) notice.value = 'Черновик сохранён'
 }
 
@@ -122,7 +130,10 @@ watch(() => props.id, load, { immediate: true })
 
   <div v-else class="grid max-w-3xl gap-6">
     <div>
-      <RouterLink :to="{ name: 'my-applications' }" class="text-sm text-ink-muted hover:text-ink">← Мои заявки</RouterLink>
+      <RouterLink v-if="staffMode" :to="{ name: 'event', params: { id: app.event.id }, query: { tab: 'applications' } }" class="text-sm text-ink-muted hover:text-ink">
+        ← Заявки мероприятия
+      </RouterLink>
+      <RouterLink v-else :to="{ name: 'my-applications' }" class="text-sm text-ink-muted hover:text-ink">← Мои заявки</RouterLink>
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <h1 class="text-2xl font-bold">Заявка №{{ app.number }}</h1>
         <UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge>
@@ -135,6 +146,7 @@ watch(() => props.id, load, { immediate: true })
         <p class="text-sm text-score-600">Итоги</p>
         <p class="text-xl font-bold text-score-600">
           {{ AWARD_LABELS[result.award] }}<template v-if="result.award !== 'participant'"> · {{ result.rank }} место</template>
+          <template v-for="n in result.nominations ?? []" :key="n"> · номинация «{{ n }}»</template>
         </p>
       </div>
       <a :href="diplomaUrl(app.id)" class="rounded-control bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700">Скачать диплом</a>
@@ -144,6 +156,9 @@ watch(() => props.id, load, { immediate: true })
       <p class="font-semibold">Комментарий организаторов</p>
       <p class="mt-1 whitespace-pre-line">{{ app.moderator_comment }}</p>
     </div>
+    <p v-if="staffMode" class="rounded-control bg-brand-50 px-4 py-3 text-sm text-brand-700">
+      Правка оргкомитетом. Заявитель: {{ app.applicant_name }}, {{ app.applicant_email }}.
+    </p>
     <p v-if="app.status === 'draft' && !editable" class="rounded-control bg-canvas px-4 py-3 text-ink-muted">
       Приём заявок закрыт, черновик больше нельзя отправить.
     </p>
@@ -216,7 +231,7 @@ watch(() => props.id, load, { immediate: true })
           </div>
         </UiCard>
 
-        <UiCard v-if="form.consents.length">
+        <UiCard v-if="form.consents.length && !staffMode">
           <template #title>Согласия</template>
           <div class="grid gap-4">
             <div v-for="consent in form.consents" :key="consent.key">
@@ -237,11 +252,12 @@ watch(() => props.id, load, { immediate: true })
       <p v-if="message" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ message }}</p>
 
       <div class="flex flex-wrap items-center gap-3">
-        <template v-if="editable">
+        <UiButton v-if="staffMode" variant="primary" :loading="busy === 'save'" @click="save">Сохранить заявку</UiButton>
+        <template v-else-if="editable">
           <UiButton type="submit" variant="primary" :loading="busy === 'submit'">{{ app.status === 'needs_changes' ? 'Отправить повторно' : 'Отправить заявку' }}</UiButton>
           <UiButton :loading="busy === 'save'" @click="save">Сохранить черновик</UiButton>
         </template>
-        <template v-if="app.can_withdraw">
+        <template v-if="app.can_withdraw && !staffMode">
           <UiButton v-if="!confirmWithdraw" variant="ghost" @click="confirmWithdraw = true">Отозвать заявку</UiButton>
           <span v-else class="flex flex-wrap items-center gap-2 text-sm">
             Отозвать заявку? Отменить это будет нельзя.

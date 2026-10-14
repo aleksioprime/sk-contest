@@ -44,8 +44,13 @@ async def participations(session: AsyncSession, stage_id: int) -> list[StagePart
     return sorted(rows.unique(), key=lambda p: p.application.number)
 
 
-async def sheet_scores(session: AsyncSession, event_id: int, stage_id: int | None) -> dict[int, Decimal]:
-    """Балл заявки на этапе: среднее по оценочным листам этапа (обычно лист один).
+async def sheet_scores(
+    session: AsyncSession, event_id: int, stage_id: int | None, combine: str = 'avg'
+) -> dict[int, Decimal]:
+    """Балл заявки на этапе по всем оценочным листам этапа.
+
+    Листов может быть несколько (например, по дням защит): работа обычно есть в одном из них,
+    а если в нескольких — баллы объединяются по правилу этапа: среднее, сумма или лучший.
 
     Если у этапа нет своих листов, учитываются листы без этапа — так работают мероприятия,
     где листы создали, не привязывая к этапам.
@@ -63,7 +68,12 @@ async def sheet_scores(session: AsyncSession, event_id: int, stage_id: int | Non
     scores: dict[int, list[Decimal]] = defaultdict(list)
     for application_id, score in await session.execute(query):
         scores[application_id].append(Decimal(score))
-    return {app_id: round2(sum(values) / len(values)) for app_id, values in scores.items()}
+    combined = {
+        'sum': lambda values: sum(values),
+        'max': lambda values: max(values),
+        'avg': lambda values: sum(values) / len(values),
+    }[combine]
+    return {app_id: round2(combined(values)) for app_id, values in scores.items()}
 
 
 def rank_by_direction(items: list, key_score, key_direction, method: str = 'competition') -> dict[int, int | None]:
@@ -80,13 +90,14 @@ def rank_by_direction(items: list, key_score, key_direction, method: str = 'comp
 async def refresh(session: AsyncSession, event: Event, stage: Stage) -> list[StageParticipation]:
     """Подтянуть баллы из листов этапа и пересчитать места по направлениям."""
     items = await participations(session, stage.id)
-    scores = await sheet_scores(session, event.id, stage.id)
+    scores = await sheet_scores(session, event.id, stage.id, stage.score_combine)
     active = [p for p in items if p.status != WITHDRAWN]
     for p in items:
         p.score = scores.get(p.application_id) if p.status != WITHDRAWN else None
         if p.score is not None and p.status in (ADMITTED, SCHEDULED):
             p.status = EVALUATED
-    ranks = rank_by_direction(active, lambda p: p.score, lambda p: p.application.direction_id)
+    by = (lambda p: p.application.direction_id) if stage.rank_scope == 'direction' else (lambda p: None)
+    ranks = rank_by_direction(active, lambda p: p.score, by)
     for p in items:
         p.rank = ranks.get(p.id)
     await session.flush()
@@ -230,9 +241,16 @@ async def results(session: AsyncSession, event: Event) -> list[dict]:
         def __init__(self, app, score):
             self.id, self.app, self.score = app.id, app, score
 
-    wrapped = [Row(app, score) for app, score in rows]
-    ranks = rank_by_direction(wrapped, lambda r: r.score, lambda r: r.app.direction_id)
     awards = event.awards or {}
+    overall = awards.get('rank_scope') == 'overall'
+    wrapped = [Row(app, score) for app, score in rows]
+    ranks = rank_by_direction(
+        wrapped, lambda r: r.score, (lambda r: None) if overall else (lambda r: r.app.direction_id)
+    )
+    nominations: dict[int, list[str]] = defaultdict(list)
+    for nomination in awards.get('nominations', []):
+        for app_id in nomination.get('application_ids', []):
+            nominations[app_id].append(nomination['title'])
     result = []
     for row in wrapped:
         rank = ranks.get(row.id)
@@ -242,13 +260,14 @@ async def results(session: AsyncSession, event: Event) -> list[dict]:
                 'score': row.score,
                 'rank': rank,
                 'award': award_for(rank, awards),
+                'nominations': nominations.get(row.id, []),
                 'stage_id': stage.id if stage else None,
             }
         )
     direction_order = {d.id: d.order for d in event.directions}
     result.sort(
         key=lambda r: (
-            direction_order.get(r['application'].direction_id, 999),
+            0 if overall else direction_order.get(r['application'].direction_id, 999),
             r['rank'] or 10**6,
             r['application'].number,
         )
@@ -260,17 +279,24 @@ async def published_winners(session: AsyncSession, event: Event) -> list[dict]:
     """Победители и призёры по направлениям для лендинга. Без опубликованных итогов — пусто."""
     if event.results_published_at is None:
         return []
+    overall = (event.awards or {}).get('rank_scope') == 'overall'
     groups: dict[str, list[dict]] = {}
+    by_nomination: dict[str, list[dict]] = {}
     for row in await results(session, event):
+        app = row['application']
+        entry = {
+            'title': app.title,
+            'participants': [m.full_name for m in app.members if m.role == 'participant'],
+        }
+        for title in row['nominations']:
+            by_nomination.setdefault(title, []).append({**entry, 'rank': None, 'award': 'nomination'})
         if row['award'] == 'participant':
             continue
-        app = row['application']
-        groups.setdefault(app.direction.title if app.direction else '', []).append(
-            {
-                'rank': row['rank'],
-                'award': row['award'],
-                'title': app.title,
-                'participants': [m.full_name for m in app.members if m.role == 'participant'],
-            }
-        )
-    return [{'direction': direction, 'winners': winners} for direction, winners in groups.items()]
+        key = '' if overall else (app.direction.title if app.direction else '')
+        groups.setdefault(key, []).append({**entry, 'rank': row['rank'], 'award': row['award']})
+    return [
+        {'direction': direction, 'winners': winners, 'nomination': False} for direction, winners in groups.items()
+    ] + [
+        {'direction': f'Номинация «{title}»', 'winners': winners, 'nomination': True}
+        for title, winners in by_nomination.items()
+    ]

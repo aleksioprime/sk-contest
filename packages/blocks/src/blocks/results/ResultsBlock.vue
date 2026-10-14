@@ -7,7 +7,8 @@ defineProps({
   content: { type: Object, required: true },
   data: { type: Object, required: true },
 })
-const AWARDS = { winner: 'Победитель', prize: 'Призёр' }
+const AWARDS = { winner: 'Победитель', prize: 'Призёр', nomination: 'Номинация' }
+const place = (winner) => (winner.award === 'nomination' ? 'Номинация' : `${winner.rank} место · ${AWARDS[winner.award]}`)
 </script>
 
 <template>
@@ -21,16 +22,16 @@ const AWARDS = { winner: 'Победитель', prize: 'Призёр' }
           <tr><th>Место</th><th>Работа</th><th>Участники</th></tr>
         </thead>
         <tbody>
-          <tr v-for="winner in group.winners" :key="`${winner.rank}-${winner.title}`">
-            <td>{{ winner.rank }} · {{ AWARDS[winner.award] }}</td>
+          <tr v-for="winner in group.winners" :key="`${winner.rank}-${winner.title}-${winner.participants.join()}`">
+            <td>{{ place(winner) }}</td>
             <td>{{ winner.title }}</td>
             <td>{{ winner.participants.join(', ') }}</td>
           </tr>
         </tbody>
       </table>
       <ul v-else class="skb-results__cards">
-        <li v-for="winner in group.winners" :key="`${winner.rank}-${winner.title}`" class="skb-results__card" :class="`skb-results__card--${winner.award}`">
-          <p class="skb-results__place">{{ winner.rank }} место · {{ AWARDS[winner.award] }}</p>
+        <li v-for="winner in group.winners" :key="`${winner.rank}-${winner.title}-${winner.participants.join()}`" class="skb-results__card" :class="`skb-results__card--${winner.award}`">
+          <p class="skb-results__place">{{ place(winner) }}</p>
           <p class="skb-results__work">{{ winner.title }}</p>
           <p class="skb-results__names">{{ winner.participants.join(', ') }}</p>
         </li>

@@ -77,6 +77,10 @@ class Stage(IdMixin, TimestampMixin, Base):
     order: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     # Правило перехода на следующий этап: {"type": "top_n|threshold|manual", "n", "per_direction", "threshold"}
     advance_rule: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
+    # Места на этапе: по направлениям или общий рейтинг (финал, где все защищаются по одним критериям)
+    rank_scope: Mapped[str] = mapped_column(String(20), default='direction', server_default='direction')
+    # Несколько листов этапа (например, по дням): как объединять баллы работы, если она есть в нескольких листах
+    score_combine: Mapped[str] = mapped_column(String(20), default='avg', server_default='avg')  # avg | sum | max
 
     event: Mapped[Event] = relationship(back_populates='stages')
 

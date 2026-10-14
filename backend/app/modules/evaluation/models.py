@@ -100,6 +100,8 @@ class Sheet(IdMixin, TimestampMixin, Base):
     mode: Mapped[str] = mapped_column(String(20), default='jury')  # jury | anonymous | mixed
     aggregate: Mapped[str] = mapped_column(String(20), default='avg')  # avg | sum | median
     rank_method: Mapped[str] = mapped_column(String(20), default='competition')  # competition 1-1-3 | dense 1-1-2
+    # Места в листе: общий рейтинг или отдельно по направлениям
+    rank_scope: Mapped[str] = mapped_column(String(20), default='overall', server_default='overall')
     include_anonymous: Mapped[bool] = mapped_column(Boolean, default=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

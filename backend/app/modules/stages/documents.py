@@ -16,7 +16,12 @@ BRAND = HexColor('#6d28d9')
 INK = HexColor('#1d1a2b')
 MUTED = HexColor('#5f5a75')
 
-AWARD_TITLES = {'winner': 'Диплом победителя', 'prize': 'Диплом призёра', 'participant': 'Сертификат участника'}
+AWARD_TITLES = {
+    'winner': 'Диплом победителя',
+    'prize': 'Диплом призёра',
+    'participant': 'Сертификат участника',
+    'nomination': 'Диплом',
+}
 
 
 def _fonts() -> tuple[str, str]:
@@ -77,6 +82,8 @@ def diplomas_pdf(entries: list[dict], event_title: str, awards: dict) -> bytes:
         c.setFont(bold, 30)
         c.drawCentredString(width / 2, height - 300, entry['name'])
 
+        if entry.get('nomination'):
+            place = f'в номинации «{entry["nomination"]}»'
         details = ' · '.join(filter(None, [place, entry.get('direction')]))
         y = height - 345
         if details:

@@ -107,6 +107,7 @@ class SheetBase(BaseModel):
     mode: str | None = Field(default=None, pattern='^(jury|anonymous|mixed)$')
     aggregate: str | None = Field(default=None, pattern='^(avg|sum|median)$')
     rank_method: str | None = Field(default=None, pattern='^(competition|dense)$')
+    rank_scope: str | None = Field(default=None, pattern='^(overall|direction)$')
     include_anonymous: bool | None = None
     deadline: datetime | None = None
 
@@ -124,6 +125,7 @@ class JudgeOut(BaseModel):
     user_id: int
     email: str | None
     full_name: str
+    has_password: bool = False
     total: int
     scored: int
     reopened: bool
@@ -177,6 +179,7 @@ class SheetOut(BaseModel):
     mode: str
     aggregate: str
     rank_method: str
+    rank_scope: str
     include_anonymous: bool
     deadline: datetime | None
     judges: list[JudgeOut]
@@ -196,20 +199,34 @@ class SheetListItem(BaseModel):
 class AddWorks(BaseModel):
     source: str = Field(default='accepted', pattern='^(accepted|stage)$', description='stage — участники этапа листа')
     application_ids: list[int] | None = None
+    numbers: list[int] | None = Field(
+        default=None, max_length=1000, description='Номера заявок, например работы одного дня'
+    )
     direction_ids: list[int] | None = None
     statuses: list[str] = ['accepted']
 
 
 class JudgeIn(BaseModel):
+    user_id: int | None = Field(default=None, description='Существующий пользователь из базы')
     full_name: str = Field(default='', max_length=300)
     email: EmailStr | None = None
+    password: str | None = Field(
+        default=None, min_length=8, max_length=200, description='Пароль для входа; задаётся только новым судьям'
+    )
 
     @model_validator(mode='after')
     def _identity(self):
         self.full_name = ' '.join(self.full_name.split())
-        if not self.full_name and not self.email:
+        if not self.user_id and not self.full_name and not self.email:
             raise ValueError('Укажите ФИО или email судьи')
         return self
+
+
+class UserSearchItem(BaseModel):
+    id: int
+    full_name: str
+    email: str | None
+    has_password: bool
 
 
 class SetJudges(BaseModel):

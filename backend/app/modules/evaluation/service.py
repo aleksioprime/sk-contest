@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import now_utc
+from app.core.security import hash_password, now_utc
 from app.modules.applications.models import Application
 from app.modules.audit.service import record
 from app.modules.evaluation import scoring
@@ -23,10 +23,10 @@ from app.modules.evaluation.models import (
     SheetWork,
 )
 from app.modules.evaluation.schemas import AddWorks, ScaleIn, ScorecardIn
-from app.modules.events.models import Event
+from app.modules.events.models import Event, EventMember
 from app.modules.events.service import add_member
 from app.modules.people.models import Person, User
-from app.modules.people.service import find_or_create_user_by_email
+from app.modules.people.service import find_or_create_user_by_email, get_user_by_email, set_full_name
 
 
 class EvaluationError(Exception):
@@ -120,6 +120,8 @@ async def add_works(session: AsyncSession, sheet: Sheet, data: AddWorks) -> int:
         query = select(Application).where(Application.event_id == sheet.event_id, Application.status.in_(data.statuses))
     if data.application_ids:
         query = query.where(Application.id.in_(data.application_ids))
+    if data.numbers:
+        query = query.where(Application.number.in_(data.numbers))
     if data.direction_ids:
         query = query.where(Application.direction_id.in_(data.direction_ids))
     present = {w.application_id for w in sheet.works}
@@ -149,18 +151,34 @@ async def remove_work(session: AsyncSession, sheet: Sheet, work_id: int) -> None
 NO_EMAIL_DOMAIN = 'judges.sk-events.local'
 
 
-def split_name(full_name: str) -> tuple[str, str, str]:
-    parts = full_name.split()
-    return (parts + ['', '', ''])[0], (parts + ['', '', ''])[1], ' '.join(parts[2:])
-
-
 def has_real_email(user: User) -> bool:
     return not user.email.endswith(f'@{NO_EMAIL_DOMAIN}')
 
 
-async def judge_user(session: AsyncSession, sheet: Sheet, full_name: str, email: str | None) -> User:
-    """Учётная запись судьи по email или, если email нет, по ФИО в этом листе (вход только по QR)."""
-    if email:
+async def judge_only(session: AsyncSession, user: User) -> bool:
+    """Учётка только для судейства: без других ролей, заявок и прав сотрудника."""
+    if user.is_superuser or (user.person and user.person.is_employee):
+        return False
+    roles = set(await session.scalars(select(EventMember.role).where(EventMember.user_id == user.id)))
+    if roles - {'judge'}:
+        return False
+    return not await session.scalar(select(exists().where(Application.user_id == user.id)))
+
+
+async def judge_user(session: AsyncSession, sheet: Sheet, judge) -> User:
+    """Учётная запись судьи: выбранная из базы, по email или, если email нет, по ФИО в этом листе.
+
+    Пароль организатор задаёт только новому судье или учётке, которая нужна лишь для судейства и ещё без пароля:
+    так нельзя получить доступ к чужому кабинету.
+    """
+    full_name, email = judge.full_name, judge.email
+    created = False
+    if judge.user_id:
+        user = await session.get(User, judge.user_id)
+        if user is None:
+            raise EvaluationError('Пользователь не найден')
+    elif email:
+        created = await get_user_by_email(session, email) is None
         user = await find_or_create_user_by_email(session, email)
     else:
         existing = next((j.user for j in sheet.judges if j.user.person and j.user.person.full_name == full_name), None)
@@ -169,17 +187,23 @@ async def judge_user(session: AsyncSession, sheet: Sheet, full_name: str, email:
         person = Person(source='local')
         user = User(email=f'judge-{secrets.token_hex(6)}@{NO_EMAIL_DOMAIN}', person=person)
         session.add(user)
-    person = user.person
-    if person is not None and full_name and not person.full_name:
-        person.last_name, person.first_name, person.middle_name = split_name(full_name)
+        created = True
+    if full_name and not (user.person and user.person.full_name):
+        await set_full_name(session, user, full_name)
     await session.flush()
+    if judge.password and not user.password_hash:
+        if not (created or await judge_only(session, user)):
+            raise EvaluationError(
+                f'Пароль для {user.email} может задать только администратор: у пользователя есть другие роли'
+            )
+        user.password_hash = hash_password(judge.password)
     return user
 
 
 async def set_judges(session: AsyncSession, actor: User, sheet: Sheet, event: Event, judges: list, force: bool) -> None:
     users = []
     for judge in judges:
-        user = await judge_user(session, sheet, judge.full_name, judge.email)
+        user = await judge_user(session, sheet, judge)
         if user.id not in {u.id for u in users}:
             users.append(user)
     keep = {u.id for u in users}
@@ -255,7 +279,14 @@ def recompute_work(sheet: Sheet, work: SheetWork) -> None:
 
 
 def recompute_ranks(sheet: Sheet) -> None:
-    ranks = scoring.assign_ranks([(w.id, w.score) for w in sheet.works], sheet.rank_method)
+    """Места в листе: общий рейтинг или внутри каждого направления."""
+    groups: dict = {}
+    for work in sheet.works:
+        key = work.application.direction_id if sheet.rank_scope == 'direction' else None
+        groups.setdefault(key, []).append(work)
+    ranks: dict = {}
+    for works in groups.values():
+        ranks.update(scoring.assign_ranks([(w.id, w.score) for w in works], sheet.rank_method))
     for work in sheet.works:
         work.rank = ranks.get(work.id)
 

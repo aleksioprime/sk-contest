@@ -1,6 +1,7 @@
 <script setup>
 /** Карточка заявки для модератора: содержимое, файлы и решение. */
 import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { APP_STATUS_LABELS, APP_STATUS_TONES, decide, fetchApplication } from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
@@ -77,7 +78,15 @@ watch(() => props.applicationId, load, { immediate: true })
             {{ app.direction?.title }}{{ app.participation_form ? ` · ${app.participation_form.title}` : '' }} · подал {{ app.applicant_name }}, {{ app.applicant_email }}
           </p>
         </div>
-        <UiButton size="sm" variant="ghost" @click="emit('close')">Закрыть</UiButton>
+        <div class="flex gap-1">
+          <RouterLink
+            :to="{ name: 'application', params: { id: app.id }, query: { manage: '1' } }"
+            class="inline-flex h-8 items-center rounded-control px-3 text-sm text-brand-700 hover:bg-brand-50"
+          >
+            Редактировать
+          </RouterLink>
+          <UiButton size="sm" variant="ghost" @click="emit('close')">Закрыть</UiButton>
+        </div>
       </div>
 
       <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[180px_1fr]">

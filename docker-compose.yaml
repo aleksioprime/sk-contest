@@ -20,6 +20,7 @@ x-backend: &backend
     CORS_ORIGINS: '["http://localhost:8501","http://localhost:8502"]'
     RELOAD: '1'
     BOOTSTRAP_ADMIN_EMAILS: '["admin@example.org"]'
+    BOOTSTRAP_ADMIN_PASSWORD: dev-admin-pass  # только для локальной разработки
   volumes:
     - ./backend:/usr/src/app
     - files_data:/data/files

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
 
 
 class ORMModel(BaseModel):
@@ -48,6 +48,12 @@ class UserOut(ORMModel):
     is_superuser: bool
     last_login_at: datetime | None
     person: PersonOut | None
+    password_hash: str | None = Field(default=None, exclude=True)
+
+    @computed_field
+    @property
+    def has_password(self) -> bool:
+        return bool(self.password_hash)
 
 
 class UserPage(BaseModel):
@@ -58,6 +64,17 @@ class UserPage(BaseModel):
 class UserUpdate(BaseModel):
     is_active: bool | None = None
     is_superuser: bool | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=200)
+    full_name: str | None = Field(default=None, max_length=300)
+    is_employee: bool | None = Field(default=None, description='Сотрудник: может создавать мероприятия')
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(default='', max_length=300)
+    password: str | None = Field(default=None, min_length=8, max_length=200)
+    is_superuser: bool = False
+    is_employee: bool = False
 
 
 class SyncRunOut(ORMModel):

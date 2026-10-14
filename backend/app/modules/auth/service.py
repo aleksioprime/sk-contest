@@ -8,11 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.queue import Queue
 from app.core.redis import hit_limit
-from app.core.security import create_access_token, hash_secret, new_secret, now_utc
+from app.core.security import (
+    MIN_PASSWORD,
+    create_access_token,
+    hash_password,
+    hash_secret,
+    new_secret,
+    now_utc,
+    verify_password,
+)
 from app.modules.audit.service import record
 from app.modules.auth.models import AuthSession, MagicLinkToken
 from app.modules.people.models import User
-from app.modules.people.service import find_or_create_user_by_email, normalize_email
+from app.modules.people.service import find_or_create_user_by_email, get_user_by_email, normalize_email
 
 
 class AuthError(Exception):
@@ -104,6 +112,23 @@ async def consume_magic_link(session: AsyncSession, token: str) -> tuple[User, s
     else:
         user = await find_or_create_user_by_email(session, record_.email)
     return user, record_.next_path or '/', record_.purpose
+
+
+async def login_with_password(session: AsyncSession, redis: Redis, email: str, password: str, ip: str | None) -> User:
+    """Вход по email и паролю. Лимит попыток на адрес и на IP защищает от перебора."""
+    email = normalize_email(email)
+    if await hit_limit(redis, f'pwd:{email}', 10, 900) or (ip and await hit_limit(redis, f'pwd-ip:{ip}', 50, 900)):
+        raise RateLimited('Слишком много попыток входа. Попробуйте через 15 минут.')
+    user = await get_user_by_email(session, email)
+    if user is None or not verify_password(password, user.password_hash):
+        raise AuthError('Неверный email или пароль')
+    return user
+
+
+def set_password(user: User, password: str) -> None:
+    if len(password) < MIN_PASSWORD:
+        raise AuthError(f'Пароль должен быть не короче {MIN_PASSWORD} символов')
+    user.password_hash = hash_password(password)
 
 
 # --- Сессии ---------------------------------------------------------------------------------

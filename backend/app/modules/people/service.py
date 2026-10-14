@@ -57,6 +57,35 @@ async def ensure_user(session: AsyncSession, person: Person, email: str) -> User
     return user
 
 
+def split_full_name(full_name: str) -> tuple[str, str, str]:
+    parts = full_name.split()
+    return (parts + ['', ''])[0], (parts + ['', ''])[1], ' '.join(parts[2:])
+
+
+async def set_full_name(session: AsyncSession, user: User, full_name: str) -> None:
+    """ФИО учётной записи. Персоны из SkolStream не трогаем: их данные приходят из справочника."""
+    full_name = ' '.join(full_name.split())
+    if not full_name:
+        return
+    person = user.person
+    if person is None:
+        person = Person(source='local', email=user.email)
+        session.add(person)
+        user.person = person
+    elif person.source == 'skolstream':
+        return
+    person.last_name, person.first_name, person.middle_name = split_full_name(full_name)
+    await session.flush()
+
+
+async def set_employee(session: AsyncSession, user: User, value: bool) -> None:
+    if user.person is None:
+        user.person = Person(source='local', email=user.email)
+        session.add(user.person)
+    user.person.is_employee = value
+    await session.flush()
+
+
 async def find_or_create_user_by_email(session: AsyncSession, email: str) -> User:
     """Вход по email: существующая учётка, затем персона из SkolStream с этим email, затем новый внешний участник."""
     email = normalize_email(email)

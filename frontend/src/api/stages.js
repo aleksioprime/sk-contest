@@ -18,8 +18,8 @@ export const STAGE_STATUS_TONES = {
   withdrawn: 'neutral',
 }
 
-export const AWARD_LABELS = { winner: 'Победитель', prize: 'Призёр', participant: 'Участник' }
-export const AWARD_TONES = { winner: 'score', prize: 'brand', participant: 'neutral' }
+export const AWARD_LABELS = { winner: 'Победитель', prize: 'Призёр', participant: 'Участник', nomination: 'Номинация' }
+export const AWARD_TONES = { winner: 'score', prize: 'brand', participant: 'neutral', nomination: 'warning' }
 
 export const fetchStage = async (eventId, stageId) => (await http.get(`/v1/events/${eventId}/stages/${stageId}`)).data
 export const admitToStage = async (eventId, stageId) => (await http.post(`/v1/events/${eventId}/stages/${stageId}/admit`)).data

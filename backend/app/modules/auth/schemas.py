@@ -9,6 +9,17 @@ class MagicLinkRequest(BaseModel):
     captcha_token: str | None = Field(default=None, max_length=4000)
 
 
+class PasswordLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+    next: str | None = Field(default=None, max_length=500)
+
+
+class PasswordChange(BaseModel):
+    current_password: str | None = Field(default=None, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 class MagicLinkVerify(BaseModel):
     token: str = Field(min_length=10, max_length=200)
 
@@ -27,3 +38,4 @@ class Providers(BaseModel):
 class Me(BaseModel):
     user: UserOut
     judge_mode: bool = False
+    has_password: bool = False

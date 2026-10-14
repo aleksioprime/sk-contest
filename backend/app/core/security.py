@@ -48,6 +48,25 @@ def hash_secret(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+# Пароли: scrypt из стандартной библиотеки, формат scrypt$n$r$p$соль$хеш
+_SCRYPT = {'n': 2**14, 'r': 8, 'p': 1}
+MIN_PASSWORD = 8
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, dklen=32, **_SCRYPT)
+    return f'scrypt${_SCRYPT["n"]}${_SCRYPT["r"]}${_SCRYPT["p"]}${salt.hex()}${digest.hex()}'
+
+
+def verify_password(password: str, stored: str | None) -> bool:
+    if not stored or not stored.startswith('scrypt$'):
+        return False
+    _, n, r, p, salt, digest = stored.split('$')
+    actual = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=int(n), r=int(r), p=int(p), dklen=32)
+    return secrets.compare_digest(actual.hex(), digest)
+
+
 def sign_state(data: dict, ttl_minutes: int = 10) -> str:
     """Подписанное короткоживущее значение (state OAuth и code_verifier в cookie)."""
     payload = {**data, 'type': 'state', 'exp': now_utc() + timedelta(minutes=ttl_minutes)}

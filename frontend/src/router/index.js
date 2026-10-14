@@ -72,6 +72,7 @@ export const routes = [
         component: () => import('@/views/applications/ApplicationView.vue'),
         props: true,
       },
+      { path: 'profile', name: 'profile', component: () => import('@/views/profile/ProfileView.vue') },
       { path: 'system', name: 'system', component: () => import('@/views/HomeView.vue'), meta: { admin: true } },
       { path: 'ui', name: 'ui-kit', component: () => import('@/views/UiKitView.vue'), meta: { admin: true } },
       {

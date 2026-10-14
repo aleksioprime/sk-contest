@@ -107,6 +107,8 @@ class User(IdMixin, TimestampMixin, Base):
     person_id: Mapped[int | None] = mapped_column(ForeignKey('persons.id', ondelete='SET NULL'), unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    # Вход по паролю; без пароля — только по ссылке из письма, QR или SkolStream
+    password_hash: Mapped[str | None] = mapped_column(String(200))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     person: Mapped[Person | None] = relationship(lazy='joined')

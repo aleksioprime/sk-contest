@@ -30,22 +30,10 @@ export const setJudges = async (id, judges, force = false) => (await http.put(`/
 export const setJudgeAccess = async (id, userId, open) => (await http.post(`/v1/sheets/${id}/judges/${userId}/access`, { open })).data
 export const issueJudgeCards = async (id, userIds = null) => (await http.post(`/v1/sheets/${id}/judge-cards`, { user_ids: userIds })).data
 
-/** Строки «Фамилия Имя Отчество, email» → судьи. Email необязателен: без него вход только по QR. */
-export function parseJudges(text) {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const email = line.match(/[^\s,;]+@[^\s,;]+/)?.[0] ?? null
-      const fullName = line.replace(email ?? '', '').replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim()
-      return { full_name: fullName, email }
-    })
-}
+export const searchUsers = async (eventId, q) => (await http.get(`/v1/events/${eventId}/user-search`, { params: { q } })).data
 
-export function formatJudges(judges) {
-  return judges.map((j) => [j.full_name !== j.email ? j.full_name : '', j.email].filter(Boolean).join(', ')).join('\n')
-}
+/** Судьи листа в формате запроса: существующие — по id, новые — с ФИО, email и паролем. */
+export const judgesPayload = (judges) => judges.map((j) => (j.user_id ? { user_id: j.user_id } : j))
 export const distribute = async (id, mode, perWork) => (await http.post(`/v1/sheets/${id}/distribute`, { mode, per_work: perWork })).data
 export const remindJudges = async (id) => (await http.post(`/v1/sheets/${id}/remind`)).data
 

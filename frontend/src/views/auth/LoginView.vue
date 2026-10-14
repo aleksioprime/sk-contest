@@ -1,39 +1,67 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { fetchProviders, requestMagicLink, skolstreamLoginUrl } from '@/api/auth'
+import { useRoute, useRouter } from 'vue-router'
+import { fetchProviders, loginWithPassword, requestMagicLink, skolstreamLoginUrl } from '@/api/auth'
 import { errorMessage } from '@/api/http'
 import SmartCaptcha from '@/components/SmartCaptcha.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 const next = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
 
 const providers = ref({ magic_link: true, skolstream: false, captcha_site_key: null })
-const captchaToken = ref('')
-const captcha = ref(null)
+const mode = ref('password') // password | link
 const email = ref('')
+const password = ref('')
 const sending = ref(false)
 const sentTo = ref('')
 const error = ref(typeof route.query.error === 'string' ? route.query.error : '')
 const fieldError = ref('')
+const captchaToken = ref('')
+const captcha = ref(null)
 
 onMounted(async () => {
   try {
     providers.value = await fetchProviders()
   } catch {
-    // без списка способов показываем только вход по почте
+    // без списка способов показываем вход по почте и паролю
   }
 })
 
-async function submit() {
+function checkEmail() {
   fieldError.value = ''
   error.value = ''
   if (!/^\S+@\S+\.\S+$/.test(email.value.trim())) {
     fieldError.value = 'Введите адрес электронной почты'
+    return false
+  }
+  return true
+}
+
+async function submitPassword() {
+  if (!checkEmail()) return
+  if (!password.value) {
+    error.value = 'Введите пароль'
     return
   }
+  sending.value = true
+  try {
+    const result = await loginWithPassword(email.value.trim(), password.value, next.value)
+    await auth.load(true)
+    await router.replace(result.next || '/')
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    sending.value = false
+  }
+}
+
+async function submitLink() {
+  if (!checkEmail()) return
   if (providers.value.captcha_site_key && !captchaToken.value) {
     error.value = 'Подтвердите, что вы не робот'
     return
@@ -82,12 +110,39 @@ async function submit() {
             Войти через SkolStream
           </a>
           <p class="mt-2 text-center text-xs text-ink-muted">Для учеников и сотрудников гимназии</p>
-          <div class="my-5 flex items-center gap-3 text-xs text-ink-muted">
-            <span class="h-px flex-1 bg-line" />или по почте<span class="h-px flex-1 bg-line" />
-          </div>
         </template>
 
-        <form class="grid gap-4" :class="{ 'mt-5': !providers.skolstream }" novalidate @submit.prevent="submit">
+        <div class="mt-5 flex rounded-control border border-line p-1 text-sm" role="tablist" aria-label="Способ входа">
+          <button
+            v-for="(label, key) in { password: 'По паролю', link: 'Ссылка на почту' }"
+            :key="key"
+            type="button"
+            role="tab"
+            :aria-selected="mode === key"
+            class="flex-1 rounded-[8px] px-3 py-1.5"
+            :class="mode === key ? 'bg-brand-100 text-brand-700' : 'text-ink-muted hover:text-ink'"
+            @click="(mode = key), (error = '')"
+          >
+            {{ label }}
+          </button>
+        </div>
+
+        <form v-if="mode === 'password'" class="mt-4 grid gap-4" novalidate @submit.prevent="submitPassword">
+          <UiInput
+            v-model="email"
+            label="Электронная почта"
+            type="email"
+            autocomplete="username"
+            placeholder="name@example.ru"
+            :error="fieldError"
+            @input="fieldError = ''"
+          />
+          <UiInput v-model="password" label="Пароль" type="password" autocomplete="current-password" />
+          <UiButton type="submit" variant="primary" :loading="sending">Войти</UiButton>
+          <p class="text-xs text-ink-muted">Нет пароля? Войдите по ссылке на почту и задайте его в профиле или попросите организаторов.</p>
+        </form>
+
+        <form v-else class="mt-4 grid gap-4" novalidate @submit.prevent="submitLink">
           <UiInput
             v-model="email"
             label="Электронная почта"
@@ -98,9 +153,7 @@ async function submit() {
             @input="fieldError = ''"
           />
           <SmartCaptcha v-if="providers.captcha_site_key" ref="captcha" v-model="captchaToken" :sitekey="providers.captcha_site_key" />
-          <UiButton type="submit" :variant="providers.skolstream ? 'secondary' : 'primary'" :loading="sending">
-            Получить ссылку для входа
-          </UiButton>
+          <UiButton type="submit" variant="primary" :loading="sending">Получить ссылку для входа</UiButton>
         </form>
       </div>
     </div>

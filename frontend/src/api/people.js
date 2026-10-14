@@ -24,3 +24,8 @@ export async function startSync(mode) {
   const { data } = await http.post('/v1/people/sync', { mode })
   return data
 }
+
+export async function createUser(payload) {
+  const { data } = await http.post('/v1/people/users', payload)
+  return data
+}

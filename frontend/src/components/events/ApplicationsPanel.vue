@@ -1,6 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { APP_STATUS_LABELS, APP_STATUS_TONES, decideMany, exportUrl, fetchEventApplications, fetchForm } from '@/api/applications'
+import { useRouter } from 'vue-router'
+import {
+  APP_STATUS_LABELS,
+  APP_STATUS_TONES,
+  createStaffApplication,
+  decideMany,
+  exportUrl,
+  fetchEventApplications,
+  fetchForm,
+} from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import ApplicationReview from '@/components/events/ApplicationReview.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
@@ -22,6 +31,23 @@ const selected = ref([])
 const openedId = ref(null)
 const bulkComment = ref('')
 const bulkResult = ref('')
+
+const router = useRouter()
+const creating = ref(false)
+const fresh = ref({ owner_email: '', status: 'accepted' })
+
+async function createApplication() {
+  error.value = ''
+  try {
+    const app = await createStaffApplication(props.event.id, {
+      owner_email: fresh.value.owner_email.trim() || null,
+      status: fresh.value.status,
+    })
+    await router.push({ name: 'application', params: { id: app.id }, query: { manage: '1' } })
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
 
 const statuses = ['submitted', 'needs_changes', 'accepted', 'rejected', 'withdrawn']
 const total = computed(() => Object.values(page.value.counts).reduce((sum, n) => sum + n, 0))
@@ -116,10 +142,29 @@ onMounted(async () => {
         <option v-for="d in event.directions" :key="d.id" :value="d.id">{{ d.title }}</option>
       </select>
       <div class="ml-auto flex gap-2 text-sm">
+        <UiButton variant="primary" @click="creating = !creating">Добавить заявку</UiButton>
         <a :href="exportUrl(event.id)" class="rounded-control border border-line bg-surface px-3 py-2 hover:bg-brand-50">Выгрузить все</a>
         <a :href="exportUrl(event.id, true)" class="rounded-control border border-line bg-surface px-3 py-2 hover:bg-brand-50">Только принятые</a>
       </div>
     </div>
+
+    <form v-if="creating" class="grid gap-3 rounded-card border border-line bg-surface p-4 text-sm sm:grid-cols-[2fr_1fr_auto]" @submit.prevent="createApplication">
+      <label class="grid gap-1">
+        <span class="font-medium">Email контактного лица <span class="font-normal text-ink-muted">(необязательно)</span></span>
+        <input v-model="fresh.owner_email" type="email" placeholder="Увидит заявку в своём кабинете" class="h-10 rounded-control border border-line bg-surface px-3" />
+      </label>
+      <label class="grid gap-1">
+        <span class="font-medium">Статус</span>
+        <select v-model="fresh.status" class="h-10 rounded-control border border-line bg-surface px-3">
+          <option value="accepted">Сразу принята</option>
+          <option value="submitted">На рассмотрении</option>
+        </select>
+      </label>
+      <div class="flex items-end"><UiButton type="submit" variant="primary">Создать и заполнить</UiButton></div>
+      <p class="text-ink-muted sm:col-span-3">
+        Для заявок, принятых на месте или по почте. Окно приёма заявок не учитывается, согласия на обработку данных собирает оргкомитет.
+      </p>
+    </form>
 
     <div v-if="selected.length" class="flex flex-wrap items-center gap-3 rounded-control border border-brand-200 bg-brand-50 p-3 text-sm">
       <span class="font-medium">Выбрано: {{ selected.length }}</span>

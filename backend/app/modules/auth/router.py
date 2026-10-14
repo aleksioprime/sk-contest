@@ -13,11 +13,20 @@ from app.core.config import settings
 from app.core.deps import CurrentUser, Db
 from app.core.queue import Queue, get_queue
 from app.core.redis import get_redis, hit_limit
-from app.core.security import TokenError, decode_access_token, new_secret, read_state, sign_state
+from app.core.security import TokenError, decode_access_token, new_secret, read_state, sign_state, verify_password
 from app.modules.applications.models import Application
+from app.modules.audit.service import record
 from app.modules.auth import service
 from app.modules.auth.models import AuthSession
-from app.modules.auth.schemas import LoginResult, MagicLinkRequest, MagicLinkVerify, Me, Providers
+from app.modules.auth.schemas import (
+    LoginResult,
+    MagicLinkRequest,
+    MagicLinkVerify,
+    Me,
+    PasswordChange,
+    PasswordLogin,
+    Providers,
+)
 from app.modules.events.models import EventMember
 from app.modules.people.schemas import UserOut
 from app.modules.people.service import ensure_user, upsert_person_from_profile
@@ -102,6 +111,35 @@ async def verify_magic_link(payload: MagicLinkVerify, request: Request, response
     await db.refresh(user)
     _set_session_cookies(response, access, refresh)
     return LoginResult(user=UserOut.model_validate(user), next=next_path)
+
+
+@router.post('/login', response_model=LoginResult, summary='Войти по email и паролю')
+async def password_login(payload: PasswordLogin, request: Request, response: Response, db: Db) -> LoginResult:
+    _, ip = _client_info(request)
+    try:
+        user = await service.login_with_password(db, get_redis(), payload.email, payload.password, ip)
+        access, refresh = await service.open_session(db, user, 'password', *_client_info(request))
+    except service.RateLimited as exc:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
+    except service.AuthError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    await db.commit()
+    await db.refresh(user)
+    _set_session_cookies(response, access, refresh)
+    return LoginResult(user=UserOut.model_validate(user), next=service.safe_next_path(payload.next))
+
+
+@router.post('/password', status_code=status.HTTP_204_NO_CONTENT, summary='Задать или сменить свой пароль')
+async def change_password(payload: PasswordChange, db: Db, user: CurrentUser) -> Response:
+    if user.password_hash and not verify_password(payload.current_password or '', user.password_hash):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Текущий пароль указан неверно')
+    try:
+        service.set_password(user, payload.new_password)
+    except service.AuthError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    record(db, 'auth.password', 'user', user.id, user.id)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get('/skolstream/login', summary='Перейти ко входу через SkolStream')
@@ -205,4 +243,8 @@ async def _judge_mode(db, request: Request, user) -> bool:
 
 @router.get('/me', response_model=Me, summary='Текущий пользователь')
 async def me(request: Request, db: Db, user: CurrentUser) -> Me:
-    return Me(user=UserOut.model_validate(user), judge_mode=await _judge_mode(db, request, user))
+    return Me(
+        user=UserOut.model_validate(user),
+        judge_mode=await _judge_mode(db, request, user),
+        has_password=bool(user.password_hash),
+    )

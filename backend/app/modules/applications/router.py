@@ -24,7 +24,9 @@ from app.modules.applications.schemas import (
     MemberOut,
     PublicForm,
     Ref,
+    StaffApplication,
 )
+from app.modules.audit.service import record
 from app.modules.events.models import Event
 from app.modules.events.permissions import ensure_manage, roles_of
 from app.modules.events.service import get_by_slug, get_event, registration_open
@@ -83,6 +85,7 @@ def _out(app: Application, user: User) -> ApplicationOut:
         can_edit=own and service.can_edit(app),
         can_submit=own and service.can_edit(app),
         can_withdraw=own and app.status in {'draft', SUBMITTED, NEEDS_CHANGES},
+        can_manage=_is_staff(user, app.event),
     )
 
 
@@ -254,6 +257,37 @@ async def event_applications(
         total=total,
         counts=counts,
     )
+
+
+@router.post(
+    '/events/{event_id}/applications/manual',
+    response_model=ApplicationOut,
+    status_code=201,
+    summary='Заявка от оргкомитета',
+)
+async def create_by_staff(event_id: int, payload: StaffApplication, request: Request, db: Db, user: CurrentUser):
+    event = await _staff_event(db, event_id, user)
+    try:
+        app = await service.create_by_staff(db, event, user, payload, _client_ip(request))
+    except service.ApplicationError as exc:
+        await db.rollback()
+        return _error(exc)
+    await db.commit()
+    return _out(await _load_app(db, app.id), user)
+
+
+@router.put('/applications/{app_id}/manage', response_model=ApplicationOut, summary='Правка заявки оргкомитетом')
+async def save_by_staff(app_id: int, payload: ApplicationSave, request: Request, db: Db, user: CurrentUser):
+    app = await _load_app(db, app_id)
+    if not _is_staff(user, app.event):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Заявка не найдена')
+    try:
+        await service.save(db, app, user, payload, _client_ip(request), staff=True)
+    except service.ApplicationError as exc:
+        return _error(exc)
+    record(db, 'application.edit_by_staff', 'application', app.id, user.id)
+    await db.commit()
+    return _out(await _load_app(db, app.id), user)
 
 
 @router.post('/applications/{app_id}/decision', response_model=ApplicationOut, summary='Решение по заявке')

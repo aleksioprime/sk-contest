@@ -5,6 +5,7 @@ import * as api from '@/api/auth'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const judgeMode = ref(false)
+  const hasPassword = ref(false)
   const loaded = ref(false)
 
   const isAuthenticated = computed(() => !!user.value)
@@ -17,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
       const me = await api.fetchMe()
       user.value = me.user
       judgeMode.value = me.judge_mode
+      hasPassword.value = me.has_password
     } catch {
       user.value = null
       judgeMode.value = false
@@ -39,5 +41,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, judgeMode, loaded, isAuthenticated, isAdmin, displayName, load, setUser, logout }
+  return { user, judgeMode, hasPassword, loaded, isAuthenticated, isAdmin, displayName, load, setUser, logout }
 })

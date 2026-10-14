@@ -48,23 +48,35 @@ const memberEmail = ref('')
 const memberRole = ref('judge')
 const memberError = ref('')
 
+// Вкладки сгруппированы: что настраивается при создании, за чем следим во время мероприятия, и люди
+const GROUPS = [
+  { id: 'setup', label: 'Подготовка' },
+  { id: 'running', label: 'Проведение' },
+  { id: 'team', label: 'Оргкомитет' },
+]
 const tabs = computed(() => [
-  { id: 'main', label: 'Основное' },
-  { id: 'directions', label: 'Направления' },
-  ...(event.value?.modules.stages ? [{ id: 'stages', label: 'Этапы' }] : []),
-  { id: 'forms', label: 'Формы участия' },
+  { id: 'main', label: 'Основное', group: 'setup' },
+  { id: 'directions', label: 'Направления', group: 'setup' },
+  ...(event.value?.modules.stages ? [{ id: 'stages', label: 'Этапы', group: 'setup' }] : []),
+  { id: 'forms', label: 'Формы участия', group: 'setup' },
+  ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Анкета', group: 'setup' }] : []),
   ...(event.value?.modules.registration && (event.value.can_manage || event.value.my_roles.includes('moderator'))
-    ? [{ id: 'applications', label: 'Заявки' }]
+    ? [{ id: 'applications', label: 'Заявки', group: 'running' }]
     : []),
-  ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Анкета' }] : []),
   ...(event.value?.modules.evaluation &&
   (event.value.can_manage || event.value.my_roles.some((r) => ['moderator', 'observer'].includes(r)))
-    ? [{ id: 'evaluation', label: 'Оценивание' }]
+    ? [{ id: 'evaluation', label: 'Оценивание', group: 'running' }]
     : []),
-  ...(event.value?.modules.stages && event.value.stages.length && canView.value ? [{ id: 'progress', label: 'Ход по этапам' }] : []),
-  ...(event.value?.modules.results && canView.value ? [{ id: 'results', label: 'Итоги' }] : []),
-  { id: 'team', label: 'Команда' },
+  ...(event.value?.modules.stages && event.value.stages.length && canView.value ? [{ id: 'progress', label: 'Ход по этапам', group: 'running' }] : []),
+  ...(event.value?.modules.results && canView.value ? [{ id: 'results', label: 'Итоги', group: 'running' }] : []),
+  { id: 'team', label: 'Оргкомитет', group: 'team' },
 ])
+const currentGroup = computed(() => tabs.value.find((t) => t.id === tab.value)?.group ?? 'setup')
+const groupTabs = computed(() => tabs.value.filter((t) => t.group === currentGroup.value))
+const groups = computed(() => GROUPS.filter((g) => tabs.value.some((t) => t.group === g.id)))
+function openGroup(id) {
+  tab.value = tabs.value.find((t) => t.group === id).id
+}
 const canView = computed(
   () => !!event.value && (event.value.can_manage || event.value.my_roles.some((r) => ['moderator', 'observer'].includes(r))),
 )
@@ -231,9 +243,24 @@ watch(() => props.id, load, { immediate: true })
     </div>
     <p v-if="statusError" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ statusError }}</p>
 
-    <div class="flex flex-wrap gap-x-1 border-b border-line" role="tablist">
+    <div class="flex flex-wrap gap-1 rounded-control border border-line bg-surface p-1 text-sm sm:self-start sm:justify-self-start" role="tablist" aria-label="Разделы мероприятия">
       <button
-        v-for="item in tabs"
+        v-for="group in groups"
+        :key="group.id"
+        type="button"
+        role="tab"
+        :aria-selected="currentGroup === group.id"
+        class="rounded-[8px] px-4 py-1.5"
+        :class="currentGroup === group.id ? 'bg-brand-100 font-medium text-brand-700' : 'text-ink-muted hover:text-ink'"
+        @click="openGroup(group.id)"
+      >
+        {{ group.label }}
+      </button>
+    </div>
+
+    <div v-if="groupTabs.length > 1" class="flex flex-wrap gap-x-1 border-b border-line" role="tablist">
+      <button
+        v-for="item in groupTabs"
         :key="item.id"
         type="button"
         role="tab"

@@ -93,3 +93,12 @@ export function isVisible(field, answers) {
   const value = answers[field.visible_if.field]
   return value === field.visible_if.equals || (Array.isArray(value) && value.includes(field.visible_if.equals))
 }
+
+/** Заявка от оргкомитета: пустая, заполняется в карточке заявки. */
+export async function createStaffApplication(eventId, payload) {
+  return (await http.post(`/v1/events/${eventId}/applications/manual`, payload)).data
+}
+
+export async function manageApplication(id, payload) {
+  return (await http.put(`/v1/applications/${id}/manage`, payload)).data
+}
