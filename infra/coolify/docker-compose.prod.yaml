@@ -3,10 +3,11 @@
 #   frontend → https://app.events.skolhub.ru          (API проксируется nginx на backend)
 #   sites    → https://events.skolhub.ru, https://*.events.skolhub.ru (wildcard — после DNS-01, docs/domains.md)
 # Переменные — из .env.prod (docs/deploy.md).
+# Локальная проверка: docker compose --project-directory . -f infra/coolify/docker-compose.prod.yaml build
 
 x-backend: &backend
   build:
-    context: ../../backend  # пути считаются от каталога этого файла
+    context: backend  # пути от корня репозитория (так собирает Coolify)
     target: prod
   restart: unless-stopped
   environment: &backend-env
@@ -34,7 +35,7 @@ x-backend: &backend
     SITES_CNAME_TARGET: sites.events.skolhub.ru
     SITES_UPSTREAM_URL: ${SITES_UPSTREAM_URL:-http://sites:3000}
     TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
-    NOCOBASE_URL: ${NOCOBASE_URL:-}
+    NOCOBASE_URL: ${NOCOBASE_URL:-https://flow.skolhub.ru}
     NOCOBASE_API_KEY: ${NOCOBASE_API_KEY:-}
   volumes:
     - files_data:/data/files
@@ -57,7 +58,7 @@ services:
 
   frontend:
     build:
-      context: ../..
+      context: .
       dockerfile: frontend/Dockerfile
       target: prod
     restart: unless-stopped
@@ -65,7 +66,7 @@ services:
 
   sites:
     build:
-      context: ../..
+      context: .
       dockerfile: sites/Dockerfile
       target: prod
     restart: unless-stopped

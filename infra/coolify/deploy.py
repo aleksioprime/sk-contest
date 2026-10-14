@@ -38,7 +38,6 @@ APP_VARS = [
     'CAPTCHA__CLIENT_KEY',
     'CAPTCHA__SERVER_KEY',
     'TRAEFIK_DYNAMIC_DIR',
-    'NOCOBASE_URL',
     'NOCOBASE_API_KEY',
 ]
 
@@ -58,7 +57,7 @@ class Coolify:
         self.url = url.rstrip('/') + '/api/v1'
         self.token = token
 
-    def call(self, method: str, path: str, body: dict | list | None = None):
+    def call(self, method: str, path: str, body: dict | list | None = None, allow_error: bool = False):
         request = urllib.request.Request(
             self.url + path,
             method=method,
@@ -69,6 +68,8 @@ class Coolify:
             with urllib.request.urlopen(request, timeout=60) as response:
                 text = response.read().decode()
         except urllib.error.HTTPError as exc:
+            if allow_error:
+                return None
             sys.exit(f'{method} {path}: {exc.code} {exc.read().decode()[:500]}')
         return json.loads(text) if text else None
 
@@ -110,15 +111,18 @@ def main() -> None:
     uuid = app['uuid']
     print('Ресурс', uuid)
 
-    variables = [{'key': k, 'value': env[k], 'is_preview': False} for k in APP_VARS if env.get(k)]
+    # is_literal: значения с $ передаются как есть, без подстановки переменных
+    variables = [{'key': k, 'value': env[k], 'is_preview': False, 'is_literal': True} for k in APP_VARS if env.get(k)]
     print('Переменные:', ', '.join(v['key'] for v in variables))
     domains = [{'name': service, 'domain': domain} for service, domain in DOMAINS.items()]
     print('Домены:', domains)
     if dry:
         return
     api.call('PATCH', f'/applications/{uuid}/envs/bulk', {'data': variables})
-    api.call('PATCH', f'/applications/{uuid}', {'docker_compose_domains': domains})
-    deployment = api.call('GET', f'/deploy?uuid={uuid}&force=false')
+    # Домены Coolify принимает только после того, как прочитал compose из репозитория (первая сборка)
+    if api.call('PATCH', f'/applications/{uuid}', {'docker_compose_domains': domains}, allow_error=True) is None:
+        print('Compose ещё не загружен: после этой сборки запустите скрипт ещё раз, чтобы назначить домены')
+    deployment = api.call('POST', f'/deploy?uuid={uuid}&force=false')
     print('Сборка запущена:', json.dumps(deployment, ensure_ascii=False))
 
 
