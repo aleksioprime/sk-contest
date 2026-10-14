@@ -12,6 +12,13 @@ export const routes = [
     meta: { public: true },
   },
   {
+    path: '/evaluate/:token',
+    name: 'anonymous-evaluation',
+    component: () => import('@/views/judging/AnonymousEvaluationView.vue'),
+    props: true,
+    meta: { public: true },
+  },
+  {
     path: '/',
     component: AppLayout,
     children: [
@@ -19,6 +26,25 @@ export const routes = [
       { path: 'events', name: 'events', component: () => import('@/views/events/EventsView.vue') },
       { path: 'events/new', name: 'event-new', component: () => import('@/views/events/EventCreateView.vue') },
       { path: 'events/:id', name: 'event', component: () => import('@/views/events/EventView.vue'), props: true },
+      {
+        path: 'events/:id/sheets/:sheetId',
+        name: 'event-sheet',
+        component: () => import('@/views/events/SheetView.vue'),
+        props: true,
+      },
+      { path: 'judging', name: 'judging', component: () => import('@/views/judging/JudgeSheetsView.vue') },
+      {
+        path: 'judging/sheets/:id',
+        name: 'judge-sheet',
+        component: () => import('@/views/judging/JudgeWorksView.vue'),
+        props: true,
+      },
+      {
+        path: 'judging/evaluations/:id',
+        name: 'judge-evaluation',
+        component: () => import('@/views/judging/JudgeEvaluationView.vue'),
+        props: true,
+      },
       {
         path: 'events/:slug/apply',
         name: 'apply',

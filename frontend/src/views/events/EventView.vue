@@ -19,6 +19,7 @@ import {
 import { errorMessage } from '@/api/http'
 import { uploadFile } from '@/api/applications'
 import ApplicationsPanel from '@/components/events/ApplicationsPanel.vue'
+import EvaluationPanel from '@/components/evaluation/EvaluationPanel.vue'
 import EventItemsEditor from '@/components/events/EventItemsEditor.vue'
 import FormBuilder from '@/components/events/FormBuilder.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
@@ -53,6 +54,7 @@ const tabs = computed(() => [
     ? [{ id: 'applications', label: 'Заявки' }]
     : []),
   ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Анкета' }] : []),
+  ...(event.value?.modules.evaluation && event.value.can_manage ? [{ id: 'evaluation', label: 'Оценивание' }] : []),
   { id: 'team', label: 'Команда' },
 ])
 const tab = computed({
@@ -345,6 +347,8 @@ watch(() => props.id, load, { immediate: true })
     <ApplicationsPanel v-else-if="tab === 'applications'" :event="event" />
 
     <FormBuilder v-else-if="tab === 'form'" :event-id="event.id" :readonly="readonly" />
+
+    <EvaluationPanel v-else-if="tab === 'evaluation'" :event="event" />
 
     <div v-else-if="tab === 'team'" class="grid gap-4">
       <form v-if="!readonly" class="flex flex-wrap items-start gap-3" novalidate @submit.prevent="invite">
