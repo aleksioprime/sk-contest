@@ -10,6 +10,7 @@ export default defineBlock({
   variantLabels: { cards: 'Карточки', table: 'Таблица' },
   data: ['results'],
   common: { anchor: 'results', menuTitle: 'Итоги' },
+  isEmpty: (content, data) => !data.results.length,
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Победители и призёры', max: 120 },
     intro: { type: 'text', label: 'Вступление', inline: true, max: 500, multiline: true },

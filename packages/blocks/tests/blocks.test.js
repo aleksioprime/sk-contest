@@ -127,7 +127,10 @@ describe('SitePage', () => {
     expect(wrapper.attributes('style')).toContain('--skb-accent: #0f6e56')
     expect(wrapper.attributes('style')).toContain('--skb-bg: #14121c')
     // меню из блоков с якорем и названием пункта
-    expect(wrapper.findAll('.skb-header__nav a').map((a) => a.attributes('href'))).toEqual(['#dates', '#results', '#program'])
+    expect(wrapper.findAll('.skb-header__nav a').map((a) => a.attributes('href'))).toEqual(['#results', '#program'])
+    // пустой блок не попадает в меню
+    const empty = mount(SitePage, { props: { page, data: buildSiteData({ ...payload, results: [] }), phase: 'registration' } })
+    expect(empty.findAll('.skb-header__nav a').map((a) => a.attributes('href'))).toEqual(['#program'])
   })
 
   it('прячет блоки по правилу показа и блок итогов без итогов', () => {

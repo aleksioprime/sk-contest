@@ -8,7 +8,8 @@ export default defineBlock({
   component: GalleryBlock,
   variants: ['grid', 'strip'],
   variantLabels: { grid: 'Сетка', strip: 'Лента' },
-  common: { anchor: 'gallery', menuTitle: 'Фото' },
+  common: { anchor: 'gallery' },
+  isEmpty: (content) => !content.items.some((item) => item.image),
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Фотографии', max: 120 },
     items: {

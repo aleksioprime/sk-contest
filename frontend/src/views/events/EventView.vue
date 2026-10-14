@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   FORMAT_LABELS,
   LEVEL_LABELS,
@@ -206,6 +206,13 @@ watch(() => props.id, load, { immediate: true })
         <p class="mt-1 text-sm text-ink-muted">{{ event.slug }}.events.skolhub.ru</p>
       </div>
       <div v-if="event.can_manage" class="flex flex-wrap gap-2">
+        <RouterLink
+          v-if="event.modules.landing"
+          :to="{ name: 'event-site', params: { id: event.id } }"
+          class="inline-flex h-10 items-center rounded-control border border-line bg-surface px-4 font-medium hover:bg-brand-50"
+        >
+          Сайт мероприятия
+        </RouterLink>
         <UiButton
           v-for="status in event.allowed_statuses"
           :key="status"

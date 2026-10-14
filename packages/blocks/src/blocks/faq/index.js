@@ -6,7 +6,7 @@ export default defineBlock({
   title: 'Вопросы и ответы',
   description: 'Раскрывающийся список частых вопросов',
   component: FaqBlock,
-  common: { anchor: 'faq', menuTitle: 'Вопросы' },
+  common: { anchor: 'faq' },
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Вопросы и ответы', max: 120 },
     items: {

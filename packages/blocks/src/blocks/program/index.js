@@ -10,6 +10,7 @@ export default defineBlock({
   variantLabels: { tabs: 'Вкладки по дням', list: 'Списком' },
   data: ['program'],
   common: { anchor: 'program', menuTitle: 'Программа' },
+  isEmpty: (content, data) => (content.source === 'manual' ? !content.items.length : !data.program.length),
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Программа', max: 120 },
     source: { type: 'select', label: 'Откуда программа', options: ['event', 'manual'], labels: { event: 'Слоты защит этапов', manual: 'Вручную' } },

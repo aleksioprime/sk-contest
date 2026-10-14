@@ -10,6 +10,7 @@ export default defineBlock({
   variantLabels: { cards: 'Карточки', chips: 'Плашки' },
   data: ['directions'],
   common: { anchor: 'directions', menuTitle: 'Направления', background: 'muted' },
+  isEmpty: (content, data) => !data.directions.length,
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Направления', max: 120 },
     intro: { type: 'text', label: 'Вступление', inline: true, max: 500, multiline: true },

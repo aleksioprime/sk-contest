@@ -8,7 +8,8 @@ export default defineBlock({
   component: PeopleBlock,
   variants: ['grid', 'list'],
   variantLabels: { grid: 'Сетка с фото', list: 'Списком' },
-  common: { anchor: 'jury', menuTitle: 'Жюри' },
+  common: { anchor: 'jury' },
+  isEmpty: (content) => !content.items.length,
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Жюри', max: 120 },
     items: {

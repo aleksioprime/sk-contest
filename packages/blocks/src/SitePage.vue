@@ -20,10 +20,10 @@ const visibleBlocks = computed(() =>
 )
 const menu = computed(() =>
   visibleBlocks.value
-    .filter((item) => item.common?.anchor && item.common?.menuTitle)
+    .filter((item) => item.common?.anchor && item.common?.menuTitle && !blocks[item.type].isEmpty(item.props, baseData.value))
     .map((item) => ({ anchor: item.common.anchor, title: item.common.menuTitle })),
 )
-const blockData = computed(() => ({
+const baseData = computed(() => ({
   event: {},
   registration: {},
   stages: [],
@@ -32,8 +32,8 @@ const blockData = computed(() => ({
   program: [],
   stats: {},
   ...props.data,
-  menu: menu.value,
 }))
+const blockData = computed(() => ({ ...baseData.value, menu: menu.value }))
 const style = computed(() => themeToCssVars(props.theme))
 </script>
 

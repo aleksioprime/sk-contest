@@ -111,6 +111,10 @@
   content: attr(data-placeholder);
   opacity: 0.45;
 }
+/* Пустое поле со значением из мероприятия: показываем его как на сайте */
+.skb-editable--fallback:empty::before {
+  opacity: 1;
+}
 .skb-empty {
   margin-top: 16px !important;
   padding: 20px;
@@ -178,6 +182,7 @@
   color: #ffffff !important;
   font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
   transition: filter 0.15s;
 }
 .skb-button:hover {

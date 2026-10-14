@@ -52,10 +52,12 @@ export function defineBlock(definition) {
     props = {},
     data = [],
     common = {},
+    // Блоку нечего показать на сайте: секция и пункт меню скрываются
+    isEmpty = () => false,
   } = definition
   if (!type || !title || !component) {
     throw new Error('Блок должен иметь type, title и component')
   }
   checkProps(type, props)
-  return Object.freeze({ type, title, description, component, variants, variantLabels, props, data, common })
+  return Object.freeze({ type, title, description, component, variants, variantLabels, props, data, common, isEmpty })
 }

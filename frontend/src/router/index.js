@@ -25,6 +25,13 @@ export const routes = [
       { path: '', name: 'home', redirect: { name: 'events' } },
       { path: 'events', name: 'events', component: () => import('@/views/events/EventsView.vue') },
       { path: 'events/new', name: 'event-new', component: () => import('@/views/events/EventCreateView.vue') },
+      {
+        path: 'events/:id/site',
+        name: 'event-site',
+        component: () => import('@/views/sites/SiteEditorView.vue'),
+        props: true,
+        meta: { bare: true },
+      },
       { path: 'events/:id', name: 'event', component: () => import('@/views/events/EventView.vue'), props: true },
       {
         path: 'events/:id/sheets/:sheetId/judge-cards',

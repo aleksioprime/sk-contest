@@ -9,6 +9,7 @@ export default defineBlock({
   variants: ['strip', 'grid'],
   variantLabels: { strip: 'Лента', grid: 'Сетка' },
   common: { anchor: 'partners' },
+  isEmpty: (content) => !content.items.length,
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Партнёры', max: 120 },
     items: {

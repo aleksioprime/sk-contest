@@ -9,7 +9,9 @@ export default defineBlock({
   variants: ['horizontal', 'vertical'],
   variantLabels: { horizontal: 'В строку', vertical: 'Столбиком' },
   data: ['registration.window', 'stages'],
-  common: { anchor: 'dates', menuTitle: 'Даты' },
+  common: { anchor: 'dates' },
+  isEmpty: (content, data) =>
+    content.source === 'manual' ? !content.items.length : !data.stages.length && !data.registration.opensAt && !data.registration.closesAt,
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Ключевые даты', max: 120 },
     source: { type: 'select', label: 'Откуда даты', options: ['event', 'manual'], labels: { event: 'Из этапов мероприятия', manual: 'Вручную' } },

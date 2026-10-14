@@ -8,7 +8,8 @@ export default defineBlock({
   component: DocumentsBlock,
   variants: ['list', 'cards'],
   variantLabels: { list: 'Списком', cards: 'Карточки' },
-  common: { anchor: 'documents', menuTitle: 'Документы' },
+  common: { anchor: 'documents' },
+  isEmpty: (content) => !content.items.length,
   props: {
     title: { type: 'text', label: 'Заголовок', inline: true, default: 'Документы', max: 120 },
     items: {

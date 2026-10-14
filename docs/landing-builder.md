@@ -21,24 +21,41 @@
 export default defineBlock({
   type: 'hero',
   title: 'Обложка',
+  component: HeroBlock,
   variants: ['image-bg', 'image-right', 'text-only'],
+  variantLabels: { 'image-bg': 'Картинка фоном', ... },
   props: {
-    title:     { type: 'text',  inline: true, max: 80 },
-    subtitle:  { type: 'text',  inline: true },
-    image:     { type: 'image', ratio: '16:9' },
-    cta:       { type: 'cta',   default: 'registration' },
-    countdown: { type: 'bool',  label: 'Таймер до конца приёма заявок' },
+    title:     { type: 'text', label: 'Заголовок', inline: true, max: 120 },
+    image:     { type: 'image', label: 'Изображение', ratio: '16:9' },
+    ctaHref:   { type: 'url', label: 'Ссылка кнопки' },
+    countdown: { type: 'bool', label: 'Таймер до конца приёма заявок' },
   },
-  data: ['event.dates', 'event.place', 'registration.window'],
+  isEmpty: (content, data) => false, // нечего показать — секция и пункт меню скрываются
 })
 ```
 
-Сайт хранится как JSON: страницы → список блоков `{ id, type, variant, props, common }` + тема.
-Сервер валидирует props по схеме (JSON Schema генерируется из `packages/blocks`).
+Типы полей: `text`, `richtext`, `url`, `image`, `file`, `bool`, `select`, `list` (элементы со своими полями).
+Компонент блока получает `variant`, `content` (props экземпляра) и `data` — данные мероприятия
+(`buildSiteData`: даты, окно приёма, этапы, направления, слоты защит, итоги, счётчики).
+
+Сайт хранится как JSON: `{ theme, pages: [{ path, title, blocks: [{ id, type, variant, hidden, props, common }] }], seo }`.
+`npm run schema --workspace packages/blocks` выгружает JSON Schema блоков в `backend/app/modules/sites/block_schemas.json`,
+тест в `packages/blocks` следит, чтобы файл не устарел. Backend проверяет props по схемам, очищает HTML (`nh3`)
+и принимает картинки и файлы только из своего хранилища.
+
+## Как устроено
+
+- **Редактор** (`frontend/src/views/sites/SiteEditorView.vue`): тот же `SitePage`, что и на сайте, плюс контекст
+  редактора через `provide`: клик выбирает блок, поля с `inline: true` правятся на превью (`SkbText`).
+  Черновик сохраняется через секунду после правки, ошибки проверки показываются у блока.
+- **Раскладка** блоков зависит от ширины самого сайта (container queries), поэтому превью «Телефон» совпадает с телефоном.
+- **Публикация** копирует черновик в версию; откат возвращает версию в черновик. Пока сайт не опубликован,
+  `sites` показывает шаблон типа мероприятия только из блоков с настоящими данными.
+- **Шаблоны** (`packages/blocks/src/templates.js`): набор блоков и тема для каждого типа мероприятия.
 
 ## Общие настройки любого блока
 
-- якорь и пункт меню;
+- якорь и пункт меню (пункт не показывается, если блоку нечего показать);
 - фон из темы: обычный, приглушённый, акцентный;
 - правило показа: всегда, только во время приёма заявок, только после публикации итогов.
 
@@ -72,4 +89,5 @@ export default defineBlock({
 - SEO: title, description, OG-картинка, sitemap, robots, ID Яндекс.Метрики.
 - Поддомен `<slug>.events.skolhub.ru`: wildcard DNS + один wildcard-сертификат (DNS-01).
 - Свой домен: организатор добавляет домен → инструкция с CNAME → проверка DNS → worker пишет файл в динамическую конфигурацию coolify-proxy (роутер на Host, certresolver HTTP-01) → статус «активен».
-- Форма регистрации на лендинге обращается к API с другого домена: CORS по списку подтверждённых доменов. Вход в кабинет всегда на `app.events.skolhub.ru`.
+- Регистрация с лендинга ведёт в кабинет на `app.events.skolhub.ru`: лендинг не обращается к API из браузера, поэтому CORS для своих доменов не нужен.
+- Подробно о DNS и сертификатах: [domains.md](domains.md).

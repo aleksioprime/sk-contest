@@ -3,7 +3,8 @@
 #   frontend → https://app.uat.events.skolhub.ru
 #   backend  → https://app.uat.events.skolhub.ru/api
 #   sites    → https://uat.events.skolhub.ru и https://*.uat.events.skolhub.ru (wildcard — после настройки DNS-01)
-# Переменные (секреты) задаются в Coolify: SECRET_KEY, DB__PASSWORD, SMTP__USER, SMTP__PASSWORD, SKOLSTREAM__*.
+# Переменные (секреты) задаются в Coolify: SECRET_KEY, DB__PASSWORD, SMTP__USER, SMTP__PASSWORD, SKOLSTREAM__*, CAPTCHA__*.
+# Домены и сертификаты: docs/domains.md
 
 x-backend: &backend
   image: ghcr.io/aleksioprime/sk-events-backend:${IMAGE_TAG:-latest}
@@ -26,7 +27,15 @@ x-backend: &backend
     SMTP__USER: ${SMTP__USER}
     SMTP__PASSWORD: ${SMTP__PASSWORD}
     SMTP__SENDER: ${SMTP__SENDER:-SK Events <skolstream@yandex.ru>}
-  volumes: [files_data:/data/files]
+    CAPTCHA__CLIENT_KEY: ${CAPTCHA__CLIENT_KEY:-}
+    CAPTCHA__SERVER_KEY: ${CAPTCHA__SERVER_KEY:-}
+    # Свои домены лендингов (docs/domains.md)
+    SITES_CNAME_TARGET: sites.uat.events.skolhub.ru
+    SITES_UPSTREAM_URL: ${SITES_UPSTREAM_URL:-http://sites:3000}
+    TRAEFIK_DYNAMIC_DIR: /traefik-dynamic
+  volumes:
+    - files_data:/data/files
+    - /data/coolify/proxy/dynamic:/traefik-dynamic
   depends_on: [postgres, redis]
 
 services:

@@ -32,7 +32,7 @@ async function logout() {
 
 <template>
   <div class="min-h-dvh">
-    <header v-if="!route.meta.print" class="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur print:hidden">
+    <header v-if="!route.meta.print && !route.meta.bare" class="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur print:hidden">
       <div class="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
         <RouterLink :to="{ name: auth.judgeMode ? 'judging' : 'events' }" class="flex shrink-0 items-center gap-2 font-semibold">
           <img src="/favicon.svg" alt="" class="size-7" />
@@ -46,7 +46,7 @@ async function logout() {
         </div>
       </div>
     </header>
-    <main :class="route.meta.print ? '' : 'mx-auto max-w-6xl px-4 py-8'">
+    <main :class="route.meta.print || route.meta.bare ? '' : 'mx-auto max-w-6xl px-4 py-8'">
       <RouterView />
     </main>
   </div>

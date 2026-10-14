@@ -35,6 +35,7 @@ function keydown(event) {
     :is="as"
     v-if="editor"
     class="skb-editable"
+    :class="{ 'skb-editable--fallback': fallback }"
     contenteditable="plaintext-only"
     spellcheck="true"
     :data-placeholder="fallback || placeholder"
