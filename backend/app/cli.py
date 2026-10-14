@@ -1,8 +1,10 @@
 """Служебные команды: python -m app.cli bootstrap."""
 
 import asyncio
+import json
 import logging
 import sys
+from pathlib import Path
 
 from app.core.config import settings
 from app.core.security import hash_password
@@ -24,12 +26,35 @@ async def bootstrap() -> None:
                 print(f'Задан пароль администратора {email}')
 
 
+async def nocobase_fetch(target: str) -> None:
+    from app.legacy.nocobase import fetch
+
+    if not settings.nocobase_url or not settings.nocobase_api_key:
+        sys.exit('Задайте NOCOBASE_URL и NOCOBASE_API_KEY')
+    counts = await fetch(settings.nocobase_url, settings.nocobase_api_key, Path(target))
+    print(json.dumps(counts, ensure_ascii=False, indent=1))
+
+
+async def nocobase_load(source: str) -> None:
+    from app.legacy.nocobase import load
+
+    async with UnitOfWork() as uow:
+        report = await load(uow.session, Path(source))
+    print(json.dumps(report['counts'], ensure_ascii=False, indent=1))
+    print(f'Пропущено: { {k: len(v) for k, v in report["skipped"].items()} }')
+    print(f'Изменились баллы работ: {len(report["score_changes"])}. Подробно: {source}/report.json')
+
+
 def main() -> None:
-    command = sys.argv[1] if len(sys.argv) > 1 else ''
+    command, *args = sys.argv[1:] or ['']
     if command == 'bootstrap':
         asyncio.run(bootstrap())
+    elif command == 'nocobase-fetch' and args:
+        asyncio.run(nocobase_fetch(args[0]))
+    elif command == 'nocobase-load' and args:
+        asyncio.run(nocobase_load(args[0]))
     else:
-        print('Команды: bootstrap')
+        print('Команды: bootstrap | nocobase-fetch <каталог> | nocobase-load <каталог>')
         sys.exit(1)
 
 

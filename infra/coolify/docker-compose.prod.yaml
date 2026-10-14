@@ -1,0 +1,99 @@
+# Прод SK Events в Coolify: ресурс «Docker Compose» из этого репозитория, сборка на сервере.
+# Домены в интерфейсе Coolify:
+#   frontend → https://app.events.skolhub.ru          (API проксируется nginx на backend)
+#   sites    → https://events.skolhub.ru, https://*.events.skolhub.ru (wildcard — после DNS-01, docs/domains.md)
+# Переменные — из .env.prod (docs/deploy.md).
+
+x-backend: &backend
+  build:
+    context: ../../backend  # пути считаются от каталога этого файла
+    target: prod
+  restart: unless-stopped
+  environment: &backend-env
+    ENVIRONMENT: prod
+    SECRET_KEY: ${SECRET_KEY:?}
+    APP_URL: https://app.events.skolhub.ru
+    SITES_BASE_DOMAIN: events.skolhub.ru
+    CORS_ORIGINS: '["https://app.events.skolhub.ru"]'
+    BOOTSTRAP_ADMIN_EMAILS: ${BOOTSTRAP_ADMIN_EMAILS:?}
+    BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    DB__HOST: postgres
+    DB__USER: sk_events
+    DB__PASSWORD: ${DB__PASSWORD:?}
+    DB__NAME: sk_events
+    REDIS__HOST: redis
+    STORAGE_DIR: /data/files
+    SMTP__HOST: ${SMTP__HOST:-smtp.yandex.ru}
+    SMTP__PORT: ${SMTP__PORT:-465}
+    SMTP__USE_SSL: ${SMTP__USE_SSL:-true}
+    SMTP__USER: ${SMTP__USER:-}
+    SMTP__PASSWORD: ${SMTP__PASSWORD:-}
+    SMTP__SENDER: ${SMTP__SENDER:-SK Events <skolstream@yandex.ru>}
+    CAPTCHA__CLIENT_KEY: ${CAPTCHA__CLIENT_KEY:-}
+    CAPTCHA__SERVER_KEY: ${CAPTCHA__SERVER_KEY:-}
+    SITES_CNAME_TARGET: sites.events.skolhub.ru
+    SITES_UPSTREAM_URL: ${SITES_UPSTREAM_URL:-http://sites:3000}
+    TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
+    NOCOBASE_URL: ${NOCOBASE_URL:-}
+    NOCOBASE_API_KEY: ${NOCOBASE_API_KEY:-}
+  volumes:
+    - files_data:/data/files
+    - nocobase_data:/data/nocobase
+  depends_on: [postgres, redis]
+
+services:
+  backend:
+    <<: *backend
+    command: api
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 15s
+
+  worker:
+    <<: *backend
+    command: worker
+    healthcheck:
+      disable: true
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+      target: prod
+    restart: unless-stopped
+    depends_on: [backend]
+
+  sites:
+    build:
+      context: ../..
+      dockerfile: sites/Dockerfile
+      target: prod
+    restart: unless-stopped
+    environment:
+      NUXT_API_INTERNAL_URL: http://backend:8000
+      NUXT_PUBLIC_SITES_BASE_DOMAIN: events.skolhub.ru
+      NUXT_PUBLIC_APP_URL: https://app.events.skolhub.ru
+    depends_on: [backend]
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sk_events
+      POSTGRES_PASSWORD: ${DB__PASSWORD:?}
+      POSTGRES_DB: sk_events
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sk_events']
+      interval: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes: [redis_data:/data]
+
+volumes:
+  postgres_data:
+  redis_data:
+  files_data:
+  nocobase_data:

@@ -23,7 +23,7 @@
 - [x] docker-compose для разработки: Postgres, Redis, Mailpit, backend, worker, frontend, sites
 - [x] Линтеры и тесты: ruff, pytest, eslint, vitest
 - [x] CI: проверки на PR и main; сборка образов в GHCR (пока вручную)
-- [ ] Окружения UAT и PROD в Coolify (compose готов: `infra/coolify/docker-compose.uat.yaml`), бэкапы restic, метрики Prometheus
+- [ ] Окружения UAT и PROD в Coolify (compose и скрипт готовы, [deploy.md](deploy.md)), бэкапы restic, метрики Prometheus
 - [x] DNS: `events.skolhub.ru`
 - [ ] DNS: `app.events`, `*.events`, UAT-записи; доступ к API REG.RU для DNS-01
 - [x] Дизайн-токены и базовые компоненты интерфейса (страница `/ui`)
@@ -102,6 +102,6 @@
 
 - [ ] Итоги в портфолио SkolStream (`Event` и `EventParticipation`)
 - [ ] Выбор работы из проектов ученика в SkolStream
-- [ ] Импорт архива из NocoBase с пересчётом баллов ([legacy/nocobase.md](legacy/nocobase.md))
+- [ ] Импорт архива из NocoBase с пересчётом баллов ([legacy/nocobase.md](legacy/nocobase.md)): импортёр готов (`nocobase-fetch` / `nocobase-load`), запуск на проде
 - [ ] Пилот на реальном мероприятии, инструкции для организаторов и судей
 - [ ] Переключение `contest.skolhub.ru`, удаление `docker-compose.prod.yaml` старого приложения

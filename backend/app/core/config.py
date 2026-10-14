@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     bootstrap_admin_emails: list[str] = []
     # Начальный пароль этих администраторов (задаётся один раз, пока пароля нет)
     bootstrap_admin_password: str = ''
+    # Перенос истории из NocoBase (python -m app.cli nocobase-fetch)
+    nocobase_url: str = ''
+    nocobase_api_key: str = ''
 
     db: DatabaseSettings = DatabaseSettings()
     redis: RedisSettings = RedisSettings()

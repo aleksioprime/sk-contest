@@ -57,4 +57,5 @@ ID — snowflake `bigint` (около 3,6·10¹⁴, укладываются в 
 - Переносить только конкурсные коллекции и персоны, на которые они ссылаются.
 - Сохранять ID. Персоны сопоставлять со SkolStream по `skolstream_id`, внешних — по email и ФИО.
 - После импорта пересчитать `evaluation.score`, `work.score`, `rank` новым сервисом и сохранить отчёт о расхождениях.
+- Импортёр: `backend/app/legacy/nocobase.py`, запуск — [deploy.md](../deploy.md#5-перенос-истории-из-nocobase). `judge_id` в оценках и судьи листа — это `persons.id`; email судьи берётся у персоны или у её `user_id`.
 - Доступ к БД: контейнер `postgres-sqmxcid4dudu798swhzfnwbw` на сервере Coolify; API: ключ в `NOCOBASE_API_KEY`.
