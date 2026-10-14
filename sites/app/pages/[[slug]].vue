@@ -1,21 +1,18 @@
 <script setup>
 import { SitePage } from '@sk-events/blocks'
 
-const { target, site } = useSite()
+const { site } = await useSite()
 const config = useRuntimeConfig()
-
-if (target.kind === 'unknown') {
-  throw createError({ statusCode: 404, statusMessage: 'Сайт не найден' })
-}
 
 useSeoMeta({
   title: site ? site.title : 'SK Events',
-  description: site ? undefined : 'Мероприятия Гимназии Сколково',
+  description: site ? site.description : 'Мероприятия Гимназии Сколково',
+  ogTitle: site ? site.title : 'SK Events',
 })
 </script>
 
 <template>
-  <SitePage v-if="site" :page="site.page" :theme="site.theme" :event="site.event" />
+  <SitePage v-if="site" :page="site.page" :theme="site.theme" :event="site.event" phase="registration" />
   <main v-else class="root">
     <h1>SK Events</h1>
     <p>Мероприятия Гимназии Сколково.</p>

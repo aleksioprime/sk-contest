@@ -84,7 +84,7 @@ services:
       NUXT_PUBLIC_APP_URL: http://localhost:8501
     volumes:
       - ./sites/app:/repo/sites/app
-      - ./sites/shared:/repo/sites/shared
+      - ./sites/lib:/repo/sites/lib
       - ./packages/blocks/src:/repo/packages/blocks/src
     ports: ['8502:3000']
     depends_on: [backend]

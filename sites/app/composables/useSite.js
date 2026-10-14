@@ -1,32 +1,23 @@
-import { createBlockInstance, getBlock } from '@sk-events/blocks'
-import { resolveSite } from '~~/shared/resolve-site.js'
+import { buildEventPage } from '~~/lib/event-page.js'
+import { resolveSite } from '~~/lib/resolve-site.js'
 
 /**
- * Опубликованный сайт для текущего запроса.
- * Этап 0: API сайтов ещё нет, поэтому для любого slug отдаётся демонстрационная страница.
- * На этапе 6 здесь будет запрос к /api/v1/sites/resolve.
+ * Сайт для текущего запроса: определяется по Host и пути, данные — из публичного API мероприятия.
+ * Свои домены подключаются на этапе 6, пока для них сайт не находится.
  */
-export function useSite() {
+export async function useSite() {
   const config = useRuntimeConfig()
   const url = useRequestURL()
   const target = resolveSite(url.host, url.pathname, config.public.sitesBaseDomain)
 
-  if (target.kind === 'root' || target.kind === 'unknown') {
-    return { target, site: null }
-  }
-  return { target, site: demoSite(target.slug ?? target.domain) }
-}
+  if (target.kind === 'root') return { target, site: null }
+  if (!target.slug) throw createError({ statusCode: 404, statusMessage: 'Сайт не найден' })
 
-function demoSite(name) {
-  const hero = createBlockInstance(getBlock('hero'), 'hero')
-  hero.props.eyebrow = 'Сайт мероприятия'
-  hero.props.title = name
-  hero.props.subtitle = 'Лендинг ещё не опубликован. Организатор соберёт его в конструкторе SK Events.'
-  hero.props.ctaLabel = ''
-  return {
-    title: name,
-    theme: {},
-    event: {},
-    page: { blocks: [hero] },
+  const { data, error } = await useAsyncData(`event:${target.slug}`, () =>
+    $fetch(`/api/v1/public/events/${target.slug}`, { baseURL: config.apiInternalUrl }),
+  )
+  if (error.value || !data.value) {
+    throw createError({ statusCode: 404, statusMessage: 'Мероприятие не найдено' })
   }
+  return { target, site: buildEventPage(data.value, config.public.appUrl) }
 }

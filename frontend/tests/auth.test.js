@@ -32,3 +32,21 @@ describe('errorMessage', () => {
     expect(errorMessage({ response: { data: { detail: [{}] } } })).toBe('Проверьте правильность заполнения полей')
   })
 })
+
+describe('slugify', async () => {
+  const { slugify } = await import('@/api/events')
+  it('транслитерирует название в адрес', () => {
+    expect(slugify('SkolStart 2027')).toBe('skolstart-2027')
+    expect(slugify('Юный исследователь — весна!')).toBe('yunyy-issledovatel-vesna')
+    expect(slugify('  --Тест--  ')).toBe('test')
+  })
+})
+
+describe('formatRange', async () => {
+  const { formatRange } = await import('@/utils/dates')
+  it('сокращает диапазон дат', () => {
+    expect(formatRange('2027-04-10', '2027-04-11')).toBe('10–11 апреля 2027')
+    expect(formatRange('2027-03-12', '2027-04-18')).toBe('12 марта – 18 апреля 2027')
+    expect(formatRange(null, null)).toBe('')
+  })
+})

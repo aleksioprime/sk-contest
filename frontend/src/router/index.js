@@ -15,8 +15,12 @@ export const routes = [
     path: '/',
     component: AppLayout,
     children: [
-      { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
-      { path: 'ui', name: 'ui-kit', component: () => import('@/views/UiKitView.vue') },
+      { path: '', name: 'home', redirect: { name: 'events' } },
+      { path: 'events', name: 'events', component: () => import('@/views/events/EventsView.vue') },
+      { path: 'events/new', name: 'event-new', component: () => import('@/views/events/EventCreateView.vue') },
+      { path: 'events/:id', name: 'event', component: () => import('@/views/events/EventView.vue'), props: true },
+      { path: 'system', name: 'system', component: () => import('@/views/HomeView.vue'), meta: { admin: true } },
+      { path: 'ui', name: 'ui-kit', component: () => import('@/views/UiKitView.vue'), meta: { admin: true } },
       {
         path: 'admin/people',
         name: 'admin-people',

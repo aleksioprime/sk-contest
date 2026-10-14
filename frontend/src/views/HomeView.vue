@@ -14,8 +14,8 @@ const labels = { database: 'PostgreSQL', redis: 'Redis' }
 <template>
   <div class="grid gap-6">
     <div>
-      <h1 class="text-2xl font-bold">Платформа мероприятий</h1>
-      <p class="mt-1 text-ink-muted">Этап 0: каркас приложения. Здесь видно, что frontend, API и инфраструктура связаны.</p>
+      <h1 class="text-2xl font-bold">Состояние системы</h1>
+      <p class="mt-1 text-ink-muted">Версия API и доступность базы данных и очереди.</p>
     </div>
 
     <p v-if="system.error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ system.error }}</p>

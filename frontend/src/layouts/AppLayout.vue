@@ -7,11 +7,11 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const links = computed(() => [
-  { to: { name: 'home' }, label: 'Главная' },
+  { to: { name: 'events' }, label: 'Мероприятия' },
   ...(auth.isAdmin
     ? [
         { to: { name: 'admin-people' }, label: 'Люди' },
-        { to: { name: 'ui-kit' }, label: 'Компоненты' },
+        { to: { name: 'system' }, label: 'Состояние' },
       ]
     : []),
 ])
@@ -36,7 +36,7 @@ async function logout() {
             :key="link.label"
             :to="link.to"
             class="whitespace-nowrap rounded-control px-3 py-1.5 text-ink-muted hover:bg-brand-50 hover:text-ink"
-            exact-active-class="!bg-brand-100 !text-brand-700"
+            active-class="!bg-brand-100 !text-brand-700"
           >
             {{ link.label }}
           </RouterLink>

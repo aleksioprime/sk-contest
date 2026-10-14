@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidSlug, resolveSite } from '../shared/resolve-site.js'
+import { isValidSlug, resolveSite } from '../lib/resolve-site.js'
 
 const BASE = 'events.skolhub.ru'
 
