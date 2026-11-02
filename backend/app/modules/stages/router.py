@@ -1,17 +1,17 @@
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Response, status
+from sk_common.audit import record
+from sk_common.deps import CurrentUser, Db
+from sk_common.people.models import User
+from sk_common.redis import get_redis
+from sk_common.security import now_utc
 from sqlalchemy import select
 
-from app.core.deps import CurrentUser, Db
-from app.core.redis import get_redis
-from app.core.security import now_utc
 from app.modules.applications.models import Application
-from app.modules.audit.service import record
 from app.modules.events.models import Event, Stage
 from app.modules.events.permissions import ensure_manage, ensure_view, roles_of
 from app.modules.events.service import get_by_slug, get_event
-from app.modules.people.models import User
 from app.modules.stages import service
 from app.modules.stages.documents import diplomas_pdf, program_xlsx
 from app.modules.stages.models import DefenseSlot, StageParticipation

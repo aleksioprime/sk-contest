@@ -25,8 +25,11 @@ SkolStream — платформа учебного процесса гимназ
       redirect `https://contest.skolhub.ru/api/v1/auth/skolstream/callback`, включить «Skip authorization»;
 - [ ] в Coolify: `SKOLSTREAM__CLIENT_ID`, `SKOLSTREAM__CLIENT_SECRET` (`SKOLSTREAM__BASE_URL` по умолчанию `https://skolstream.sk.ru`).
 
+Вход, справочник и синхронизация общие для школьных сервисов — пакет
+[sk-common](https://github.com/aleksioprime/sk-common) (`sk_common.auth`, `sk_common.people`, `sk_common.skolstream`).
+
 SK Contest запрашивает только `scope=read`, передаёт PKCE и представляется
-`SK-Contest/1.0 (+<APP_URL>)`: шлюз перед SkolStream отклоняет типовые заголовки библиотек.
+`SK-Contest/<версия> (+<APP_URL>)`: шлюз перед SkolStream отклоняет типовые заголовки библиотек.
 Сеть: внутренний DNS гимназии отдаёт для `skolstream.sk.ru` адрес ingress `10.2.35.66`, до которого
 из DMZ нет маршрута. Поэтому backend и worker в проде ходят на публичный адрес
 (`extra_hosts`, переменная `SKOLSTREAM__PUBLIC_IP`, по умолчанию `91.221.164.121`).
@@ -41,7 +44,7 @@ SK Contest запрашивает только `scope=read`, передаёт PK
 (`docs/guides/dev/directory-export.md` в SkolStream). Токен создаётся в админке SkolStream
 («Токены выгрузки справочника»), в Coolify — `SKOLSTREAM__DIRECTORY_TOKEN`.
 
-Расписание (`backend/app/workers/main.py`, `people/sync.py`):
+Расписание (`sk_common.worker`, `sk_common.people.sync`):
 - изменения — каждые 10 минут, от `generated_at` прошлого ответа SkolStream (его часы);
 - полный срез — ночью в 03:00: отключает пропавших, чистит журнал запусков старше 30 дней;
 - по кнопке в разделе «Люди»;
@@ -65,8 +68,8 @@ SK Contest запрашивает только `scope=read`, передаёт PK
 
 SK Contest вызывает `GET {SKOLSTREAM__BASE_URL}/api/v1/integrations/directory/` с заголовком
 `Authorization: Token {SKOLSTREAM__DIRECTORY_TOKEN}`. Параметр `updated_since` (ISO 8601) — только изменённые записи;
-без него — полный срез. Клиент: `backend/app/modules/people/skolstream.py`, применение: `apply_directory` в
-`backend/app/modules/people/service.py`.
+без него — полный срез. Клиент: `sk_common.skolstream`, применение: `apply_directory` в
+`sk_common.people.service`.
 
 ```json
 {

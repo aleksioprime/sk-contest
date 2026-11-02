@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Response, status
 from redis.asyncio import Redis
+from sk_common.db import get_engine
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.db import engine
 
 router = APIRouter(tags=['system'])
 
@@ -34,7 +34,7 @@ async def meta() -> dict:
 
 async def _check_database() -> bool:
     try:
-        async with engine.connect() as conn:
+        async with get_engine().connect() as conn:
             await conn.execute(text('select 1'))
         return True
     except Exception:

@@ -1,10 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
 
+from sk_common.db import Base, IdMixin, TimestampMixin
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base, IdMixin, TimestampMixin
 from app.modules.applications.models import Application
 
 ADMITTED, SCHEDULED, EVALUATED, PASSED, NOT_PASSED, WITHDRAWN = (

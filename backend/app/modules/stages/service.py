@@ -1,15 +1,15 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from sk_common.audit import record
+from sk_common.people.models import User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.applications.models import ACCEPTED, Application
-from app.modules.audit.service import record
 from app.modules.evaluation.models import Sheet, SheetWork
 from app.modules.evaluation.scoring import assign_ranks, round2
 from app.modules.events.models import Event, Stage
-from app.modules.people.models import User
 from app.modules.stages.models import (
     ADMITTED,
     EVALUATED,

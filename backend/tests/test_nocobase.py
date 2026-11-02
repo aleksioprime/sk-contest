@@ -1,13 +1,13 @@
 import json
 
 import pytest
+from sk_common.people.models import User
 from sqlalchemy import func, select
 
 from app.legacy.nocobase import load
 from app.modules.applications.models import Application
 from app.modules.evaluation.models import Evaluation, Sheet, SheetWork
 from app.modules.events.models import Event, EventMember
-from app.modules.people.models import User
 
 CONTEST = 360000000000001
 

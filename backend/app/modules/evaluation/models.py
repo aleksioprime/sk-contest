@@ -1,12 +1,12 @@
 from datetime import datetime
 from decimal import Decimal
 
+from sk_common.db import Base, IdMixin, TimestampMixin
+from sk_common.people.models import User
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base, IdMixin, TimestampMixin
 from app.modules.applications.models import Application
-from app.modules.people.models import User
 
 Points = Numeric(8, 2)
 

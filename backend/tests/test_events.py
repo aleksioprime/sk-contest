@@ -1,11 +1,11 @@
 from datetime import date
 
 import pytest
+from sk_common.auth.service import open_session
+from sk_common.people.service import get_user_by_email
+from sk_common.testing import login_as
 
 from app.core.config import settings
-from app.modules.auth.service import open_session
-from app.modules.people.service import get_user_by_email
-from tests.helpers import login_as
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
 

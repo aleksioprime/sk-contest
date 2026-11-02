@@ -1,9 +1,11 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from sk_common.audit import record
+from sk_common.deps import CurrentUser, Db
+from sk_common.people.models import User
+from sk_common.people.service import find_or_create_user_by_email
 
-from app.core.deps import CurrentUser, Db
-from app.modules.audit.service import record
 from app.modules.events import service
 from app.modules.events.models import Event
 from app.modules.events.permissions import can_create_event, can_manage, ensure_manage, ensure_view, roles_of
@@ -26,8 +28,6 @@ from app.modules.events.schemas import (
     StatusChange,
 )
 from app.modules.events.templates import EVENT_TYPES, TRANSITIONS
-from app.modules.people.models import User
-from app.modules.people.service import find_or_create_user_by_email
 
 router = APIRouter(prefix='/v1/events', tags=['events'])
 public_router = APIRouter(prefix='/v1/public/events', tags=['public'])

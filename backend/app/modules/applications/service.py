@@ -1,9 +1,12 @@
+from sk_common.audit import record
+from sk_common.people.models import User
+from sk_common.people.service import find_or_create_user_by_email
+from sk_common.queue import Queue
+from sk_common.security import now_utc
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.queue import Queue
-from app.core.security import now_utc
 from app.modules.applications import form as forms
 from app.modules.applications.models import (
     ACCEPTED,
@@ -21,12 +24,9 @@ from app.modules.applications.models import (
     ApplicationMember,
 )
 from app.modules.applications.schemas import ApplicationSave
-from app.modules.audit.service import record
 from app.modules.events.models import Event
 from app.modules.events.service import registration_open
 from app.modules.files.models import StoredFile
-from app.modules.people.models import User
-from app.modules.people.service import find_or_create_user_by_email
 
 STATUS_TITLES = {
     DRAFT: 'черновик',

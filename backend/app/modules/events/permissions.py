@@ -1,9 +1,9 @@
 """Права в мероприятии. Администратор платформы может всё; остальные — по ролям в event_members."""
 
 from fastapi import HTTPException, status
+from sk_common.people.models import User
 
 from app.modules.events.models import Event
-from app.modules.people.models import User
 
 
 def roles_of(user: User, event: Event) -> list[str]:

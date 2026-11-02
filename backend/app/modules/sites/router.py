@@ -1,16 +1,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sk_common.audit import record
+from sk_common.deps import CurrentUser, Db
+from sk_common.people.models import User
+from sk_common.redis import get_redis
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.deps import CurrentUser, Db
-from app.core.redis import get_redis
-from app.modules.audit.service import record
 from app.modules.events.models import Event
 from app.modules.events.permissions import ensure_manage, ensure_view
 from app.modules.events.service import get_by_slug, get_event
-from app.modules.people.models import User
 from app.modules.sites import domains as domain_service
 from app.modules.sites import service
 from app.modules.sites.content import ContentError

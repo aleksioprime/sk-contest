@@ -1,10 +1,9 @@
 from datetime import datetime
 
+from sk_common.db import Base, IdMixin, TimestampMixin
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.db import Base, IdMixin, TimestampMixin
 
 
 class Site(IdMixin, TimestampMixin, Base):

@@ -6,24 +6,12 @@ import logging
 import sys
 from pathlib import Path
 
+from sk_common.cli import bootstrap
+from sk_common.uow import UnitOfWork
+
 from app.core.config import settings
-from app.core.security import hash_password
-from app.core.uow import UnitOfWork
-from app.modules.people.service import find_or_create_user_by_email, set_employee
 
 logger = logging.getLogger('sk_contest.cli')
-
-
-async def bootstrap() -> None:
-    """Администраторы из BOOTSTRAP_ADMIN_EMAILS. Пароль BOOTSTRAP_ADMIN_PASSWORD задаётся, только если его ещё нет."""
-    async with UnitOfWork() as uow:
-        for email in settings.bootstrap_admin_emails:
-            user = await find_or_create_user_by_email(uow.session, email)
-            user.is_superuser = True
-            await set_employee(uow.session, user, True)
-            if settings.bootstrap_admin_password and not user.password_hash:
-                user.password_hash = hash_password(settings.bootstrap_admin_password)
-                print(f'Задан пароль администратора {email}')
 
 
 async def nocobase_fetch(target: str) -> None:

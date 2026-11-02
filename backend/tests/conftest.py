@@ -17,15 +17,15 @@ from pathlib import Path  # noqa: E402
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sk_common import redis as redis_module  # noqa: E402
+from sk_common.db import get_session_maker  # noqa: E402
+from sk_common.queue import get_queue  # noqa: E402
+from sk_common.skolstream import get_skolstream_client  # noqa: E402
+from sk_common.testing import FakeQueue, FakeSkolstream  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from app.core import redis as redis_module  # noqa: E402
 from app.core.config import settings  # noqa: E402
-from app.core.db import session_maker  # noqa: E402
-from app.core.queue import get_queue  # noqa: E402
 from app.main import create_app  # noqa: E402
-from app.modules.people.skolstream import get_skolstream_client  # noqa: E402
-from tests.fakes import FakeQueue, FakeSkolstream  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 ORIGIN = 'http://localhost:8501'
@@ -63,7 +63,7 @@ async def db(database_ready):
     """Чистая БД для теста."""
     if not database_ready:
         pytest.skip('PostgreSQL недоступна')
-    async with session_maker() as session:
+    async with get_session_maker()() as session:
         tables = await session.scalars(
             text("select tablename from pg_tables where schemaname = 'public' and tablename != 'alembic_version'")
         )

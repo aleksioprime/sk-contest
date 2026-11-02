@@ -1,7 +1,7 @@
 import pytest
+from sk_common.security import hash_password, verify_password
+from sk_common.testing import login_as
 
-from app.core.security import hash_password, verify_password
-from tests.helpers import login_as
 from tests.test_applications import _other
 from tests.test_evaluation import _prepared_sheet
 

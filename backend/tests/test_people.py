@@ -1,15 +1,14 @@
 import uuid
 
 import pytest
+from sk_common.people.models import Department, Person, StudyClass, SyncRun
+from sk_common.people.service import apply_directory
+from sk_common.people.sync import STALE_RUN, run_directory_sync, start_scheduled_sync
+from sk_common.security import now_utc
+from sk_common.testing import STUDENT_ID, TEACHER_ID, directory_payload, login_as
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.security import now_utc
-from app.modules.people.models import Department, Person, StudyClass, SyncRun
-from app.modules.people.service import apply_directory
-from app.modules.people.sync import STALE_RUN, run_directory_sync, start_scheduled_sync
-from tests.fakes import STUDENT_ID, TEACHER_ID, directory_payload
-from tests.helpers import login_as
 
 
 async def _person(db, skolstream_id):
