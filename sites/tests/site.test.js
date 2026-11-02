@@ -12,7 +12,7 @@ const event = {
   directions: [],
   stages: [],
 }
-const APP = 'https://app.events.skolhub.ru'
+const APP = 'https://contest.skolhub.ru'
 
 describe('buildSite', () => {
   it('без опубликованной версии собирает сайт по шаблону типа мероприятия', () => {

@@ -1,6 +1,6 @@
 <script setup>
 /** Повторяющиеся элементы блока: добавить, удалить, перетащить, развернуть для правки. */
-import { defaultProps } from '@sk-events/blocks'
+import { defaultProps } from '@sk-contest/blocks'
 import { ref } from 'vue'
 import PropField from './PropField.vue'
 

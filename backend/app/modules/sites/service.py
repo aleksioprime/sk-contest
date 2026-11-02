@@ -22,7 +22,7 @@ from app.modules.sites.models import Site, SiteDomain, SiteVersion
 from app.modules.stages.models import WITHDRAWN, DefenseSlot, StageParticipation
 from app.modules.stages.service import published_winners
 
-logger = logging.getLogger('sk_events.sites')
+logger = logging.getLogger('sk_contest.sites')
 
 CACHE_TTL = 120
 ACTIVE_APPLICATIONS = (SUBMITTED, NEEDS_CHANGES, ACCEPTED)

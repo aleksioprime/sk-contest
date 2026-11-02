@@ -18,10 +18,10 @@ import dns.resolver
 
 from app.core.config import settings
 
-logger = logging.getLogger('sk_events.domains')
+logger = logging.getLogger('sk_contest.domains')
 
 DOMAIN_RE = re.compile(r'^(?=.{4,253}$)(?!-)(?:[a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,63}$')
-BASE_FILE = 'sk-events-sites.yaml'
+BASE_FILE = 'sk-contest-sites.yaml'
 
 
 class DomainError(Exception):
@@ -73,7 +73,7 @@ class ResolverChecker:
             return f'Для {domain} нет записи. Создайте CNAME на {target}'
         if ours and theirs <= ours:
             return None
-        return f'{domain} указывает не на SK Events ({", ".join(sorted(theirs))}). Нужен CNAME на {target}'
+        return f'{domain} указывает не на SK Contest ({", ".join(sorted(theirs))}). Нужен CNAME на {target}'
 
 
 _checker = ResolverChecker()
@@ -91,7 +91,7 @@ def _dir() -> Path | None:
 
 
 def _route_name(domain: str) -> str:
-    return 'sk-events-' + re.sub(r'[^a-z0-9]+', '-', domain)
+    return 'sk-contest-' + re.sub(r'[^a-z0-9]+', '-', domain)
 
 
 def _file(domain: str) -> str:
@@ -102,11 +102,11 @@ def base_config() -> str:
     return (
         'http:\n'
         '  middlewares:\n'
-        '    sk-events-https:\n'
+        '    sk-contest-https:\n'
         '      redirectScheme:\n'
         '        scheme: https\n'
         '  services:\n'
-        '    sk-events-sites:\n'
+        '    sk-contest-sites:\n'
         '      loadBalancer:\n'
         '        servers:\n'
         f'          - url: "{settings.sites_upstream_url}"\n'
@@ -121,14 +121,14 @@ def route_config(domain: str) -> str:
         f'    {name}:\n'
         f'      rule: "Host(`{domain}`)"\n'
         '      entryPoints: [https]\n'
-        '      service: sk-events-sites\n'
+        '      service: sk-contest-sites\n'
         '      tls:\n'
         f'        certResolver: {settings.traefik_certresolver}\n'
         f'    {name}-http:\n'
         f'      rule: "Host(`{domain}`)"\n'
         '      entryPoints: [http]\n'
-        '      middlewares: [sk-events-https]\n'
-        '      service: sk-events-sites\n'
+        '      middlewares: [sk-contest-https]\n'
+        '      service: sk-contest-sites\n'
     )
 
 

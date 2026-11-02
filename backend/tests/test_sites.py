@@ -144,12 +144,12 @@ async def test_custom_domain(db, client, tmp_path, monkeypatch):
     site = (await client.post(f'/api/v1/site-domains/{domain["id"]}/check')).json()
     assert site['domains'][0]['status'] == 'active'
     assert site['urls'][0] == 'https://konkurs.school.ru'
-    route = (tmp_path / 'sk-events-konkurs-school-ru.yaml').read_text()
+    route = (tmp_path / 'sk-contest-konkurs-school-ru.yaml').read_text()
     assert 'Host(`konkurs.school.ru`)' in route and 'certResolver' in route
-    assert (tmp_path / 'sk-events-sites.yaml').exists()
+    assert (tmp_path / 'sk-contest-sites.yaml').exists()
 
     public = (await client.get('/api/v1/public/sites/by-domain/konkurs.school.ru')).json()
     assert public['event']['slug'] == SLUG and public['domain'] == 'konkurs.school.ru'
 
     await client.delete(f'/api/v1/site-domains/{domain["id"]}')
-    assert not (tmp_path / 'sk-events-konkurs-school-ru.yaml').exists()
+    assert not (tmp_path / 'sk-contest-konkurs-school-ru.yaml').exists()

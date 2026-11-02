@@ -19,7 +19,7 @@ from app.modules.evaluation.models import Evaluation, Sheet, SheetWork
 from app.modules.evaluation.service import NO_EMAIL_DOMAIN
 from app.modules.events.models import Event
 
-logger = logging.getLogger('sk_events.reminders')
+logger = logging.getLogger('sk_contest.reminders')
 
 DRAFT_REMIND_BEFORE = timedelta(hours=48)
 JUDGE_REMIND_BEFORE = timedelta(hours=24)

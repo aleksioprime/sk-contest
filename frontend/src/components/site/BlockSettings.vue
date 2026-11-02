@@ -1,5 +1,5 @@
 <script setup>
-import { BACKGROUNDS, VISIBILITY, getBlock } from '@sk-events/blocks'
+import { BACKGROUNDS, VISIBILITY, getBlock } from '@sk-contest/blocks'
 import { computed } from 'vue'
 import PropField from './PropField.vue'
 

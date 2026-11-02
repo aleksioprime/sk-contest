@@ -4,7 +4,7 @@
 Два шага, чтобы загрузку можно было повторять и проверять на копии данных:
 
     python -m app.cli nocobase-fetch /data/nocobase   # API NocoBase → JSON-файлы (только чтение)
-    python -m app.cli nocobase-load /data/nocobase    # JSON-файлы → база SK Events
+    python -m app.cli nocobase-load /data/nocobase    # JSON-файлы → база SK Contest
 
 ID записей сохраняются: новые ID из next_id() всегда больше ID NocoBase, пересечений нет.
 Баллы оценок, работ и места пересчитываются заново (в NocoBase часть посчитана по первым 20 оценкам),
@@ -48,7 +48,7 @@ from app.modules.people.models import Person, User
 from app.modules.people.service import normalize_email
 from app.modules.stages.models import StageParticipation
 
-logger = logging.getLogger('sk_events.nocobase')
+logger = logging.getLogger('sk_contest.nocobase')
 
 # Коллекция → связи, которые нужно получить вместе с записями
 COLLECTIONS: dict[str, list[str]] = {
@@ -108,7 +108,7 @@ async def fetch(base_url: str, api_key: str, target: Path, page_size: int = 500)
     return counts
 
 
-# --- Шаг 2: загрузка в SK Events ------------------------------------------------------------------
+# --- Шаг 2: загрузка в SK Contest ------------------------------------------------------------------
 
 
 def _read(source: Path, name: str) -> list[dict]:
@@ -168,8 +168,8 @@ class Loader:
         self.user_emails = {
             int(u['id']): u.get('email') for u in self.data['users'] if u.get('email')
         }  # NocoBase users ↔ persons по полю user_id у персоны, если есть
-        self.person_ids: dict[int, int] = {}  # id персоны NocoBase → id персоны SK Events
-        self.judge_users: dict[int, int] = {}  # id персоны NocoBase → id пользователя SK Events
+        self.person_ids: dict[int, int] = {}  # id персоны NocoBase → id персоны SK Contest
+        self.judge_users: dict[int, int] = {}  # id персоны NocoBase → id пользователя SK Contest
 
     def skip(self, kind: str, row_id, reason: str) -> None:
         self.report['skipped'][kind].append({'id': row_id, 'reason': reason})

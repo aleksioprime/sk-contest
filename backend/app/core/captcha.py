@@ -6,7 +6,7 @@ import httpx
 
 from app.core.config import settings
 
-logger = logging.getLogger('sk_events.captcha')
+logger = logging.getLogger('sk_contest.captcha')
 
 VALIDATE_URL = 'https://smartcaptcha.yandexcloud.net/validate'
 

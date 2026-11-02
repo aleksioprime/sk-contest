@@ -1,5 +1,5 @@
 <script setup>
-import { blocks } from '@sk-events/blocks'
+import { blocks } from '@sk-contest/blocks'
 
 const emit = defineEmits(['add', 'close'])
 </script>

@@ -1,4 +1,4 @@
-import { buildTemplate } from '@sk-events/blocks'
+import { buildTemplate } from '@sk-contest/blocks'
 import { describe, expect, it } from 'vitest'
 import { siteErrors } from '@/api/sites'
 

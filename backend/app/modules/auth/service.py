@@ -63,18 +63,18 @@ async def request_magic_link(
     minutes = settings.auth.magic_link_ttl_minutes
     text = (
         'Здравствуйте!\n\n'
-        f'Чтобы войти в SK Events, откройте ссылку:\n{link}\n\n'
+        f'Чтобы войти в SK Contest, откройте ссылку:\n{link}\n\n'
         f'Ссылка действует {minutes} минут и подходит для одного входа.\n'
         'Если вы не запрашивали вход, просто удалите это письмо.'
     )
     html = (
         '<p>Здравствуйте!</p>'
         f'<p><a href="{link}" style="display:inline-block;padding:12px 20px;background:#6d28d9;color:#fff;'
-        'border-radius:10px;text-decoration:none;font-weight:600">Войти в SK Events</a></p>'
+        'border-radius:10px;text-decoration:none;font-weight:600">Войти в SK Contest</a></p>'
         f'<p>Ссылка действует {minutes} минут и подходит для одного входа.</p>'
         '<p style="color:#666">Если вы не запрашивали вход, просто удалите это письмо.</p>'
     )
-    await queue.enqueue('send_email', email, 'Вход в SK Events', text, html)
+    await queue.enqueue('send_email', email, 'Вход в SK Contest', text, html)
 
 
 JUDGE_QR_TTL_MINUTES = 20

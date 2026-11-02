@@ -10,14 +10,14 @@ A-записи на IP сервера Coolify:
 
 | Запись | Для чего |
 |---|---|
-| `app.events.skolhub.ru` | приложение и API |
-| `events.skolhub.ru` | лендинги по пути `/slug` |
-| `*.events.skolhub.ru` | лендинги на поддоменах (сертификат — [domains.md](domains.md)) |
-| `sites.events.skolhub.ru` | цель CNAME для своих доменов организаторов |
+| `contest.skolhub.ru` | приложение и API |
+| `sites.contest.skolhub.ru` | лендинги по пути `/slug` |
+| `*.sites.contest.skolhub.ru` | лендинги на поддоменах (сертификат — [domains.md](domains.md)) |
+| `sites.contest.skolhub.ru` | цель CNAME для своих доменов организаторов |
 
 ## 2. Переменные
 
-Заполните раздел SK Events в `.env.prod` (файл не попадает в git): email и пароль первого администратора,
+Заполните раздел SK Contest в `.env.prod` (файл не попадает в git): email и пароль первого администратора,
 токен API Coolify; почту и капчу — когда появятся. `SECRET_KEY` и пароль БД уже сгенерированы.
 
 ## 3. Ресурс в Coolify
@@ -29,19 +29,19 @@ python3 infra/coolify/deploy.py --dry-run
 python3 infra/coolify/deploy.py
 ```
 
-Скрипт берёт проект, сервер и источник GitHub у старого приложения `contest`, создаёт ресурс `sk-events`,
-передаёт переменные из `.env.prod`, задаёт домены и запускает сборку.
+Скрипт создаёт ресурс `sk-contest` в проекте Contest панели `devops.skolhub.ru` (сервер `skl-web-app`),
+передаёт переменные из `.env.prod`, задаёт домены и запускает сборку. В `.env.prod` нужны
+`COOLIFY_URL=https://devops.skolhub.ru` и `COOLIFY_API_TOKEN`.
 
-Вручную: *New Resource → Private Repository (GitHub App) → main → Docker Compose*,
+Вручную: *New Resource → Public Repository → main → Docker Compose*,
 путь `/infra/coolify/docker-compose.prod.yaml`; переменные из `.env.prod`; домены
-`frontend` → `https://app.events.skolhub.ru`, `sites` → `https://events.skolhub.ru`.
+`frontend` → `https://contest.skolhub.ru`, `sites` → `https://sites.contest.skolhub.ru`.
 
-Коммиты в `main` пересобирают и старое приложение `contest.skolhub.ru` (оно берёт готовые образы, это только перезапуск),
-пока его не отключат при переключении.
+DNS: `contest.skolhub.ru` и `*.contest.skolhub.ru` (для `sites.contest.skolhub.ru`) — A‑записи на `5.252.65.50`.
 
 ## 4. Первый вход
 
-`https://app.events.skolhub.ru` → «По паролю» → email и пароль из `BOOTSTRAP_ADMIN_*`.
+`https://contest.skolhub.ru` → «По паролю» → email и пароль из `BOOTSTRAP_ADMIN_*`.
 В разделе «Люди» администратор создаёт сотрудников (они могут создавать мероприятия) и задаёт им пароли.
 
 ## 5. Перенос истории из NocoBase
@@ -54,7 +54,7 @@ NOCOBASE_URL=https://flow.skolhub.ru NOCOBASE_API_KEY=… python -m app.cli noco
 python -m app.cli nocobase-load /data/nocobase   # в контейнере backend на сервере
 ```
 
-Первая команда только читает API NocoBase и сохраняет коллекции в JSON. Вторая переносит конкурсы в архив SK Events с исходными ID, пересчитывает баллы и места
+Первая команда только читает API NocoBase и сохраняет коллекции в JSON. Вторая переносит конкурсы в архив SK Contest с исходными ID, пересчитывает баллы и места
 и пишет `report.json`: что пропущено и у каких работ изменился балл (в NocoBase часть баллов посчитана
 по первым 20 оценкам). Повторный запуск не дублирует уже перенесённые конкурсы.
 

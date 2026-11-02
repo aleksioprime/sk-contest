@@ -4,8 +4,8 @@
 
 ```mermaid
 flowchart TB
-  V[Посетитель лендинга] --> T1["Traefik: *.events.skolhub.ru, свои домены"]
-  U[Участник, судья, организатор] --> T2["Traefik: app.events.skolhub.ru"]
+  V[Посетитель лендинга] --> T1["Traefik: *.sites.contest.skolhub.ru, свои домены"]
+  U[Участник, судья, организатор] --> T2["Traefik: contest.skolhub.ru"]
   T1 --> SITES["sites: Nuxt 4 SSR"]
   T2 --> APP["frontend: Vue 3 SPA"]
   SITES --> API["backend: FastAPI /api/v1"]
@@ -72,9 +72,9 @@ docs/
 
 | Адрес | Что |
 |---|---|
-| `app.events.skolhub.ru` | приложение и API (`/api/v1`) |
-| `events.skolhub.ru/<slug>` | тот же лендинг по пути |
-| `<slug>.events.skolhub.ru` | лендинг, wildcard-сертификат через DNS-01 |
+| `contest.skolhub.ru` | приложение и API (`/api/v1`) |
+| `sites.contest.skolhub.ru/<slug>` | тот же лендинг по пути |
+| `<slug>.sites.contest.skolhub.ru` | лендинг, wildcard-сертификат через DNS-01 |
 | свой домен | лендинг, CNAME + сертификат HTTP-01 через динамическую конфигурацию Traefik |
 
 Настройка DNS, сертификатов и Traefik: [domains.md](domains.md).

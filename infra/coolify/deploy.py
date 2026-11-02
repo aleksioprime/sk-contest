@@ -1,11 +1,12 @@
 """
-Развёртывание SK Events в Coolify через API.
+Развёртывание SK Contest в Coolify через API.
 
     python3 infra/coolify/deploy.py            # создать ресурс (если нет), обновить переменные и домены, запустить сборку
     python3 infra/coolify/deploy.py --dry-run  # показать, что будет сделано
 
 Берёт COOLIFY_URL, COOLIFY_API_TOKEN и переменные приложения из .env.prod.
-Ресурс создаётся в проекте Events; сервер — тот же, что у старого приложения «contest» (LEGACY_APP).
+Ресурс создаётся в проекте Contest панели devops.skolhub.ru на сервере skl-web-app (SERVER_UUID,
+можно переопределить переменной COOLIFY_SERVER_UUID в .env.prod).
 Репозиторий публичный, сборка из ветки main.
 Только стандартная библиотека Python.
 """
@@ -19,13 +20,14 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LEGACY_APP = 'xbzrf3pmtpyslst9d29fuy68'
-NAME = 'sk-events'
-PROJECT = 'Events'
+SERVER_UUID = 'feegypobpdovhjxk74klesbn'  # skl-web-app (localhost панели devops.skolhub.ru)
+REPOSITORY = 'https://github.com/aleksioprime/sk-contest'
+NAME = 'sk-contest'
+PROJECT = 'Contest'
 COMPOSE = '/infra/coolify/docker-compose.prod.yaml'
 DOMAINS = {
-    'frontend': 'https://app.events.skolhub.ru',
-    'sites': 'https://events.skolhub.ru',
+    'frontend': 'https://contest.skolhub.ru',
+    'sites': 'https://sites.contest.skolhub.ru',
 }
 # Переменные из .env.prod, которые передаются в Coolify (остальные строки файла — старое приложение и служебные)
 APP_VARS = [
@@ -83,7 +85,6 @@ def main() -> None:
     project = next((p for p in api.call('GET', '/projects') if p['name'] == PROJECT), None)
     if project is None:
         sys.exit(f'Создайте в Coolify проект {PROJECT}')
-    legacy = api.call('GET', f'/applications/{LEGACY_APP}')  # сервер и destination — как у старого приложения
     apps = api.call('GET', '/applications')
     app = next((a for a in apps if a.get('name') == NAME), None)
 
@@ -91,15 +92,14 @@ def main() -> None:
         body = {
             'project_uuid': project['uuid'],
             'environment_name': 'production',
-            'server_uuid': legacy['destination']['server']['uuid'],
-            'destination_uuid': legacy['destination']['uuid'],
-            'git_repository': f'https://github.com/{legacy["git_repository"]}',
+            'server_uuid': env.get('COOLIFY_SERVER_UUID') or SERVER_UUID,
+            'git_repository': REPOSITORY,
             'git_branch': 'main',
             'build_pack': 'dockercompose',
             'docker_compose_location': COMPOSE,
             'ports_exposes': '80',
             'name': NAME,
-            'description': 'SK Events: мероприятия, заявки, оценивание, лендинги',
+            'description': 'SK Contest: конкурсы, заявки, оценивание, лендинги',
             'instant_deploy': False,
         }
         print('Создаю ресурс', json.dumps({k: v for k, v in body.items() if 'uuid' not in k}, ensure_ascii=False))

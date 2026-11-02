@@ -215,7 +215,7 @@ watch(() => props.id, load, { immediate: true })
           <h1 class="text-2xl font-bold">{{ event.title }}</h1>
           <UiBadge :tone="STATUS_TONES[event.status]">{{ STATUS_LABELS[event.status] }}</UiBadge>
         </div>
-        <p class="mt-1 text-sm text-ink-muted">{{ event.slug }}.events.skolhub.ru</p>
+        <p class="mt-1 text-sm text-ink-muted">{{ event.slug }}.sites.contest.skolhub.ru</p>
       </div>
       <div v-if="event.can_manage" class="flex flex-wrap gap-2">
         <RouterLink
@@ -279,7 +279,7 @@ watch(() => props.id, load, { immediate: true })
           <template #title>Описание</template>
           <div class="grid gap-4">
             <UiInput v-model="form.title" label="Название" />
-            <UiInput v-model="form.slug" label="Адрес" :hint="`${form.slug}.events.skolhub.ru`" />
+            <UiInput v-model="form.slug" label="Адрес" :hint="`${form.slug}.sites.contest.skolhub.ru`" />
             <UiInput v-model="form.short_description" label="Кратко" hint="Одна-две фразы для карточки и обложки лендинга" maxlength="300" />
             <label class="grid gap-1.5 text-sm">
               <span class="font-medium">Подробное описание</span>

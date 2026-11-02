@@ -18,7 +18,7 @@ from app.modules.reminders.service import run_hourly
 from app.modules.sites.domains import get_dns_checker
 from app.modules.sites.service import recheck_pending_domains
 
-logger = logging.getLogger('sk_events.worker')
+logger = logging.getLogger('sk_contest.worker')
 
 
 async def send_email(ctx: dict, to: str, subject: str, text: str, html: str | None = None) -> None:

@@ -1,11 +1,11 @@
 # Интеграция со SkolStream
 
 SkolStream — платформа учебного процесса гимназии (`~/develop/skolstream`, Django + DRF, UUID-ключи).
-Источник истины для учеников, сотрудников, классов и подразделений. Внешние участники ведутся в SK Events.
+Источник истины для учеников, сотрудников, классов и подразделений. Внешние участники ведутся в SK Contest.
 
 ## Что берём
 
-| SkolStream | Поля | SK Events |
+| SkolStream | Поля | SK Contest |
 |---|---|---|
 | `users.User` | UUID, ФИО с отчеством, email, пол, `dnevnik_id`, `is_active`, группы-роли | `persons` (student, employee) + учётная запись |
 | `academics.StudyGroup` | учебный год, параллель, буква, ученики, сотрудники | `classes`, `persons.current_class` |
@@ -17,11 +17,11 @@ SkolStream — платформа учебного процесса гимназ
 ## Вход
 
 - SkolStream — OAuth2-провайдер на `django-oauth-toolkit` (`/o/`), вместо стандартного токена выдаёт SimpleJWT (`core/oauth2.py`).
-- SK Events регистрируется как приложение (authorization code). Обмен кода на токен идёт на backend, затем запрос профиля, поиск персоны по `skolstream_id`.
+- SK Contest регистрируется как приложение (authorization code). Обмен кода на токен идёт на backend, затем запрос профиля, поиск персоны по `skolstream_id`.
 - OIDC не настроен (id_token закомментирован в `core/models.py`), поэтому профиль берём через API.
 
 Нужно в SkolStream:
-- [ ] зарегистрировать OAuth2-приложение SK Events (UAT и PROD), redirect `https://app.events.skolhub.ru/auth/skolstream/callback`;
+- [ ] зарегистрировать OAuth2-приложение SK Contest (UAT и PROD), redirect `https://contest.skolhub.ru/auth/skolstream/callback`;
 - [ ] включить `PKCE_REQUIRED`;
 - [ ] эндпоинт профиля текущего пользователя (если нет): id, ФИО, email, тип, класс, подразделения.
 
@@ -35,9 +35,9 @@ SkolStream — платформа учебного процесса гимназ
 Правила:
 - upsert по UUID, ночью и по кнопке;
 - пропавшие в SkolStream записи получают `is_active=false` и не удаляются (на них ссылаются заявки и оценки);
-- поля из SkolStream в SK Events только для чтения, локально редактируются только внешние персоны;
+- поля из SkolStream в SK Contest только для чтения, локально редактируются только внешние персоны;
 - внешнего, который позже появился в SkolStream, сливаем по email;
-- роли SkolStream не переносим, права назначаются в SK Events.
+- роли SkolStream не переносим, права назначаются в SK Contest.
 
 ## Портфолио
 
@@ -47,7 +47,7 @@ SkolStream — платформа учебного процесса гимназ
 
 ## Контракт выгрузки справочников
 
-SK Events вызывает `GET {SKOLSTREAM__BASE_URL}/api/v1/integrations/directory/` с заголовком
+SK Contest вызывает `GET {SKOLSTREAM__BASE_URL}/api/v1/integrations/directory/` с заголовком
 `Authorization: Token {SKOLSTREAM__DIRECTORY_TOKEN}`. Параметр `updated_since` (ISO 8601) — только изменённые записи;
 без него — полный срез. Клиент: `backend/app/modules/people/skolstream.py`, применение: `apply_directory` в
 `backend/app/modules/people/service.py`.
@@ -79,7 +79,7 @@ SK Events вызывает `GET {SKOLSTREAM__BASE_URL}/api/v1/integrations/direc
 }
 ```
 
-Поведение SK Events:
+Поведение SK Contest:
 - запись ищется по `id` (UUID SkolStream), поля перезаписываются;
 - при полном срезе пользователи, классы и подразделения, которых нет в ответе, помечаются неактивными;
 - внешние участники (зарегистрированные по email) синхронизацией не затрагиваются;

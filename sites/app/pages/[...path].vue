@@ -1,5 +1,5 @@
 <script setup>
-import { SitePage, themeFontsHref } from '@sk-events/blocks'
+import { SitePage, themeFontsHref } from '@sk-contest/blocks'
 
 const { site } = await useSite()
 const config = useRuntimeConfig()
@@ -25,7 +25,7 @@ if (site) {
     script: site.seo.metrika ? [{ key: 'metrika', innerHTML: metrikaCode(site.seo.metrika) }] : [],
   })
 } else {
-  useSeoMeta({ title: 'SK Events', description: 'Мероприятия Гимназии Сколково' })
+  useSeoMeta({ title: 'SK Contest', description: 'Мероприятия Гимназии Сколково' })
 }
 
 /** Счётчик Яндекс.Метрики: номер счётчика проверен на сервере (только цифры). */
@@ -38,7 +38,7 @@ function metrikaCode(id) {
 <template>
   <SitePage v-if="site" :page="site.page" :theme="site.theme" :data="site.data" :phase="site.phase" />
   <main v-else class="root">
-    <h1>SK Events</h1>
+    <h1>SK Contest</h1>
     <p>Мероприятия Гимназии Сколково.</p>
     <a :href="config.public.appUrl">Перейти в кабинет</a>
   </main>

@@ -1,5 +1,5 @@
 <script setup>
-import '@sk-events/blocks/styles.css'
+import '@sk-contest/blocks/styles.css'
 import {
   EDITOR_KEY,
   SitePage,
@@ -12,7 +12,7 @@ import {
   setPath,
   sitePhase,
   themeFontsHref,
-} from '@sk-events/blocks'
+} from '@sk-contest/blocks'
 import { computed, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { RouterLink, onBeforeRouteLeave } from 'vue-router'
 import { fetchEvent } from '@/api/events'

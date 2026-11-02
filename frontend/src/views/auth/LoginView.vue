@@ -84,7 +84,7 @@ async function submitLink() {
     <div class="w-full max-w-sm">
       <div class="mb-8 flex items-center gap-2 text-lg font-semibold">
         <img src="/favicon.svg" alt="" class="size-8" />
-        SK Events
+        SK Contest
       </div>
 
       <div v-if="sentTo" class="rounded-card border border-line bg-surface p-6">

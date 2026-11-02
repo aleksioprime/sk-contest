@@ -1,5 +1,5 @@
 {
-  "name": "@sk-events/sites",
+  "name": "@sk-contest/sites",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "vitest": "^5.0.2"
   },
   "dependencies": {
-    "@sk-events/blocks": "^0.1.0",
+    "@sk-contest/blocks": "^0.1.0",
     "nuxt": "^4.5.2"
   }
 }
