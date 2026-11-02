@@ -48,7 +48,7 @@ async function start() {
   <main class="mx-auto grid max-w-2xl gap-6 px-4 py-8">
     <div class="flex items-center gap-2 font-semibold">
       <img src="/favicon.svg" alt="" class="size-7" />
-      SK Events
+      SK Contest
     </div>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
     <SkeletonPage v-else-if="!work" :cards="2" />

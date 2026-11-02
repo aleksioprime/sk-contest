@@ -87,7 +87,7 @@ export default defineBlock({
 
 - Публикация фиксирует версию сайта; `sites` рендерит её по Host, кэш в Redis сбрасывается при публикации.
 - SEO: title, description, OG-картинка, sitemap, robots, ID Яндекс.Метрики.
-- Поддомен `<slug>.events.skolhub.ru`: wildcard DNS + один wildcard-сертификат (DNS-01).
+- Поддомен `<slug>.sites.contest.skolhub.ru`: wildcard DNS + один wildcard-сертификат (DNS-01).
 - Свой домен: организатор добавляет домен → инструкция с CNAME → проверка DNS → worker пишет файл в динамическую конфигурацию coolify-proxy (роутер на Host, certresolver HTTP-01) → статус «активен».
-- Регистрация с лендинга ведёт в кабинет на `app.events.skolhub.ru`: лендинг не обращается к API из браузера, поэтому CORS для своих доменов не нужен.
+- Регистрация с лендинга ведёт в кабинет на `contest.skolhub.ru`: лендинг не обращается к API из браузера, поэтому CORS для своих доменов не нужен.
 - Подробно о DNS и сертификатах: [domains.md](domains.md).

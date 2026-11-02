@@ -32,7 +32,7 @@ from app.modules.people.schemas import UserOut
 from app.modules.people.service import ensure_user, upsert_person_from_profile
 from app.modules.people.skolstream import SkolstreamClient, SkolstreamError, get_skolstream_client
 
-logger = logging.getLogger('sk_events.auth')
+logger = logging.getLogger('sk_contest.auth')
 
 router = APIRouter(prefix='/v1/auth', tags=['auth'])
 

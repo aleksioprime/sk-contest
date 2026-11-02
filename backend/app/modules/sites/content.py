@@ -60,7 +60,7 @@ class Asset(BaseModel):
     @classmethod
     def own_file(cls, value: str) -> str:
         if not ASSET_URL.match(value):
-            raise ValueError('Файл должен быть загружен в SK Events')
+            raise ValueError('Файл должен быть загружен в SK Contest')
         return value
 
 
@@ -120,7 +120,7 @@ def _clean_props(schema: dict, value: Any, where: str, errors: list[dict], files
     if 'file_id' in schema.get('properties', {}) and isinstance(value, dict):
         match = ASSET_URL.match(value.get('url', ''))
         if not match:
-            errors.append({'where': where, 'message': 'Файл должен быть загружен в SK Events'})
+            errors.append({'where': where, 'message': 'Файл должен быть загружен в SK Contest'})
             return value
         files.add(int(match.group(1)))
         return value

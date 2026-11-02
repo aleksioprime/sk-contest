@@ -25,7 +25,7 @@
 
 ## Окружение
 
-- Стек разработки: `docker compose -p sk-events up -d --build`, порты 8500–8511 (см. README).
+- Стек разработки: `docker compose -p sk-contest up -d --build`, порты 8500–8511 (см. README).
 - npm workspaces: `packages/*`, `frontend`, `sites`. Новые пакеты ставить с `--before=<дата двухнедельной давности>`.
 - Первичные ключи генерирует PostgreSQL (`next_id()`), модели наследуют `IdMixin` из `app/core/db.py`.
 - Python-окружение для запуска вне Docker: `backend/.venv` (uv, Python 3.12).
@@ -40,4 +40,4 @@
 
 - Код NocoBase-версии: ветка `archive/nocobase-v1`. Экраны судьи, наблюдателя и анонимной оценки переносить оттуда.
 - Формулы и ошибки старого подсчёта: [legacy/nocobase.md](legacy/nocobase.md).
-- `docker-compose.prod.yaml` в корне обслуживает старый прод `contest.skolhub.ru` через Coolify. Не удалять и не менять до переключения.
+- Старое приложение на NocoBase выведено из эксплуатации, его `docker-compose.prod.yaml` удалён; `contest.skolhub.ru` теперь обслуживает это приложение.

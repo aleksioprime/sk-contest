@@ -37,7 +37,7 @@ const payload = {
   results: [{ direction: 'Инженерия', winners: [{ rank: 1, award: 'winner', title: 'Умная теплица', participants: ['Иванова Анна'] }] }],
   program: [{ starts_at: '2027-04-18T07:00:00Z', ends_at: '2027-04-18T09:00:00Z', room: '301', title: 'Секция 1', stage: 'Финал', works: [{ number: 1, title: 'Умная теплица' }] }],
 }
-const data = buildSiteData(payload, { appUrl: 'https://app.events.skolhub.ru' })
+const data = buildSiteData(payload, { appUrl: 'https://contest.skolhub.ru' })
 
 describe('схема блока', () => {
   it('создаёт экземпляр с props и общими настройками по умолчанию', () => {

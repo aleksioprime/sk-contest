@@ -1,10 +1,10 @@
 /**
  * Определяет, какой сайт и какая его страница открыты, по заголовку Host и пути.
  *
- *   events.skolhub.ru/<slug>/<page>  → { kind: 'path', slug, page }
- *   <slug>.events.skolhub.ru/<page>  → { kind: 'subdomain', slug, page }
+ *   sites.contest.skolhub.ru/<slug>/<page>  → { kind: 'path', slug, page }
+ *   <slug>.sites.contest.skolhub.ru/<page>  → { kind: 'subdomain', slug, page }
  *   свой домен/<page>                → { kind: 'custom', domain, page }
- *   events.skolhub.ru без пути       → { kind: 'root' }
+ *   sites.contest.skolhub.ru без пути       → { kind: 'root' }
  */
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/

@@ -1,5 +1,5 @@
 <script setup>
-import { FONT_PAIRS, RADII, THEME_PRESETS } from '@sk-events/blocks'
+import { FONT_PAIRS, RADII, THEME_PRESETS } from '@sk-contest/blocks'
 import ImageField from './ImageField.vue'
 
 const props = defineProps({ theme: { type: Object, required: true } })

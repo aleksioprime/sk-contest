@@ -2,7 +2,7 @@
  * Сайт для рендера: опубликованная версия из конструктора или шаблон по типу мероприятия,
  * если организатор ещё ничего не опубликовал.
  */
-import { assetUrl, buildSiteData, buildTemplate, sitePhase } from '@sk-events/blocks'
+import { assetUrl, buildSiteData, buildTemplate, sitePhase } from '@sk-contest/blocks'
 
 export function buildSite(payload, { appUrl, page = '' }) {
   const event = payload.event

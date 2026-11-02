@@ -1,4 +1,4 @@
-# SK Events
+# SK Contest
 
 Платформа мероприятий Гимназии Сколково: конкурсы, конференции, олимпиады, фестивали, открытые события и отборы.
 
@@ -12,21 +12,21 @@
 Нужны Docker и Docker Compose.
 
 ```bash
-docker compose -p sk-events up -d --build
+docker compose -p sk-contest up -d --build
 ```
 
 | Сервис | Адрес |
 |---|---|
 | Приложение (оргкомитет, кабинет, судья) | http://localhost:8501 |
 | API и документация | http://localhost:8500/api/docs |
-| Лендинги | http://localhost:8502, сайт по поддомену: заголовок `Host: <slug>.events.localhost` |
+| Лендинги | http://localhost:8502, сайт по поддомену: заголовок `Host: <slug>.contest.localhost` |
 | Почта (Mailpit) | http://localhost:8504 |
 | PostgreSQL / Redis | localhost:8510 / localhost:8511 |
 
 Проверки, как в CI:
 
 ```bash
-docker compose -p sk-events exec backend sh -c "ruff check . && ruff format --check . && pytest -q"
+docker compose -p sk-contest exec backend sh -c "ruff check . && ruff format --check . && pytest -q"
 ```
 
 ```bash
@@ -56,12 +56,13 @@ npm ci && npm run lint && npm test && npm run build
 | [docs/legacy/nocobase.md](docs/legacy/nocobase.md) | Модель и формулы старой системы, найденные ошибки, перенос данных |
 | [docs/decisions.md](docs/decisions.md) | Принятые и открытые решения |
 
-## Текущий прод
+## Прод
 
-`contest.skolhub.ru` пока обслуживает старое приложение. Coolify разворачивает его из `main` по файлу
-[`docker-compose.prod.yaml`](docker-compose.prod.yaml), который подтягивает готовые образы из GHCR.
-Файл нужно сохранить, пока новое приложение не заменит старое (этап 7 плана), либо заранее переключить
-приложение `contest` в Coolify на ветку `archive/nocobase-v1`.
+Приложение и API — **https://contest.skolhub.ru**, лендинги — `https://sites.contest.skolhub.ru/<slug>`.
+Coolify `devops.skolhub.ru`, сервер `skl-web-app`, ресурс разворачивается по
+[`infra/coolify/docker-compose.prod.yaml`](infra/coolify/docker-compose.prod.yaml) из готовых образов
+`ghcr.io/aleksioprime/sk-contest-*`, которые собирает [images.yml](.github/workflows/images.yml).
+Старое приложение на NocoBase выведено из эксплуатации; его код — в ветке `archive/nocobase-v1`.
 
 ---
 

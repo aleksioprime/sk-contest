@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { isValidSlug, pageUrl, resolveSite, siteApiPath } from '../lib/resolve-site.js'
 
-const BASE = 'events.skolhub.ru'
+const BASE = 'sites.contest.skolhub.ru'
 
 describe('resolveSite', () => {
   it('поддомен', () => {
-    expect(resolveSite('skolstart.events.skolhub.ru', '/', BASE)).toEqual({ kind: 'subdomain', slug: 'skolstart', page: '' })
-    expect(resolveSite('skolstart.events.skolhub.ru', '/program', BASE)).toEqual({ kind: 'subdomain', slug: 'skolstart', page: 'program' })
+    expect(resolveSite('skolstart.sites.contest.skolhub.ru', '/', BASE)).toEqual({ kind: 'subdomain', slug: 'skolstart', page: '' })
+    expect(resolveSite('skolstart.sites.contest.skolhub.ru', '/program', BASE)).toEqual({ kind: 'subdomain', slug: 'skolstart', page: 'program' })
   })
 
   it('путь на основном домене', () => {
-    expect(resolveSite('events.skolhub.ru', '/skolstart/', BASE)).toEqual({ kind: 'path', slug: 'skolstart', page: '' })
+    expect(resolveSite('sites.contest.skolhub.ru', '/skolstart/', BASE)).toEqual({ kind: 'path', slug: 'skolstart', page: '' })
     expect(resolveSite('localhost:3000', '/skolstart/program?x=1', BASE)).toEqual({ kind: 'path', slug: 'skolstart', page: 'program' })
   })
 
   it('корень основного домена', () => {
-    expect(resolveSite('events.skolhub.ru', '/', BASE)).toEqual({ kind: 'root' })
+    expect(resolveSite('sites.contest.skolhub.ru', '/', BASE)).toEqual({ kind: 'root' })
   })
 
   it('свой домен', () => {
@@ -23,8 +23,8 @@ describe('resolveSite', () => {
   })
 
   it('служебные и вложенные поддомены не считаются лендингами', () => {
-    expect(resolveSite('app.events.skolhub.ru', '/', BASE)).toEqual({ kind: 'unknown' })
-    expect(resolveSite('a.b.events.skolhub.ru', '/', BASE)).toEqual({ kind: 'unknown' })
+    expect(resolveSite('app.sites.contest.skolhub.ru', '/', BASE)).toEqual({ kind: 'unknown' })
+    expect(resolveSite('a.b.sites.contest.skolhub.ru', '/', BASE)).toEqual({ kind: 'unknown' })
   })
 })
 
@@ -35,8 +35,8 @@ describe('isValidSlug', () => {
 
 describe('адреса страниц и API', () => {
   it('строит ссылку на страницу с учётом вида адреса', () => {
-    expect(pageUrl({ kind: 'path', slug: 'skolstart' }, 'https://events.skolhub.ru', 'program')).toBe('https://events.skolhub.ru/skolstart/program')
-    expect(pageUrl({ kind: 'subdomain', slug: 'skolstart' }, 'https://skolstart.events.skolhub.ru', '')).toBe('https://skolstart.events.skolhub.ru')
+    expect(pageUrl({ kind: 'path', slug: 'skolstart' }, 'https://sites.contest.skolhub.ru', 'program')).toBe('https://sites.contest.skolhub.ru/skolstart/program')
+    expect(pageUrl({ kind: 'subdomain', slug: 'skolstart' }, 'https://skolstart.sites.contest.skolhub.ru', '')).toBe('https://skolstart.sites.contest.skolhub.ru')
   })
 
   it('выбирает API по виду адреса', () => {

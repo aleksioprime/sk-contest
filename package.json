@@ -1,5 +1,5 @@
 {
-  "name": "sk-events",
+  "name": "sk-contest",
   "private": true,
   "workspaces": [
     "packages/*",

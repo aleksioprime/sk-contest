@@ -18,14 +18,14 @@
 
 ## 0. Подготовка
 
-- [x] Закрыть вопросы: домены `events.skolhub.ru`, DNS у REG.RU, почта skolstream@yandex.ru, файлы на диске
+- [x] Закрыть вопросы: домены `sites.contest.skolhub.ru`, DNS у REG.RU, почта skolstream@yandex.ru, файлы на диске
 - [x] Каркас монорепо: `backend/`, `frontend/`, `sites/`, `packages/blocks/`, `infra/`
 - [x] docker-compose для разработки: Postgres, Redis, Mailpit, backend, worker, frontend, sites
 - [x] Линтеры и тесты: ruff, pytest, eslint, vitest
 - [x] CI: проверки на PR и main; сборка образов в GHCR (пока вручную)
-- [x] PROD в Coolify: `app.events.skolhub.ru`, образы из GitHub Actions ([deploy.md](deploy.md))
+- [x] PROD в Coolify: `contest.skolhub.ru`, образы из GitHub Actions ([deploy.md](deploy.md))
 - [ ] UAT в Coolify, бэкапы базы, метрики
-- [x] DNS: `events.skolhub.ru`
+- [x] DNS: `sites.contest.skolhub.ru`
 - [ ] DNS: `app.events`, `*.events`, `sites.events` готовы; UAT-записи; доступ к API REG.RU для DNS-01
 - [x] Дизайн-токены и базовые компоненты интерфейса (страница `/ui`)
 - [x] Пакет блоков: схема, проверка props, JSON Schema, блоки «Обложка» и «Текст», рендер в `sites` по Host
@@ -40,7 +40,7 @@
 - [x] Права: администратор платформы, проверка на сервере
 - [x] Права на мероприятие: организатор, модератор, судья, наблюдатель
 - [x] Frontend: вход, ссылка из письма, продление сессии, защита маршрутов, раздел «Люди»
-- [ ] Со стороны SkolStream: OAuth2-приложение SK Events, PKCE, эндпоинт выгрузки справочников по контракту
+- [ ] Со стороны SkolStream: OAuth2-приложение SK Contest, PKCE, эндпоинт выгрузки справочников по контракту
 
 ## 2. Мероприятия
 
@@ -50,7 +50,7 @@
 - [x] Статусы: черновик → регистрация → идёт → итоги → архив, с проверкой переходов
 - [x] Направления, формы участия, этапы (заочный или очный, даты) с порядком; команда с ролями
 - [x] Копирование мероприятия прошлого года
-- [x] Простая публичная страница `events.skolhub.ru/<slug>` и `<slug>.events.skolhub.ru` из данных мероприятия
+- [x] Простая публичная страница `sites.contest.skolhub.ru/<slug>` и `<slug>.sites.contest.skolhub.ru` из данных мероприятия
 
 ## 3. Регистрация и заявки
 
@@ -95,7 +95,7 @@
 - [x] `packages/blocks`: 15 блоков, схемы полей со списками, варианты отображения, вёрстка по ширине сайта (container queries)
 - [x] Редактор: список блоков с перетаскиванием, правка текста на превью, автоформы настроек, Tiptap, загрузка и кадрирование картинок, превью «компьютер / телефон», автосохранение
 - [x] Сервис `sites` (Nuxt 4 SSR): рендер по Host и пути, страницы, SEO, OG, canonical, sitemap, robots, Метрика, кэш в Redis
-- [ ] Поддомены `*.events.skolhub.ru`: wildcard DNS и сертификат через DNS-01 (код готов, нужен доступ к API REG.RU, см. [domains.md](domains.md))
+- [ ] Поддомены `*.sites.contest.skolhub.ru`: wildcard DNS и сертификат через DNS-01 (код готов, нужен доступ к API REG.RU, см. [domains.md](domains.md))
 - [x] Свои домены: проверка CNAME, динамическая конфигурация Traefik, автоматический сертификат, перепроверка ожидающих доменов
 - [x] Шаблоны лендингов под типы мероприятий; до первой публикации — шаблон только из блоков с данными
 
@@ -105,4 +105,4 @@
 - [ ] Выбор работы из проектов ученика в SkolStream
 - [x] Импорт архива из NocoBase с пересчётом баллов ([legacy/nocobase.md](legacy/nocobase.md)): 4 конкурса, 281 заявка, 3111 оценок; у 27 работ балл исправлен
 - [ ] Пилот на реальном мероприятии, инструкции для организаторов и судей
-- [ ] Переключение `contest.skolhub.ru`, удаление `docker-compose.prod.yaml` старого приложения
+- [x] Переключение `contest.skolhub.ru` на это приложение, удаление `docker-compose.prod.yaml` старого приложения (2026‑11‑02, переименование SK Events → SK Contest)

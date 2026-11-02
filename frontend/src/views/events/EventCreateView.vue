@@ -116,7 +116,7 @@ async function submit() {
       <UiInput
         v-model="slug"
         label="Адрес"
-        :hint="slug ? `Страница: ${slug}.events.skolhub.ru` : 'Формируется из названия, можно изменить'"
+        :hint="slug ? `Страница: ${slug}.sites.contest.skolhub.ru` : 'Формируется из названия, можно изменить'"
         :error="slugError"
         @input="slugTouched = true"
       />

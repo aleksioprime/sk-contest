@@ -11,7 +11,7 @@ from app.core.security import hash_password
 from app.core.uow import UnitOfWork
 from app.modules.people.service import find_or_create_user_by_email, set_employee
 
-logger = logging.getLogger('sk_events.cli')
+logger = logging.getLogger('sk_contest.cli')
 
 
 async def bootstrap() -> None:

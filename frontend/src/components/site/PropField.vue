@@ -1,5 +1,5 @@
 <script setup>
-/** Поле настройки блока, построенное по схеме из @sk-events/blocks. */
+/** Поле настройки блока, построенное по схеме из @sk-contest/blocks. */
 import FileField from './FileField.vue'
 import ImageField from './ImageField.vue'
 import ListField from './ListField.vue'

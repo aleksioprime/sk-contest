@@ -38,7 +38,7 @@ class SmtpSettings(BaseModel):
     user: str = ''
     password: str = ''
     use_ssl: bool = False
-    sender: str = 'SK Events <skolstream@yandex.ru>'
+    sender: str = 'SK Contest <skolstream@yandex.ru>'
 
 
 class SkolstreamSettings(BaseModel):
@@ -82,14 +82,14 @@ class Settings(BaseSettings):
     )
 
     environment: str = Field(default='local', description='local, uat или prod')
-    project_name: str = 'SK Events'
+    project_name: str = 'SK Contest'
     version: str = '0.1.0'
     secret_key: str = 'change-me'
 
     app_url: str = 'http://localhost:8501'
-    sites_base_domain: str = 'events.skolhub.ru'
+    sites_base_domain: str = 'sites.contest.skolhub.ru'
     # Свои домены лендингов: CNAME на этот адрес, маршрут в Traefik ведёт на сервис sites
-    sites_cname_target: str = 'sites.events.skolhub.ru'
+    sites_cname_target: str = 'sites.contest.skolhub.ru'
     sites_upstream_url: str = 'http://sites:3000'
     traefik_dynamic_dir: str = ''  # пусто — файлы маршрутов не пишутся (локальная разработка)
     traefik_certresolver: str = 'letsencrypt'

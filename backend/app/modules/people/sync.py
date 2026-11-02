@@ -11,7 +11,7 @@ from app.modules.people.models import SyncRun
 from app.modules.people.service import apply_directory
 from app.modules.people.skolstream import SkolstreamClient
 
-logger = logging.getLogger('sk_events.sync')
+logger = logging.getLogger('sk_contest.sync')
 
 
 async def run_directory_sync(client: SkolstreamClient, run_id: int, uow_factory=UnitOfWork) -> dict:

@@ -1,20 +1,20 @@
 # UAT в Coolify (Docker Compose из образов GHCR).
 # Домены задаются в интерфейсе Coolify для каждого сервиса:
-#   frontend → https://app.uat.events.skolhub.ru
-#   backend  → https://app.uat.events.skolhub.ru/api
-#   sites    → https://uat.events.skolhub.ru и https://*.uat.events.skolhub.ru (wildcard — после настройки DNS-01)
+#   frontend → https://contest.uat.skolhub.ru
+#   backend  → https://contest.uat.skolhub.ru/api
+#   sites    → https://sites.contest.uat.skolhub.ru и https://*.sites.contest.uat.skolhub.ru (wildcard — после настройки DNS-01)
 # Переменные (секреты) задаются в Coolify: SECRET_KEY, DB__PASSWORD, SMTP__USER, SMTP__PASSWORD, SKOLSTREAM__*, CAPTCHA__*.
 # Домены и сертификаты: docs/domains.md
 
 x-backend: &backend
-  image: ghcr.io/aleksioprime/sk-events-backend:${IMAGE_TAG:-latest}
+  image: ghcr.io/aleksioprime/sk-contest-backend:${IMAGE_TAG:-latest}
   restart: unless-stopped
   environment: &backend-env
     ENVIRONMENT: uat
     SECRET_KEY: ${SECRET_KEY}
-    APP_URL: https://app.uat.events.skolhub.ru
-    SITES_BASE_DOMAIN: uat.events.skolhub.ru
-    CORS_ORIGINS: '["https://app.uat.events.skolhub.ru"]'
+    APP_URL: https://contest.uat.skolhub.ru
+    SITES_BASE_DOMAIN: sites.contest.uat.skolhub.ru
+    CORS_ORIGINS: '["https://contest.uat.skolhub.ru"]'
     DB__HOST: postgres
     DB__USER: sk_events
     DB__PASSWORD: ${DB__PASSWORD}
@@ -26,11 +26,11 @@ x-backend: &backend
     SMTP__USE_SSL: 'true'
     SMTP__USER: ${SMTP__USER}
     SMTP__PASSWORD: ${SMTP__PASSWORD}
-    SMTP__SENDER: ${SMTP__SENDER:-SK Events <skolstream@yandex.ru>}
+    SMTP__SENDER: ${SMTP__SENDER:-SK Contest <skolstream@yandex.ru>}
     CAPTCHA__CLIENT_KEY: ${CAPTCHA__CLIENT_KEY:-}
     CAPTCHA__SERVER_KEY: ${CAPTCHA__SERVER_KEY:-}
     # Свои домены лендингов (docs/domains.md)
-    SITES_CNAME_TARGET: sites.uat.events.skolhub.ru
+    SITES_CNAME_TARGET: sites.contest.uat.skolhub.ru
     SITES_UPSTREAM_URL: ${SITES_UPSTREAM_URL:-http://sites:3000}
     TRAEFIK_DYNAMIC_DIR: /traefik-dynamic
   volumes:
@@ -51,16 +51,16 @@ services:
     command: worker
 
   frontend:
-    image: ghcr.io/aleksioprime/sk-events-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io/aleksioprime/sk-contest-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
 
   sites:
-    image: ghcr.io/aleksioprime/sk-events-sites:${IMAGE_TAG:-latest}
+    image: ghcr.io/aleksioprime/sk-contest-sites:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       NUXT_API_INTERNAL_URL: http://backend:8000
-      NUXT_PUBLIC_SITES_BASE_DOMAIN: uat.events.skolhub.ru
-      NUXT_PUBLIC_APP_URL: https://app.uat.events.skolhub.ru
+      NUXT_PUBLIC_SITES_BASE_DOMAIN: sites.contest.uat.skolhub.ru
+      NUXT_PUBLIC_APP_URL: https://contest.uat.skolhub.ru
 
   postgres:
     image: postgres:16-alpine

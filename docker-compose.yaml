@@ -1,4 +1,4 @@
-# Окружение разработки: docker compose -p sk-events up -d --build
+# Окружение разработки: docker compose -p sk-contest up -d --build
 # Приложение: http://localhost:8501 · API: http://localhost:8500/api/docs · Лендинги: http://localhost:8502
 # Почта: http://localhost:8504 · PostgreSQL: localhost:8510 · Redis: localhost:8511
 
@@ -81,7 +81,7 @@ services:
       target: dev
     environment:
       NUXT_API_INTERNAL_URL: http://backend:8000
-      NUXT_PUBLIC_SITES_BASE_DOMAIN: events.localhost
+      NUXT_PUBLIC_SITES_BASE_DOMAIN: contest.localhost
       NUXT_PUBLIC_APP_URL: http://localhost:8501
     volumes:
       - ./sites/app:/repo/sites/app

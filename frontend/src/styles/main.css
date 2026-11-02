@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import '@sk-events/blocks/styles.css';
+@import '@sk-contest/blocks/styles.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 

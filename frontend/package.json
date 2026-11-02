@@ -1,5 +1,5 @@
 {
-  "name": "@sk-events/frontend",
+  "name": "@sk-contest/frontend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sk-events/blocks": "^0.1.0",
+    "@sk-contest/blocks": "^0.1.0",
     "@tiptap/core": "3.30.0",
     "@tiptap/extension-bubble-menu": "3.30.0",
     "@tiptap/extension-floating-menu": "3.30.0",
