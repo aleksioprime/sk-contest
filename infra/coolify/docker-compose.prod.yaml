@@ -42,6 +42,10 @@ x-backend: &backend
   volumes:
     - files_data:/data/files
     - nocobase_data:/data/nocobase
+  # Внутренний DNS гимназии отдаёт для skolstream.sk.ru адрес ingress в k8s, до которого из DMZ нет
+  # маршрута; публичный адрес доступен. Убрать, когда девопсы откроют маршрут DMZ → ingress.
+  extra_hosts:
+    - "skolstream.sk.ru:${SKOLSTREAM__PUBLIC_IP:-91.221.164.121}"
   depends_on: [postgres, redis]
 
 services:
