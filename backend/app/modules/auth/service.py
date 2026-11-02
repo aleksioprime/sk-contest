@@ -137,8 +137,8 @@ def set_password(user: User, password: str) -> None:
 async def open_session(
     session: AsyncSession, user: User, method: str, user_agent: str | None, ip: str | None
 ) -> tuple[str, str]:
-    if not user.is_active:
-        raise AuthError('Учётная запись отключена. Обратитесь к организаторам.')
+    if reason := user.block_reason():
+        raise AuthError(reason)
     refresh = new_secret()
     auth_session = AuthSession(
         user_id=user.id,
@@ -162,8 +162,8 @@ async def refresh_session(session: AsyncSession, refresh: str) -> tuple[str, str
     if auth_session is None or auth_session.revoked_at is not None or auth_session.expires_at < now_utc():
         raise AuthError('Сессия завершена. Войдите снова.')
     user = await session.get(User, auth_session.user_id)
-    if user is None or not user.is_active:
-        raise AuthError('Учётная запись отключена.')
+    if user is None or user.block_reason():
+        raise AuthError(user.block_reason() if user else 'Учётная запись отключена.')
     new_refresh = new_secret()
     auth_session.refresh_hash = hash_secret(new_refresh)
     auth_session.last_used_at = now_utc()

@@ -17,6 +17,11 @@ class SkolstreamError(Exception):
     pass
 
 
+def user_agent() -> str:
+    """Своё имя в запросах к SkolStream: шлюз перед ним отклоняет типовые заголовки библиотек."""
+    return f'SK-Contest/1.0 (+{settings.app_url})'
+
+
 @dataclass
 class SkolstreamProfile:
     id: str
@@ -109,7 +114,9 @@ class HttpSkolstreamClient:
 
     async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
+            async with httpx.AsyncClient(
+                base_url=self.base_url, timeout=self.timeout, headers={'User-Agent': user_agent()}
+            ) as client:
                 response = await client.request(method, path, **kwargs)
         except httpx.HTTPError as exc:
             raise SkolstreamError(f'SkolStream недоступен: {exc}') from exc
