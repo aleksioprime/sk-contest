@@ -50,7 +50,7 @@ async def get_optional_user(request: Request, db: Db) -> User | None:
     if active_session is None:
         return None
     user = await db.get(User, int(payload['sub']))
-    return user if user and user.is_active else None
+    return user if user and user.block_reason() is None else None
 
 
 async def get_current_user(user: Annotated[User | None, Depends(get_optional_user)]) -> User:

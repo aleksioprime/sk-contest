@@ -28,6 +28,7 @@ class FakeSkolstream:
         )
         self.directory = directory_payload()
         self.exchanged: list[tuple[str, str, str]] = []
+        self.requested_since: list[str | None] = []
 
     def authorize_url(self, redirect_uri, state, code_challenge):
         return f'https://skolstream.test/o/authorize/?state={state}&code_challenge={code_challenge}'
@@ -40,6 +41,7 @@ class FakeSkolstream:
         return self.profile
 
     async def fetch_directory(self, updated_since=None):
+        self.requested_since.append(updated_since)
         return self.directory
 
 

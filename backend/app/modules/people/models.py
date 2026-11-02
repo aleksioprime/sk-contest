@@ -113,6 +113,21 @@ class User(IdMixin, TimestampMixin, Base):
 
     person: Mapped[Person | None] = relationship(lazy='joined')
 
+    def block_reason(self) -> str | None:
+        """Почему вход запрещён (None — разрешён). Персона, отключённая в SkolStream, не входит;
+        администраторов это не касается, чтобы ошибка синхронизации не заперла их снаружи."""
+        if not self.is_active:
+            return 'Учётная запись отключена. Обратитесь к организаторам.'
+        person = self.person
+        if (
+            person is not None
+            and person.source == PERSON_SOURCE_SKOLSTREAM
+            and not person.is_active
+            and not self.is_superuser
+        ):
+            return 'Учётная запись отключена в SkolStream. Обратитесь к организаторам.'
+        return None
+
 
 class SyncRun(IdMixin, Base):
     """Запуск синхронизации справочников со SkolStream."""

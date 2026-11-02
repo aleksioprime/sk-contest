@@ -4,9 +4,10 @@ import pytest
 from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.security import now_utc
 from app.modules.people.models import Department, Person, StudyClass, SyncRun
 from app.modules.people.service import apply_directory
-from app.modules.people.sync import run_directory_sync
+from app.modules.people.sync import STALE_RUN, run_directory_sync, start_scheduled_sync
 from tests.fakes import STUDENT_ID, TEACHER_ID, directory_payload
 from tests.helpers import login_as
 
@@ -108,3 +109,56 @@ async def test_start_sync(db, client, queue, monkeypatch, token, expected):
         assert queue.jobs == [('sync_directory', (response.json()['id'],), {})]
         again = await client.post('/api/v1/people/sync', json={'mode': 'full'})
         assert again.status_code == 409
+
+
+async def test_empty_full_slice_deactivates_nobody(db):
+    await apply_directory(db, directory_payload(), full=True)
+    await db.commit()
+    stats = await apply_directory(db, directory_payload(users=[]), full=True)
+    await db.commit()
+    assert stats.get('deactivation_skipped') is True
+    db.expire_all()
+    assert (await _person(db, TEACHER_ID)).is_active is True
+    assert (await _person(db, STUDENT_ID)).is_active is True
+
+
+async def test_incremental_sync_starts_from_skolstream_generated_at(db, skolstream):
+    skolstream.directory = {**directory_payload(), 'generated_at': '2026-11-02T10:00:00+03:00'}
+    first = SyncRun(mode='full')
+    db.add(first)
+    await db.commit()
+    stats = await run_directory_sync(skolstream, first.id)
+    assert stats['cursor'] == '2026-11-02T10:00:00+03:00'
+
+    second = SyncRun(mode='incremental')
+    db.add(second)
+    await db.commit()
+    await run_directory_sync(skolstream, second.id)
+    assert skolstream.requested_since == [None, '2026-11-02T10:00:00+03:00']
+
+
+async def test_scheduled_sync_skipped_without_token(db, skolstream, monkeypatch):
+    monkeypatch.setattr(settings.skolstream, 'directory_token', '')
+    assert await start_scheduled_sync(skolstream, 'incremental') is None
+    assert skolstream.requested_since == []
+
+
+async def test_scheduled_sync_runs_and_skips_while_running(db, skolstream, monkeypatch):
+    monkeypatch.setattr(settings.skolstream, 'directory_token', 'token')
+    assert (await start_scheduled_sync(skolstream, 'full'))['persons'] == 2
+
+    db.add(SyncRun(mode='incremental'))  # идёт другой запуск
+    await db.commit()
+    assert await start_scheduled_sync(skolstream, 'incremental') is None
+    assert len(skolstream.requested_since) == 1
+
+
+async def test_stale_running_sync_does_not_block(db, skolstream, monkeypatch):
+    monkeypatch.setattr(settings.skolstream, 'directory_token', 'token')
+    stuck = SyncRun(mode='incremental', started_at=now_utc() - STALE_RUN * 2)
+    db.add(stuck)
+    await db.commit()
+    stuck_id = stuck.id
+    assert await start_scheduled_sync(skolstream, 'incremental') is not None
+    db.expire_all()
+    assert (await db.get(SyncRun, stuck_id)).status == 'failed'

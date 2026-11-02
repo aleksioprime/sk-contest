@@ -33,6 +33,12 @@ x-backend: &backend
     SITES_CNAME_TARGET: sites.contest.skolhub.ru
     SITES_UPSTREAM_URL: ${SITES_UPSTREAM_URL:-http://sites:3000}
     TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
+    # Вход через SkolStream и выгрузка справочника (docs/integrations/skolstream.md).
+    # Вход включается, когда задан CLIENT_ID; синхронизация — когда задан DIRECTORY_TOKEN.
+    SKOLSTREAM__BASE_URL: ${SKOLSTREAM__BASE_URL:-https://skolstream.sk.ru}
+    SKOLSTREAM__CLIENT_ID: ${SKOLSTREAM__CLIENT_ID:-}
+    SKOLSTREAM__CLIENT_SECRET: ${SKOLSTREAM__CLIENT_SECRET:-}
+    SKOLSTREAM__DIRECTORY_TOKEN: ${SKOLSTREAM__DIRECTORY_TOKEN:-}
   volumes:
     - files_data:/data/files
     - nocobase_data:/data/nocobase

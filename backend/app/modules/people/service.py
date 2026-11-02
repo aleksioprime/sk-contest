@@ -250,10 +250,13 @@ async def apply_directory(session: AsyncSession, payload: dict, full: bool) -> d
         stats['persons'] += 1
     await session.flush()
 
-    if full:
+    if full and not seen_persons:
+        # Пустой список пользователей в полном срезе — почти наверняка сбой на стороне SkolStream:
+        # не отключаем всех разом
+        stats['deactivation_skipped'] = True
+    elif full:
         conditions = [Person.source == PERSON_SOURCE_SKOLSTREAM, Person.is_active.is_(True)]
-        if seen_persons:
-            conditions.append(Person.skolstream_id.not_in(seen_persons))
+        conditions.append(Person.skolstream_id.not_in(seen_persons))
         result = await session.execute(update(Person).where(*conditions).values(is_active=False))
         stats['deactivated'] = result.rowcount or 0
         for model, seen in ((StudyClass, classes), (Department, departments)):

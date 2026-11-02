@@ -135,3 +135,37 @@ async def test_skolstream_disabled_by_default(db, client):
     providers = await client.get('/api/v1/auth/providers')
     assert providers.json() == {'magic_link': True, 'skolstream': False, 'captcha_site_key': None}
     assert (await client.get('/api/v1/auth/skolstream/login')).status_code == 404
+
+
+async def test_person_deactivated_in_skolstream_cannot_log_in(db, client, queue):
+    await _magic_login(client, queue, email='student@skolkovo.example.org')
+    user = await db.scalar(select(User).where(User.email == 'student@skolkovo.example.org'))
+    person = Person(
+        source='skolstream', skolstream_id=uuid.UUID(STUDENT_ID), email=user.email, last_name='Иванова', is_active=False
+    )
+    db.add(person)
+    await db.flush()
+    user.person_id = person.id
+    await db.commit()
+
+    assert (await client.get('/api/v1/auth/me')).status_code == 401
+    assert (await client.post('/api/v1/auth/refresh')).status_code == 401
+    response = await client.post('/api/v1/auth/magic-link', json={'email': user.email, 'next': '/events'})
+    if response.status_code == 202:
+        verify = await client.post('/api/v1/auth/magic-link/verify', json={'token': _token_from_mail(queue)})
+        assert verify.status_code >= 400
+
+
+async def test_admin_is_not_locked_out_by_skolstream_deactivation(db, client, queue):
+    await _magic_login(client, queue, email='admin@skolkovo.example.org')
+    user = await db.scalar(select(User).where(User.email == 'admin@skolkovo.example.org'))
+    person = Person(
+        source='skolstream', skolstream_id=uuid.uuid4(), email=user.email, last_name='Админов', is_active=False
+    )
+    db.add(person)
+    await db.flush()
+    user.person_id = person.id
+    user.is_superuser = True
+    await db.commit()
+
+    assert (await client.get('/api/v1/auth/me')).status_code == 200

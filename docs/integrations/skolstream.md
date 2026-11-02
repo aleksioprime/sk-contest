@@ -20,20 +20,31 @@ SkolStream — платформа учебного процесса гимназ
 - SK Contest регистрируется как приложение (authorization code). Обмен кода на токен идёт на backend, затем запрос профиля, поиск персоны по `skolstream_id`.
 - OIDC не настроен (id_token закомментирован в `core/models.py`), поэтому профиль берём через API.
 
-Нужно в SkolStream:
-- [ ] зарегистрировать OAuth2-приложение SK Contest (UAT и PROD), redirect `https://contest.skolhub.ru/auth/skolstream/callback`;
-- [ ] включить `PKCE_REQUIRED`;
-- [ ] эндпоинт профиля текущего пользователя (если нет): id, ФИО, email, тип, класс, подразделения.
+Настройка (подробно — `docs/guides/dev/oauth-apps.md` в SkolStream):
+- [ ] OAuth2-приложение SK Contest в админке SkolStream: Confidential, Authorization code,
+      redirect `https://contest.skolhub.ru/api/v1/auth/skolstream/callback`, включить «Skip authorization»;
+- [ ] в Coolify: `SKOLSTREAM__CLIENT_ID`, `SKOLSTREAM__CLIENT_SECRET` (`SKOLSTREAM__BASE_URL` по умолчанию `https://skolstream.sk.ru`).
+
+SK Contest запрашивает только `scope=read`, передаёт PKCE и представляется
+`SK-Contest/1.0 (+<APP_URL>)`: шлюз перед SkolStream отклоняет типовые заголовки библиотек.
+Вход запрещён персонам, отключённым в SkolStream (`is_active=false` после синхронизации), кроме
+администраторов SK Contest — ошибка синхронизации не должна запереть их снаружи.
 
 ## Синхронизация
 
-`JWTBackend` выдаёт токен только для пользователя, поэтому `client_credentials` не сработает. Варианты:
+Выгрузка справочника SkolStream — `GET /api/v1/integrations/directory/` со служебным токеном
+(`docs/guides/dev/directory-export.md` в SkolStream). Токен создаётся в админке SkolStream
+(«Токены выгрузки справочника»), в Coolify — `SKOLSTREAM__DIRECTORY_TOKEN`.
 
-1. Служебный пользователь с правами только на чтение и обычные эндпоинты `user/`, `group/`, `department/employees/`, `year/`. Быстро, но зависит от пагинации и прав UI.
-2. **Рекомендуется:** отдельный эндпоинт выгрузки `/api/integrations/v1/directory/?updated_since=` со статическим токеном. Отдаёт пользователей, классы, подразделения, связи одним срезом.
+Расписание (`backend/app/workers/main.py`, `people/sync.py`):
+- изменения — каждые 10 минут, от `generated_at` прошлого ответа SkolStream (его часы);
+- полный срез — ночью в 03:00: отключает пропавших, чистит журнал запусков старше 30 дней;
+- по кнопке в разделе «Люди»;
+- запуск, висящий дольше 30 минут, считается оборвавшимся и не блокирует следующие;
+- полный срез с пустым списком пользователей никого не отключает (вероятный сбой SkolStream).
 
 Правила:
-- upsert по UUID, ночью и по кнопке;
+- upsert по UUID;
 - пропавшие в SkolStream записи получают `is_active=false` и не удаляются (на них ссылаются заявки и оценки);
 - поля из SkolStream в SK Contest только для чтения, локально редактируются только внешние персоны;
 - внешнего, который позже появился в SkolStream, сливаем по email;
