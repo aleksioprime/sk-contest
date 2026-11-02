@@ -1,9 +1,8 @@
 from datetime import datetime
 
+from sk_common.db import Base, IdMixin
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.db import Base, IdMixin
 
 
 class StoredFile(IdMixin, Base):

@@ -1,12 +1,14 @@
 import secrets
 from decimal import Decimal
 
+from sk_common.audit import record
+from sk_common.people.models import Person, User
+from sk_common.people.service import find_or_create_user_by_email, get_user_by_email, set_full_name
+from sk_common.security import hash_password, now_utc
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_password, now_utc
 from app.modules.applications.models import Application
-from app.modules.audit.service import record
 from app.modules.evaluation import scoring
 from app.modules.evaluation.models import (
     Category,
@@ -25,8 +27,6 @@ from app.modules.evaluation.models import (
 from app.modules.evaluation.schemas import AddWorks, ScaleIn, ScorecardIn
 from app.modules.events.models import Event, EventMember
 from app.modules.events.service import add_member
-from app.modules.people.models import Person, User
-from app.modules.people.service import find_or_create_user_by_email, get_user_by_email, set_full_name
 
 
 class EvaluationError(Exception):

@@ -3,8 +3,7 @@ from io import BytesIO
 import pytest
 from httpx import AsyncClient
 from openpyxl import load_workbook
-
-from tests.helpers import login_as
+from sk_common.testing import login_as
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
 

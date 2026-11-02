@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from sk_common.people.models import Person, User
+from sk_common.people.service import normalize_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,8 +46,6 @@ from app.modules.evaluation.models import (
 from app.modules.evaluation.service import NO_EMAIL_DOMAIN, recompute_sheet
 from app.modules.events.models import Direction, Event, EventMember, ParticipationForm, Stage
 from app.modules.events.templates import MODULES
-from app.modules.people.models import Person, User
-from app.modules.people.service import normalize_email
 from app.modules.stages.models import StageParticipation
 
 logger = logging.getLogger('sk_contest.nocobase')

@@ -1,14 +1,13 @@
 from datetime import timedelta
 
 import pytest
+from sk_common.captcha import get_captcha
+from sk_common.security import now_utc
+from sk_common.testing import FakeQueue, login_as
 
-from app.core.captcha import get_captcha
-from app.core.security import now_utc
 from app.modules.evaluation.models import Sheet
 from app.modules.events.models import Event
 from app.modules.reminders.service import run_hourly
-from tests.fakes import FakeQueue
-from tests.helpers import login_as
 from tests.test_applications import SLUG, _open_event, _other, _payload
 from tests.test_evaluation import _as, _prepared_sheet
 

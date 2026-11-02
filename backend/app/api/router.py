@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from sk_common.people.router import router as people_router
 
 from app.modules.applications.router import router as applications_router
 from app.modules.auth.router import router as auth_router
@@ -8,7 +9,6 @@ from app.modules.events.router import public_router as public_events_router
 from app.modules.events.router import router as events_router
 from app.modules.files.router import public_router as public_files_router
 from app.modules.files.router import router as files_router
-from app.modules.people.router import router as people_router
 from app.modules.sites.router import public_router as public_sites_router
 from app.modules.sites.router import router as sites_router
 from app.modules.stages.router import public_router as public_stages_router

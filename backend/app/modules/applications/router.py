@@ -3,10 +3,12 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+from sk_common.audit import record
+from sk_common.deps import CurrentUser, Db
+from sk_common.people.models import User
+from sk_common.queue import Queue, get_queue
 from sqlalchemy import select
 
-from app.core.deps import CurrentUser, Db
-from app.core.queue import Queue, get_queue
 from app.modules.applications import service
 from app.modules.applications.export import applications_xlsx
 from app.modules.applications.form import ApplicationForm, default_form
@@ -26,11 +28,9 @@ from app.modules.applications.schemas import (
     Ref,
     StaffApplication,
 )
-from app.modules.audit.service import record
 from app.modules.events.models import Event
 from app.modules.events.permissions import ensure_manage, roles_of
 from app.modules.events.service import get_by_slug, get_event, registration_open
-from app.modules.people.models import User
 
 router = APIRouter(prefix='/v1', tags=['applications'])
 

@@ -1,11 +1,9 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
+from sk_common.web import add_common_middleware, setup_logging
 
 from app.api.router import api_router
 from app.core.config import settings
-from app.core.csrf import OriginCheckMiddleware
-from app.core.logging import RequestLoggingMiddleware, setup_logging
 
 
 def create_app() -> FastAPI:
@@ -17,15 +15,7 @@ def create_app() -> FastAPI:
         openapi_url='/api/openapi.json',
         default_response_class=ORJSONResponse,
     )
-    app.add_middleware(OriginCheckMiddleware)
-    app.add_middleware(RequestLoggingMiddleware)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=['*'],
-        allow_headers=['*'],
-    )
+    add_common_middleware(app)
     app.include_router(api_router)
     return app
 

@@ -2,8 +2,8 @@ from io import BytesIO
 
 import pytest
 from openpyxl import load_workbook
+from sk_common.testing import login_as
 
-from tests.helpers import login_as
 from tests.test_applications import SLUG, _open_event, _other, _submitted
 from tests.test_evaluation import _as
 

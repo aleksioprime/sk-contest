@@ -2,11 +2,11 @@ import re
 import uuid
 
 import pytest
+from sk_common.people.models import Person, StudyClass, User
+from sk_common.testing import CLASS_ID, STUDENT_ID
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.modules.people.models import Person, StudyClass, User
-from tests.fakes import CLASS_ID, STUDENT_ID
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
 

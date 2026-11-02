@@ -3,8 +3,8 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sk_common.deps import CurrentUser, Db
 
-from app.core.deps import CurrentUser, Db
 from app.core.storage import StorageError, storage
 from app.modules.files import access
 from app.modules.files.models import StoredFile

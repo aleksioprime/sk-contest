@@ -1,15 +1,17 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from sk_common.audit import record
+from sk_common.auth.service import issue_personal_login
+from sk_common.deps import CurrentUser, Db
+from sk_common.people.models import Person, User
+from sk_common.queue import Queue, get_queue
+from sk_common.security import TokenError, read_state, sign_state
 from sqlalchemy import func, or_, select
 
 from app.core.config import settings
-from app.core.deps import CurrentUser, Db
-from app.core.queue import Queue, get_queue
-from app.core.security import TokenError, read_state, sign_state
 from app.modules.applications.service import event_form
-from app.modules.audit.service import record
-from app.modules.auth.service import issue_judge_login
+from app.modules.auth.router import JUDGE_QR
 from app.modules.evaluation import service
 from app.modules.evaluation.models import Evaluation, Scale, Scorecard, Sheet, SheetJudge, SheetWork
 from app.modules.evaluation.schemas import (
@@ -46,7 +48,6 @@ from app.modules.evaluation.schemas import (
 from app.modules.events.models import Event
 from app.modules.events.permissions import ensure_manage, ensure_view, roles_of
 from app.modules.events.service import get_event
-from app.modules.people.models import Person, User
 from app.modules.reminders.service import remind_sheet_judges
 
 router = APIRouter(prefix='/v1', tags=['evaluation'])
@@ -537,7 +538,7 @@ async def judge_cards(sheet_id: int, payload: JudgeCardsRequest, db: Db, user: C
     for judge in sheet.judges:
         if payload.user_ids and judge.user_id not in payload.user_ids:
             continue
-        token, expires_at = await issue_judge_login(db, judge.user, f'/judging/sheets/{sheet.id}')
+        token, expires_at = await issue_personal_login(db, judge.user, f'/judging/sheets/{sheet.id}', purpose=JUDGE_QR)
         cards.append(
             JudgeCard(
                 user_id=judge.user_id,

@@ -1,10 +1,10 @@
 """Кто может скачать файл: владелец, администратор, организаторы и модераторы мероприятия, судьи листа с работой."""
 
+from sk_common.people.models import User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.files.models import StoredFile
-from app.modules.people.models import User
 
 STAFF_ROLES = ('organizer', 'moderator')
 

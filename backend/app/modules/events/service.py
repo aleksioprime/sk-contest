@@ -1,15 +1,15 @@
 from datetime import datetime
 
+from sk_common.audit import record
+from sk_common.people.models import User
+from sk_common.security import now_utc
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import now_utc
 from app.modules.applications.form import default_form
-from app.modules.audit.service import record
 from app.modules.events.models import Direction, Event, EventMember, ParticipationForm, Stage
 from app.modules.events.templates import EVENT_TYPES, TRANSITIONS
 from app.modules.files.models import StoredFile
-from app.modules.people.models import User
 
 
 class EventError(Exception):
