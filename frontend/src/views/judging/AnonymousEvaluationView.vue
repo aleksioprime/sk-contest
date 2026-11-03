@@ -3,6 +3,8 @@
 import { onMounted, ref } from 'vue'
 import { anonymousClient, fetchPublicWork, readAnonymousToken, startAnonymous } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
+import BrandMark from '@/components/brand/BrandMark.vue'
+import SchoolFooter from '@/components/brand/SchoolFooter.vue'
 import EvaluationForm from '@/components/evaluation/EvaluationForm.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
@@ -45,29 +47,29 @@ async function start() {
 </script>
 
 <template>
-  <main class="mx-auto grid max-w-2xl gap-6 px-4 py-8">
-    <div class="flex items-center gap-2 font-semibold">
-      <img src="/favicon.svg" alt="" class="size-7" />
-      SK Contest
-    </div>
-    <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
-    <SkeletonPage v-else-if="!work" :cards="2" />
+  <div class="flex min-h-dvh flex-col">
+    <main class="mx-auto grid w-full max-w-2xl flex-1 content-start gap-6 px-4 py-8">
+      <BrandMark />
+      <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
+      <SkeletonPage v-else-if="!work" :cards="2" />
 
-    <template v-if="work">
-      <div>
-        <p class="text-sm text-ink-muted">{{ work.event_title }} · {{ work.sheet_title }}</p>
-        <h1 class="mt-1 text-2xl font-bold">{{ work.work.title || 'Работа' }}</h1>
-        <p class="mt-1 text-ink-muted">{{ work.work.participants.join(', ') }}<span v-if="work.work.direction"> · {{ work.work.direction }}</span></p>
-      </div>
+      <template v-if="work">
+        <div>
+          <p class="text-sm text-ink-muted">{{ work.event_title }} · {{ work.sheet_title }}</p>
+          <h1 class="mt-1 text-2xl font-bold">{{ work.work.title || 'Работа' }}</h1>
+          <p class="mt-1 text-ink-muted">{{ work.work.participants.join(', ') }}<span v-if="work.work.direction"> · {{ work.work.direction }}</span></p>
+        </div>
 
-      <EvaluationForm v-if="bundle && client" v-model:bundle="bundle" :client="client" />
-      <p v-else-if="!work.open" class="rounded-control bg-canvas px-4 py-3 text-ink-muted">Оценка этой работы закрыта.</p>
-      <form v-else class="grid gap-4 rounded-card border border-line bg-surface p-5" @submit.prevent="start">
-        <p>Оцените работу по критериям. Ваша оценка анонимна.</p>
-        <UiInput v-model="name" label="Как к вам обращаться" placeholder="Можно не заполнять" maxlength="100" />
-        <UiButton type="submit" variant="primary" :loading="starting">Начать оценку</UiButton>
-      </form>
-      <p v-if="bundle?.is_scored" class="rounded-control bg-green-100 px-4 py-3 text-green-800" role="status">Спасибо! Оценка сохранена.</p>
-    </template>
-  </main>
+        <EvaluationForm v-if="bundle && client" v-model:bundle="bundle" :client="client" />
+        <p v-else-if="!work.open" class="rounded-control bg-canvas px-4 py-3 text-ink-muted">Оценка этой работы закрыта.</p>
+        <form v-else class="grid gap-4 rounded-card border border-line bg-surface p-5" @submit.prevent="start">
+          <p>Оцените работу по критериям. Ваша оценка анонимна.</p>
+          <UiInput v-model="name" label="Как к вам обращаться" placeholder="Можно не заполнять" maxlength="100" />
+          <UiButton type="submit" variant="primary" :loading="starting">Начать оценку</UiButton>
+        </form>
+        <p v-if="bundle?.is_scored" class="rounded-control bg-green-100 px-4 py-3 text-green-800" role="status">Спасибо! Оценка сохранена.</p>
+      </template>
+    </main>
+    <SchoolFooter />
+  </div>
 </template>
