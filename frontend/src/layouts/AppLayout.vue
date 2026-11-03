@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import BrandMark from '@/components/brand/BrandMark.vue'
+import SchoolFooter from '@/components/brand/SchoolFooter.vue'
 import OverflowNav from '@/components/OverflowNav.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -31,12 +33,11 @@ async function logout() {
 </script>
 
 <template>
-  <div class="min-h-dvh">
+  <div class="flex min-h-dvh flex-col">
     <header v-if="!route.meta.print && !route.meta.bare" class="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur print:hidden">
       <div class="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
-        <RouterLink :to="{ name: auth.judgeMode ? 'judging' : 'events' }" class="flex shrink-0 items-center gap-2 font-semibold">
-          <img src="/favicon.svg" alt="" class="size-7" />
-          <span class="hidden sm:inline">SK Contest</span>
+        <RouterLink :to="{ name: auth.judgeMode ? 'judging' : 'events' }" class="shrink-0">
+          <BrandMark />
         </RouterLink>
         <OverflowNav v-if="links.length" :links="links" />
         <span v-else class="min-w-0 flex-1 truncate text-sm text-ink-muted">Судья: <span class="font-medium text-ink">{{ auth.displayName }}</span></span>
@@ -53,8 +54,9 @@ async function logout() {
         </div>
       </div>
     </header>
-    <main :class="route.meta.print || route.meta.bare ? '' : 'mx-auto max-w-6xl px-4 py-8'">
+    <main class="flex-1" :class="route.meta.print || route.meta.bare ? '' : 'mx-auto w-full max-w-6xl px-4 py-8'">
       <RouterView />
     </main>
+    <SchoolFooter v-if="!route.meta.print && !route.meta.bare" />
   </div>
 </template>

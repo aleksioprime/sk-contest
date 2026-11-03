@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { setUnauthorizedHandler } from '@/api/http'
+import { pageTitle } from '@/brand'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -102,6 +103,10 @@ export function resolveAccess(to, auth) {
   if (to.meta.admin && !auth.isAdmin) return { name: 'home' }
   return true
 }
+
+router.afterEach((to) => {
+  document.title = pageTitle(to.meta.title)
+})
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
