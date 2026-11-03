@@ -1,5 +1,5 @@
 # Общая основа школьных сервисов: вход, люди из SkolStream, журнал действий
-sk-common @ https://github.com/aleksioprime/sk-common/archive/refs/tags/v0.1.0.tar.gz
+sk-common @ https://github.com/aleksioprime/sk-common/archive/refs/tags/v0.1.1.tar.gz
 
 # Web
 fastapi==0.115.5
