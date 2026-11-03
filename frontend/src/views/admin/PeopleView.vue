@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { errorMessage } from '@/api/http'
-import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, startSync, updateUser } from '@/api/people'
+import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, setPersonAdmin, startSync, updateUser } from '@/api/people'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
@@ -90,6 +90,24 @@ async function toggle(user, field) {
   } catch (e) {
     error.value = errorMessage(e)
   }
+}
+
+// Права человеку из справочника до его первого входа: учётная запись создаётся по email из SkolStream
+async function togglePersonAdmin(person, value) {
+  error.value = ''
+  try {
+    Object.assign(person, await setPersonAdmin(person.id, value))
+  } catch (e) {
+    error.value = errorMessage(e)
+    await load()
+  }
+}
+
+function personAdminLocked(person) {
+  if (person.user_id && person.user_id === auth.user?.id) return 'Свои права снять нельзя'
+  if (!person.email) return 'Нет email'
+  if (!person.is_active && !person.is_superuser) return 'Отключён в SkolStream'
+  return ''
 }
 
 const newUser = ref({ email: '', full_name: '', password: '', is_employee: true, is_superuser: false })
@@ -229,10 +247,10 @@ onMounted(() => {
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
 
     <div class="overflow-x-auto rounded-card border border-line bg-surface" :aria-busy="loading">
-      <SkeletonTable v-if="loading && !page.items.length" :rows="6" :columns="4" />
+      <SkeletonTable v-if="loading && !page.items.length" :rows="6" :columns="5" />
       <table v-if="tab === 'persons'" class="w-full text-sm">
         <thead class="bg-canvas text-left text-xs text-ink-muted">
-          <tr><th class="px-4 py-2">ФИО</th><th class="px-4 py-2">Тип</th><th class="px-4 py-2">Класс или подразделение</th><th class="px-4 py-2">Email</th></tr>
+          <tr><th class="px-4 py-2">ФИО</th><th class="px-4 py-2">Тип</th><th class="px-4 py-2">Класс или подразделение</th><th class="px-4 py-2">Email</th><th class="px-4 py-2">Администратор</th></tr>
         </thead>
         <tbody>
           <tr v-for="person in page.items" :key="person.id" class="border-t border-line" :class="{ 'opacity-50': !person.is_active }">
@@ -247,6 +265,16 @@ onMounted(() => {
             </td>
             <td class="px-4 py-2">{{ person.study_class?.name || person.departments.map((d) => d.name).join(', ') || person.organization || '—' }}</td>
             <td class="px-4 py-2 text-ink-muted">{{ person.email || '—' }}</td>
+            <td class="px-4 py-2">
+              <input
+                type="checkbox"
+                :checked="person.is_superuser"
+                :disabled="!!personAdminLocked(person)"
+                :title="personAdminLocked(person) || 'Права администратора сервиса'"
+                :aria-label="`Администратор: ${person.full_name || person.email}`"
+                @change="togglePersonAdmin(person, $event.target.checked)"
+              />
+            </td>
           </tr>
         </tbody>
       </table>
