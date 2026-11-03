@@ -47,3 +47,27 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/sk-contest-${{ matrix.name }}:latest
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # Выкатка в Coolify после сборки обоих образов: тег коммита в переменную IMAGE_TAG ресурса и запуск развёртывания.
+  # Без секретов COOLIFY_* шаг пропускается.
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Выкатка в Coolify
+        env:
+          COOLIFY_API: ${{ secrets.COOLIFY_API }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_APP: ${{ secrets.COOLIFY_APP }}
+        run: |
+          if [ -z "$COOLIFY_API" ] || [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_APP" ]; then
+            echo "::notice::Секреты COOLIFY_API, COOLIFY_TOKEN, COOLIFY_APP не заданы — выкатка пропущена"
+            exit 0
+          fi
+          curl -fsS --max-time 60 -X PATCH "$COOLIFY_API/applications/$COOLIFY_APP/envs/bulk" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Content-Type: application/json" \
+            -d '{"data":[{"key":"IMAGE_TAG","value":"${{ github.sha }}","is_preview":false,"is_literal":true}]}'
+          echo
+          curl -fsS --max-time 60 -X POST "$COOLIFY_API/deploy?uuid=$COOLIFY_APP&force=false" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN"
