@@ -15,6 +15,11 @@ export async function updateUser(id, changes) {
   return data
 }
 
+export async function setPersonAdmin(id, isSuperuser) {
+  const { data } = await http.put(`/v1/people/persons/${id}/admin`, { is_superuser: isSuperuser })
+  return data
+}
+
 export async function fetchSyncRuns() {
   const { data } = await http.get('/v1/people/sync')
   return data
