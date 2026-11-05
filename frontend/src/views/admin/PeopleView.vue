@@ -1,4 +1,5 @@
 <script setup>
+/** Администрирование людей: персоны, пользователи и синхронизация с SkolStream. */
 import { onMounted, ref, watch } from 'vue'
 import { errorMessage } from '@/api/http'
 import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, setPersonAdmin, startSync, updateUser } from '@/api/people'
@@ -6,6 +7,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import { useAuthStore } from '@/stores/auth'
+import { formatDateTime } from '@/utils/dates'
 import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const auth = useAuthStore()
@@ -156,10 +158,6 @@ async function setEmployee(user, value) {
   }
 }
 
-function formatDate(value) {
-  return value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—'
-}
-
 onMounted(() => {
   load()
   loadSync()
@@ -186,7 +184,7 @@ onMounted(() => {
       <ul v-if="syncRuns.length" class="mt-4 grid gap-2 text-sm">
         <li v-for="run in syncRuns.slice(0, 3)" :key="run.id" class="flex flex-wrap items-center gap-2">
           <UiBadge :tone="syncStatus[run.status]?.[0] ?? 'neutral'">{{ syncStatus[run.status]?.[1] ?? run.status }}</UiBadge>
-          <span>{{ formatDate(run.started_at) }}</span>
+          <span>{{ formatDateTime(run.started_at) }}</span>
           <span class="text-ink-muted">{{ run.mode === 'full' ? 'полная' : 'изменения' }}</span>
           <span v-if="run.status === 'success'" class="text-ink-muted">
             · людей {{ run.stats.persons ?? 0 }}, классов {{ run.stats.classes ?? 0 }}, отключено {{ run.stats.deactivated ?? 0 }}
@@ -290,7 +288,7 @@ onMounted(() => {
           <tr v-for="user in page.items" :key="user.id" class="border-t border-line">
             <td class="px-4 py-2 font-medium">{{ user.email }}</td>
             <td class="px-4 py-2">{{ user.person?.full_name || '—' }}</td>
-            <td class="px-4 py-2 text-ink-muted">{{ formatDate(user.last_login_at) }}</td>
+            <td class="px-4 py-2 text-ink-muted">{{ formatDateTime(user.last_login_at) }}</td>
             <td class="px-4 py-2">
               <input
                 type="checkbox"

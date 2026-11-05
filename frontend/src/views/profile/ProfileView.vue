@@ -1,4 +1,5 @@
 <script setup>
+/** Профиль: данные пользователя и смена пароля. */
 import { ref } from 'vue'
 import { changePassword } from '@/api/auth'
 import { errorMessage } from '@/api/http'

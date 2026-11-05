@@ -1,5 +1,4 @@
 /** Название сервиса и хаб приложений гимназии - для шапки, футера и заголовков вкладок. */
-export const SERVICE = 'contest'
 export const SERVICE_NAME = 'Конкурсы'
 
 export const SCHOOL = { name: 'Гимназия Сколково', genitive: 'Гимназии Сколково', url: 'https://gymnasium.sk.ru/' }

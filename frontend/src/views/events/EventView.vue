@@ -1,6 +1,7 @@
 <script setup>
+/** Страница мероприятия: настройки, статус, команда и вкладки модулей. */
 import { computed, reactive, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   FORMAT_LABELS,
   LEVEL_LABELS,
@@ -9,6 +10,7 @@ import {
   STATUS_LABELS,
   STATUS_TONES,
   addMember,
+  applyUrl,
   changeStatus,
   deleteEvent,
   fetchEvent,
@@ -59,7 +61,7 @@ const tabs = computed(() => [
   { id: 'directions', label: 'Направления', group: 'setup' },
   ...(event.value?.modules.stages ? [{ id: 'stages', label: 'Этапы', group: 'setup' }] : []),
   { id: 'forms', label: 'Формы участия', group: 'setup' },
-  ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Анкета', group: 'setup' }] : []),
+  ...(event.value?.modules.registration && event.value.can_manage ? [{ id: 'form', label: 'Форма заявки', group: 'setup' }] : []),
   ...(event.value?.modules.registration && (event.value.can_manage || event.value.my_roles.includes('moderator'))
     ? [{ id: 'applications', label: 'Заявки', group: 'running' }]
     : []),
@@ -95,8 +97,9 @@ const STATUS_ACTIONS = {
 }
 const FIELDS = [
   'title', 'slug', 'short_description', 'description', 'level', 'format', 'place',
-  'date_start', 'date_end', 'registration_opens_at', 'registration_closes_at',
+  'date_start', 'date_end', 'registration_opens_at', 'registration_closes_at', 'details_closes_at',
 ]
+const MOMENT_FIELDS = ['registration_opens_at', 'registration_closes_at', 'details_closes_at']
 
 /** Значение для поля datetime-local в местном времени пользователя. */
 function toLocalInput(value) {
@@ -108,8 +111,7 @@ function toLocalInput(value) {
 
 function fillForm(data) {
   for (const key of FIELDS) form[key] = data[key] ?? ''
-  form.registration_opens_at = toLocalInput(data.registration_opens_at)
-  form.registration_closes_at = toLocalInput(data.registration_closes_at)
+  for (const key of MOMENT_FIELDS) form[key] = toLocalInput(data[key])
   form.modules = { ...data.modules }
 }
 
@@ -129,9 +131,8 @@ async function save() {
   saveError.value = ''
   try {
     const changes = { ...form }
-    for (const key of ['date_start', 'date_end', 'registration_opens_at', 'registration_closes_at']) {
-      changes[key] = changes[key] ? (key.startsWith('registration') ? new Date(changes[key]).toISOString() : changes[key]) : null
-    }
+    for (const key of ['date_start', 'date_end']) changes[key] ||= null
+    for (const key of MOMENT_FIELDS) changes[key] = changes[key] ? new Date(changes[key]).toISOString() : null
     event.value = await updateEvent(event.value.id, changes)
     fillForm(event.value)
     savedAt.value = new Date()
@@ -215,16 +216,16 @@ watch(() => props.id, load, { immediate: true })
           <h1 class="text-2xl font-bold">{{ event.title }}</h1>
           <UiBadge :tone="STATUS_TONES[event.status]">{{ STATUS_LABELS[event.status] }}</UiBadge>
         </div>
-        <p class="mt-1 text-sm text-ink-muted">{{ event.slug }}.sites.contest.skolhub.ru</p>
+        <a
+          v-if="event.modules.registration && event.status !== 'draft'"
+          :href="applyUrl(event.slug)"
+          target="_blank"
+          class="mt-1 inline-block text-sm text-brand-700 hover:underline"
+        >
+          Открытая форма заявки ↗
+        </a>
       </div>
       <div v-if="event.can_manage" class="flex flex-wrap gap-2">
-        <RouterLink
-          v-if="event.modules.landing"
-          :to="{ name: 'event-site', params: { id: event.id } }"
-          class="inline-flex h-10 items-center rounded-control border border-line bg-surface px-4 font-medium hover:bg-brand-50"
-        >
-          Сайт мероприятия
-        </RouterLink>
         <UiButton
           v-for="status in event.allowed_statuses"
           :key="status"
@@ -279,8 +280,8 @@ watch(() => props.id, load, { immediate: true })
           <template #title>Описание</template>
           <div class="grid gap-4">
             <UiInput v-model="form.title" label="Название" />
-            <UiInput v-model="form.slug" label="Адрес" :hint="`${form.slug}.sites.contest.skolhub.ru`" />
-            <UiInput v-model="form.short_description" label="Кратко" hint="Одна-две фразы для карточки и обложки лендинга" maxlength="300" />
+            <UiInput v-model="form.slug" label="Адрес" :hint="`Открытая форма заявки: ${applyUrl(form.slug)}`" />
+            <UiInput v-model="form.short_description" label="Кратко" hint="Одна-две фразы для открытой формы и списка мероприятий" maxlength="300" />
             <label class="grid gap-1.5 text-sm">
               <span class="font-medium">Подробное описание</span>
               <textarea v-model="form.description" rows="6" class="rounded-control border border-line bg-surface px-3 py-2" />
@@ -292,7 +293,7 @@ watch(() => props.id, load, { immediate: true })
           <template #title>Обложка</template>
           <div class="flex flex-wrap items-center gap-4">
             <img v-if="event.cover_file_id" :src="`/api/v1/public/files/${event.cover_file_id}`" alt="Обложка мероприятия" class="h-24 w-40 rounded-control object-cover" />
-            <p v-else class="text-sm text-ink-muted">Картинка для лендинга и карточки мероприятия: JPEG, PNG или WebP, лучше 1600×900.</p>
+            <p v-else class="text-sm text-ink-muted">Картинка над открытой формой заявки: JPEG, PNG или WebP, лучше 1600×900.</p>
             <label v-if="!readonly" class="cursor-pointer rounded-control border border-line bg-surface px-3 py-2 text-sm hover:bg-brand-50">
               {{ coverUploading ? 'Загрузка…' : event.cover_file_id ? 'Заменить' : 'Загрузить' }}
               <input type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" @change="setCover($event.target.files[0]); $event.target.value = ''" />
@@ -328,8 +329,9 @@ watch(() => props.id, load, { immediate: true })
           <div class="grid gap-4 sm:grid-cols-2">
             <UiInput v-model="form.registration_opens_at" type="datetime-local" label="Открывается" />
             <UiInput v-model="form.registration_closes_at" type="datetime-local" label="Закрывается" />
+            <UiInput v-model="form.details_closes_at" type="datetime-local" label="Заполнить анкету до" hint="Для подтверждённых заявок. Пусто — пока идёт приём" />
           </div>
-          <p class="mt-3 text-sm text-ink-muted">Заявки принимаются, когда мероприятие в статусе «Регистрация» и время попадает в этот интервал.</p>
+          <p class="mt-3 text-sm text-ink-muted">Новые заявки принимаются, когда мероприятие в статусе «Регистрация» и время попадает в этот интервал.</p>
         </UiCard>
 
         <UiCard>
@@ -391,7 +393,7 @@ watch(() => props.id, load, { immediate: true })
 
     <ApplicationsPanel v-else-if="tab === 'applications'" :event="event" />
 
-    <FormBuilder v-else-if="tab === 'form'" :event-id="event.id" :readonly="readonly" />
+    <FormBuilder v-else-if="tab === 'form'" :event-id="event.id" :slug="event.slug" :readonly="readonly" />
 
     <EvaluationPanel v-else-if="tab === 'evaluation'" :event="event" />
 

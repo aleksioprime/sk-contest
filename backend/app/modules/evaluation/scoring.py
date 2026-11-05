@@ -11,6 +11,7 @@ TWO_PLACES = Decimal('0.01')
 
 
 def round2(value: Decimal) -> Decimal:
+    """Округляет до сотых, половина вверх."""
     return value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
@@ -27,6 +28,7 @@ def normalize_options(selected: list[int], options: list) -> list[int]:
 
 
 def criterion_score(criterion, level=None, option_ids: list[int] | None = None) -> Decimal | None:
+    """Баллы за критерий: сумма пунктов чек-листа или баллы уровня шкалы; None, если ничего не выбрано."""
     if criterion.type == 'checklist':
         if not option_ids:
             return None
@@ -45,6 +47,7 @@ def evaluation_result(criteria: list, scores: dict[int, Decimal | None]) -> tupl
 
 
 def aggregate(scores: list[Decimal], method: str) -> Decimal | None:
+    """Сводит оценки в итоговый балл: сумма, медиана или среднее; None, если оценок нет."""
     if not scores:
         return None
     if method == 'sum':

@@ -1,3 +1,5 @@
+"""Служебные эндпоинты: проверка живости и готовности приложения."""
+
 from fastapi import APIRouter, Response, status
 from redis.asyncio import Redis
 from sk_common.db import get_engine
@@ -28,11 +30,11 @@ async def meta() -> dict:
         'name': settings.project_name,
         'version': settings.version,
         'environment': settings.environment,
-        'sites_base_domain': settings.sites_base_domain,
     }
 
 
 async def _check_database() -> bool:
+    """Проверяет доступность БД запросом select 1."""
     try:
         async with get_engine().connect() as conn:
             await conn.execute(text('select 1'))
@@ -42,6 +44,7 @@ async def _check_database() -> bool:
 
 
 async def _check_redis() -> bool:
+    """Проверяет доступность Redis командой ping."""
     client = Redis.from_url(settings.redis.dsn)
     try:
         return bool(await client.ping())

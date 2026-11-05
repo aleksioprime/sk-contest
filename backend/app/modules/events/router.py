@@ -1,3 +1,5 @@
+"""Эндпоинты мероприятий: список, настройки, статусы, вложенные списки и команда."""
+
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
@@ -21,7 +23,6 @@ from app.modules.events.schemas import (
     FormOut,
     MemberIn,
     MemberOut,
-    PublicEvent,
     Reorder,
     StageIn,
     StageOut,
@@ -30,16 +31,17 @@ from app.modules.events.schemas import (
 from app.modules.events.templates import EVENT_TYPES, TRANSITIONS
 
 router = APIRouter(prefix='/v1/events', tags=['events'])
-public_router = APIRouter(prefix='/v1/public/events', tags=['public'])
 
 CHILD_SCHEMAS = {'directions': (DirectionIn, DirectionOut), 'stages': (StageIn, StageOut), 'forms': (FormIn, FormOut)}
 
 
 def _bad_request(exc: Exception) -> HTTPException:
+    """Превращает ошибку бизнес-логики в ответ 400."""
     return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
 
 async def _load(db, event_id: int, user: User, manage: bool = False) -> Event:
+    """Возвращает мероприятие с проверкой просмотра и (при manage) управления; если его нет, отвечает 404."""
     event = await service.get_event(db, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Мероприятие не найдено')
@@ -50,6 +52,7 @@ async def _load(db, event_id: int, user: User, manage: bool = False) -> Event:
 
 
 def _out(event: Event, user: User) -> EventOut:
+    """Схема мероприятия с ролями пользователя, правом управления и допустимыми статусами."""
     result = EventOut.model_validate(event)
     result.my_roles = roles_of(user, event)
     result.can_manage = can_manage(user, event)
@@ -58,6 +61,7 @@ def _out(event: Event, user: User) -> EventOut:
 
 
 def _member_out(member) -> MemberOut:
+    """Схема участника команды с именем из профиля или email."""
     person = member.user.person
     return MemberOut(
         id=member.id,
@@ -158,10 +162,12 @@ async def delete_event(event_id: int, db: Db, user: CurrentUser) -> Response:
 
 
 def _child_routes(kind: str) -> None:
+    """Регистрирует эндпоинты добавления, изменения, удаления и сортировки для вложенного списка kind."""
     schema_in, schema_out = CHILD_SCHEMAS[kind]
 
     @router.post(f'/{{event_id}}/{kind}', response_model=schema_out, status_code=201, name=f'add_{kind}')
     async def add(event_id: int, payload: schema_in, db: Db, user: CurrentUser):
+        """Добавляет элемент вложенного списка."""
         event = await _load(db, event_id, user, manage=True)
         child = await service.add_child(db, event, kind, payload.model_dump())
         await db.commit()
@@ -169,6 +175,7 @@ def _child_routes(kind: str) -> None:
 
     @router.patch(f'/{{event_id}}/{kind}/{{child_id}}', response_model=schema_out, name=f'update_{kind}')
     async def update(event_id: int, child_id: int, payload: schema_in, db: Db, user: CurrentUser):
+        """Заменяет поля элемента вложенного списка."""
         event = await _load(db, event_id, user, manage=True)
         try:
             child = service.find_child(event, kind, child_id)
@@ -181,6 +188,7 @@ def _child_routes(kind: str) -> None:
 
     @router.delete(f'/{{event_id}}/{kind}/{{child_id}}', status_code=204, name=f'delete_{kind}')
     async def delete(event_id: int, child_id: int, db: Db, user: CurrentUser) -> Response:
+        """Удаляет элемент вложенного списка."""
         event = await _load(db, event_id, user, manage=True)
         try:
             child = service.find_child(event, kind, child_id)
@@ -192,6 +200,7 @@ def _child_routes(kind: str) -> None:
 
     @router.put(f'/{{event_id}}/{kind}/order', status_code=204, name=f'reorder_{kind}')
     async def reorder(event_id: int, payload: Reorder, db: Db, user: CurrentUser) -> Response:
+        """Сохраняет порядок элементов вложенного списка."""
         event = await _load(db, event_id, user, manage=True)
         try:
             await service.reorder_children(db, event, kind, payload.ids)
@@ -232,14 +241,3 @@ async def remove_member(event_id: int, member_id: int, db: Db, user: CurrentUser
         raise _bad_request(exc) from exc
     await db.commit()
     return Response(status_code=204)
-
-
-# --- Публичные данные для лендинга -----------------------------------------------------------
-
-
-@public_router.get('/{slug}', response_model=PublicEvent, summary='Опубликованное мероприятие')
-async def public_event(slug: str, db: Db) -> PublicEvent:
-    event = await service.get_by_slug(db, slug)
-    if event is None or event.status == 'draft':
-        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Мероприятие не найдено')
-    return PublicEvent.model_validate(service.public_event_payload(event))

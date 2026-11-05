@@ -4,7 +4,7 @@ import pytest
 from openpyxl import load_workbook
 from sk_common.testing import login_as
 
-from tests.test_applications import SLUG, _open_event, _other, _submitted
+from tests.test_applications import _open_event, _other, _submitted
 from tests.test_evaluation import _as
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
@@ -17,7 +17,7 @@ async def _contest(db, client):
     for email in ('anna@example.org', 'boris@example.org', 'vera@example.org'):
         async with _other(client) as applicant:
             await login_as(db, applicant, email=email)
-            apps.append(await _submitted(applicant, event))
+            apps.append(await _submitted(client, applicant, event))
     for app in apps:
         await client.post(f'/api/v1/applications/{app["id"]}/decision', json={'status': 'accepted'})
 
@@ -130,12 +130,9 @@ async def test_stage_advancement_schedule_and_results(db, client):
     )
     results = (await client.get(f'{url}/results')).json()
     assert [(r['rank'], r['award']) for r in results['rows']] == [(1, 'winner'), (2, 'prize'), (3, 'participant')]
-    assert (await client.get(f'/api/v1/public/events/{SLUG}/results')).status_code == 404
 
     published = (await client.post(f'{url}/results/publish')).json()
     assert published['published_at'] is not None
-    public = (await client.get(f'/api/v1/public/events/{SLUG}/results')).json()
-    assert [w['award'] for w in public[0]['winners']] == ['winner', 'prize']
 
     pdf = await client.get(f'{url}/diplomas.pdf')
     assert pdf.status_code == 200 and pdf.content.startswith(b'%PDF')
@@ -187,11 +184,6 @@ async def test_overall_ranking_combined_sheets_and_nominations(db, client):
     results = (await client.get(f'{url}/results')).json()
     nominated = next(r for r in results['rows'] if r['application_id'] == third['application_id'])
     assert nominated['nominations'] == ['Лучший дизайн'] and nominated['award'] == 'participant'
-
-    await client.post(f'{url}/results/publish')
-    public = (await client.get(f'/api/v1/public/events/{SLUG}/results')).json()
-    assert [g['direction'] for g in public] == ['', 'Номинация «Лучший дизайн»']
-    assert public[1]['nomination'] is True and public[1]['winners'][0]['award'] == 'nomination'
 
     # заявка чужого мероприятия в номинации не принимается
     bad = {**awards, 'nominations': [{'id': 'n2', 'title': 'X', 'application_ids': [1]}]}

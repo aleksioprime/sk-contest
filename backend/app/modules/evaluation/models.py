@@ -1,3 +1,5 @@
+"""Модели оценки: шкалы, таблицы оценок, листы, работы листа и оценки судей."""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -25,6 +27,8 @@ class Scale(IdMixin, TimestampMixin, Base):
 
 
 class ScaleLevel(IdMixin, Base):
+    """Уровень шкалы: название и баллы."""
+
     __tablename__ = 'eval_scale_levels'
 
     scale_id: Mapped[int] = mapped_column(ForeignKey('eval_scales.id', ondelete='CASCADE'), index=True)
@@ -50,6 +54,8 @@ class Scorecard(IdMixin, TimestampMixin, Base):
 
 
 class Category(IdMixin, Base):
+    """Категория критериев в таблице оценок."""
+
     __tablename__ = 'eval_categories'
 
     scorecard_id: Mapped[int] = mapped_column(ForeignKey('eval_scorecards.id', ondelete='CASCADE'), index=True)
@@ -58,6 +64,8 @@ class Category(IdMixin, Base):
 
 
 class Criterion(IdMixin, Base):
+    """Критерий таблицы оценок: шкала или чек-лист, вес и категория."""
+
     __tablename__ = 'eval_criteria'
 
     scorecard_id: Mapped[int] = mapped_column(ForeignKey('eval_scorecards.id', ondelete='CASCADE'), index=True)
@@ -113,6 +121,8 @@ class Sheet(IdMixin, TimestampMixin, Base):
 
 
 class SheetJudge(IdMixin, Base):
+    """Судья листа с отметкой о повторном открытии и напоминании."""
+
     __tablename__ = 'eval_sheet_judges'
     __table_args__ = (UniqueConstraint('sheet_id', 'user_id'),)
 
@@ -127,6 +137,8 @@ class SheetJudge(IdMixin, Base):
 
 
 class SheetWork(IdMixin, Base):
+    """Работа в листе: итоговый балл, место и токен публичной ссылки."""
+
     __tablename__ = 'eval_sheet_works'
     __table_args__ = (UniqueConstraint('sheet_id', 'application_id'),)
 
@@ -165,6 +177,8 @@ class Evaluation(IdMixin, TimestampMixin, Base):
 
 
 class EvaluationItem(IdMixin, Base):
+    """Оценка судьи по одному критерию: уровень шкалы или баллы, комментарий."""
+
     __tablename__ = 'eval_items'
     __table_args__ = (UniqueConstraint('evaluation_id', 'criterion_id'),)
 
@@ -178,6 +192,8 @@ class EvaluationItem(IdMixin, Base):
 
 
 class EvaluationItemOption(Base):
+    """Отмеченный пункт чек-листа в оценке по критерию."""
+
     __tablename__ = 'eval_item_options'
 
     item_id: Mapped[int] = mapped_column(ForeignKey('eval_items.id', ondelete='CASCADE'), primary_key=True)

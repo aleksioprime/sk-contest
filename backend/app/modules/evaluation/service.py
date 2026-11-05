@@ -1,3 +1,5 @@
+"""Логика оценки: шкалы и таблицы оценок, листы, судьи, распределение работ и пересчёт баллов и мест."""
+
 import secrets
 from decimal import Decimal
 
@@ -8,6 +10,7 @@ from sk_common.security import hash_password, now_utc
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.letters import NO_EMAIL_DOMAIN
 from app.modules.applications.models import Application
 from app.modules.evaluation import scoring
 from app.modules.evaluation.models import (
@@ -30,6 +33,8 @@ from app.modules.events.service import add_member
 
 
 class EvaluationError(Exception):
+    """Ошибка операции оценки."""
+
     pass
 
 
@@ -37,10 +42,12 @@ class EvaluationError(Exception):
 
 
 async def scale_in_use(session: AsyncSession, scale_id: int) -> bool:
+    """Используется ли шкала хотя бы в одном критерии."""
     return bool(await session.scalar(select(exists().where(Criterion.scale_id == scale_id))))
 
 
 def fill_scale(scale: Scale, data: ScaleIn) -> None:
+    """Заменяет название и уровни шкалы данными из запроса."""
     scale.title = data.title
     scale.levels = [ScaleLevel(title=lv.title, points=lv.points, order=i) for i, lv in enumerate(data.levels)]
 
@@ -58,6 +65,7 @@ async def scorecard_in_use(session: AsyncSession, scorecard_id: int) -> bool:
 
 
 async def fill_scorecard(session: AsyncSession, scorecard: Scorecard, event_id: int, data: ScorecardIn) -> None:
+    """Заменяет категории и критерии таблицы оценок данными из запроса; шкалы должны принадлежать мероприятию."""
     scorecard.title = data.title  # до первого запроса: autoflush сохранит новую таблицу
     scale_ids = {c.scale_id for c in data.criteria if c.scale_id}
     if scale_ids:
@@ -87,6 +95,7 @@ async def fill_scorecard(session: AsyncSession, scorecard: Scorecard, event_id: 
 
 
 def max_score(scorecard: Scorecard) -> Decimal:
+    """Максимально возможный балл таблицы: сумма лучших значений критериев с учётом весов."""
     total = Decimal(0)
     for criterion in scorecard.criteria:
         if criterion.type == 'checklist':
@@ -107,6 +116,7 @@ def max_score(scorecard: Scorecard) -> Decimal:
 
 
 async def add_works(session: AsyncSession, sheet: Sheet, data: AddWorks) -> int:
+    """Добавляет в лист работы по источнику и фильтрам, пропуская уже добавленные; возвращает число добавленных."""
     if data.source == 'stage':
         if sheet.stage_id is None:
             raise EvaluationError('Лист не привязан к этапу')
@@ -138,6 +148,7 @@ async def add_works(session: AsyncSession, sheet: Sheet, data: AddWorks) -> int:
 
 
 async def remove_work(session: AsyncSession, sheet: Sheet, work_id: int) -> None:
+    """Убирает работу из листа, если по ней нет оценок, и пересчитывает места."""
     work = next((w for w in sheet.works if w.id == work_id), None)
     if work is None:
         raise EvaluationError('Работа не найдена в листе')
@@ -146,13 +157,6 @@ async def remove_work(session: AsyncSession, sheet: Sheet, work_id: int) -> None
     sheet.works.remove(work)
     await session.flush()
     recompute_ranks(sheet)
-
-
-NO_EMAIL_DOMAIN = 'judges.sk-events.local'
-
-
-def has_real_email(user: User) -> bool:
-    return not user.email.endswith(f'@{NO_EMAIL_DOMAIN}')
 
 
 async def judge_only(session: AsyncSession, user: User) -> bool:
@@ -201,6 +205,7 @@ async def judge_user(session: AsyncSession, sheet: Sheet, judge) -> User:
 
 
 async def set_judges(session: AsyncSession, actor: User, sheet: Sheet, event: Event, judges: list, force: bool) -> None:
+    """Приводит состав судей листа к заданному: создаёт недостающих, убирает лишних и пересчитывает баллы."""
     users = []
     for judge in judges:
         user = await judge_user(session, sheet, judge)
@@ -236,6 +241,7 @@ def has_conflict(user: User, app: Application) -> bool:
 
 
 async def distribute(session: AsyncSession, sheet: Sheet, mode: str, per_work: int) -> dict:
+    """Создаёт пустые оценки: все судьи на все работы или per_work судей на работу; конфликты интересов пропускает."""
     judges = [j.user for j in sheet.judges]
     if not judges:
         raise EvaluationError('Добавьте судей в лист')
@@ -265,11 +271,13 @@ async def distribute(session: AsyncSession, sheet: Sheet, mode: str, per_work: i
 
 
 def recompute_evaluation(sheet: Sheet, evaluation: Evaluation) -> None:
+    """Пересчитывает балл одной оценки по значениям критериев."""
     scores = {item.criterion_id: item.score for item in evaluation.items}
     evaluation.score, evaluation.is_scored = scoring.evaluation_result(sheet.scorecard.criteria, scores)
 
 
 def recompute_work(sheet: Sheet, work: SheetWork) -> None:
+    """Пересчитывает балл работы по засчитываемым оценкам и признак завершённости оценивания."""
     counted = [e for e in work.evaluations if not e.is_anonymous or (sheet.include_anonymous and sheet.mode != 'jury')]
     jury = [e for e in work.evaluations if not e.is_anonymous]
     work.score = scoring.aggregate([e.score for e in counted if e.is_scored], sheet.aggregate)
@@ -292,6 +300,7 @@ def recompute_ranks(sheet: Sheet) -> None:
 
 
 def recompute_sheet(sheet: Sheet) -> None:
+    """Пересчитывает все оценки, баллы работ и места листа."""
     for work in sheet.works:
         for evaluation in work.evaluations:
             recompute_evaluation(sheet, evaluation)
@@ -339,6 +348,7 @@ async def set_criterion(
 
 
 def deadline_passed(sheet: Sheet) -> bool:
+    """Прошёл ли дедлайн листа."""
     return sheet.deadline is not None and sheet.deadline <= now_utc()
 
 
@@ -356,10 +366,12 @@ def judge_can_edit(sheet: Sheet, user_id: int) -> bool:
 
 
 def work_of(sheet: Sheet, evaluation: Evaluation) -> SheetWork:
+    """Работа листа, к которой относится оценка."""
     return next(w for w in sheet.works if w.id == evaluation.sheet_work_id)
 
 
 async def change_status(session: AsyncSession, actor: User, sheet: Sheet, status: str) -> None:
+    """Меняет статус листа; перед запуском проверяет работы, судей, критерии и дедлайн, пишет запись аудита."""
     if status == 'active' and (not sheet.works or not (sheet.judges or sheet.mode != 'jury')):
         raise EvaluationError('Перед запуском добавьте в лист работы и судей')
     if status == 'active' and not sheet.scorecard.criteria:
@@ -374,6 +386,7 @@ async def change_status(session: AsyncSession, actor: User, sheet: Sheet, status
 
 
 async def sheet_count_scored(session: AsyncSession, sheet_ids: list[int]) -> dict[int, tuple[int, int]]:
+    """Для каждого листа возвращает число оценок судей и из них завершённых."""
     rows = await session.execute(
         select(SheetWork.sheet_id, func.count(Evaluation.id), func.count(Evaluation.id).filter(Evaluation.is_scored))
         .join(Evaluation, Evaluation.sheet_work_id == SheetWork.id)

@@ -4,50 +4,30 @@
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from html import escape
 
 from sk_common.audit import record
 from sk_common.queue import Queue
 from sk_common.security import now_utc
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.letters import app_link, button, can_email, moscow_time
 from app.modules.applications.models import DRAFT, NEEDS_CHANGES, Application
 from app.modules.evaluation.models import Evaluation, Sheet, SheetWork
-from app.modules.evaluation.service import NO_EMAIL_DOMAIN
 from app.modules.events.models import Event
 
 logger = logging.getLogger('sk_contest.reminders')
 
 DRAFT_REMIND_BEFORE = timedelta(hours=48)
 JUDGE_REMIND_BEFORE = timedelta(hours=24)
-MSK = timezone(timedelta(hours=3))  # время в письмах — московское, как у большинства мероприятий
-
-
-def _url(path: str) -> str:
-    return f'{settings.app_url.rstrip("/")}{path}'
-
-
-def _when(moment: datetime) -> str:
-    return moment.astimezone(MSK).strftime('%d.%m.%Y %H:%M') + ' (МСК)'
-
-
-def _button(link: str, title: str) -> str:
-    return (
-        f'<p><a href="{link}" style="display:inline-block;padding:12px 20px;background:#6d28d9;color:#fff;'
-        f'border-radius:10px;text-decoration:none;font-weight:600">{escape(title)}</a></p>'
-    )
-
-
-def can_email(email: str | None) -> bool:
-    return bool(email) and not email.endswith('@' + NO_EMAIL_DOMAIN)
 
 
 async def remind_drafts(session: AsyncSession, queue: Queue, now: datetime | None = None) -> int:
-    """Заявки в черновике или на доработке, когда до закрытия приёма меньше двух суток."""
+    """Заявки в черновике или на доработке, когда до конца заполнения меньше двух суток."""
     now = now or now_utc()
+    deadline_at = func.coalesce(Event.details_closes_at, Event.registration_closes_at)
     apps = (
         await session.scalars(
             select(Application)
@@ -55,9 +35,9 @@ async def remind_drafts(session: AsyncSession, queue: Queue, now: datetime | Non
             .where(
                 Application.status.in_((DRAFT, NEEDS_CHANGES)),
                 Application.reminded_at.is_(None),
-                Event.status == 'registration',
-                Event.registration_closes_at > now,
-                Event.registration_closes_at <= now + DRAFT_REMIND_BEFORE,
+                Event.status.in_(('registration', 'running')),
+                deadline_at > now,
+                deadline_at <= now + DRAFT_REMIND_BEFORE,
             )
         )
     ).unique()
@@ -67,19 +47,19 @@ async def remind_drafts(session: AsyncSession, queue: Queue, now: datetime | Non
         if not can_email(app.user.email):
             continue
         event = app.event
-        link = _url(f'/my/applications/{app.id}')
+        link = app_link(f'/my/applications/{app.id}')
         state = 'не отправлена' if app.status == DRAFT else 'ждёт правок'
-        deadline = _when(event.registration_closes_at)
+        deadline = moscow_time(event.details_closes_at or event.registration_closes_at)
         text = (
             'Здравствуйте!\n\n'
             f'Ваша заявка №{app.number} на «{event.title}» {state}.\n'
-            f'Приём заявок закрывается {deadline}. После этого отправить её будет нельзя.\n\n'
+            f'Заполнение заявок заканчивается {deadline}. После этого отправить её будет нельзя.\n\n'
             f'Открыть заявку: {link}'
         )
         html = (
             f'<p>Здравствуйте!</p><p>Ваша заявка №{app.number} на «{escape(event.title)}» {state}.</p>'
-            f'<p>Приём заявок закрывается <b>{deadline}</b>. После этого отправить её будет нельзя.</p>'
-            + _button(link, 'Открыть заявку')
+            f'<p>Заполнение заявок заканчивается <b>{deadline}</b>. После этого отправить её будет нельзя.</p>'
+            + button(link, 'Открыть заявку')
         )
         await queue.enqueue('send_email', app.user.email, f'Заявка не отправлена: {event.title}', text, html)
         sent += 1
@@ -116,8 +96,8 @@ async def remind_sheet_judges(
         if not can_email(judge.user.email):
             no_email += 1
             continue
-        link = _url(f'/judging/sheets/{sheet.id}')
-        deadline = f' до {_when(sheet.deadline)}' if sheet.deadline else ''
+        link = app_link(f'/judging/sheets/{sheet.id}')
+        deadline = f' до {moscow_time(sheet.deadline)}' if sheet.deadline else ''
         text = (
             'Здравствуйте!\n\n'
             f'В листе «{sheet.title}» ({event.title}) осталось оценить работ: {count}.\n'
@@ -127,7 +107,7 @@ async def remind_sheet_judges(
         html = (
             f'<p>Здравствуйте!</p><p>В листе «{escape(sheet.title)}» ({escape(event.title)}) '
             f'осталось оценить работ: <b>{count}</b>.</p><p>Пожалуйста, завершите оценку{deadline}.</p>'
-            + _button(link, 'Открыть лист')
+            + button(link, 'Открыть лист')
         )
         await queue.enqueue('send_email', judge.user.email, f'Оценка работ: {sheet.title}', text, html)
         sent += 1
@@ -163,6 +143,7 @@ async def close_overdue_sheets(session: AsyncSession, now: datetime | None = Non
 
 
 async def run_hourly(session: AsyncSession, queue: Queue) -> dict[str, int]:
+    """Запускает почасовые напоминания и закрытие просроченных листов; возвращает число обработанных по видам."""
     now = now_utc()
     result = {
         'drafts': await remind_drafts(session, queue, now),

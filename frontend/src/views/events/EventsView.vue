@@ -1,4 +1,5 @@
 <script setup>
+/** Список мероприятий пользователя. */
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROLE_LABELS, STATUS_LABELS, STATUS_TONES, fetchEvents } from '@/api/events'

@@ -9,7 +9,6 @@ async def test_meta(client):
     assert response.status_code == 200
     body = response.json()
     assert body['name'] == 'SK Contest'
-    assert body['sites_base_domain'] == 'sites.contest.skolhub.ru'
 
 
 async def test_ready_reports_each_dependency(client):

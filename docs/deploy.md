@@ -11,9 +11,6 @@ A-записи на IP сервера Coolify:
 | Запись | Для чего |
 |---|---|
 | `contest.skolhub.ru` | приложение и API |
-| `sites.contest.skolhub.ru` | лендинги по пути `/slug` |
-| `*.sites.contest.skolhub.ru` | лендинги на поддоменах (сертификат — [domains.md](domains.md)) |
-| `sites.contest.skolhub.ru` | цель CNAME для своих доменов организаторов |
 
 ## 2. Переменные
 
@@ -35,9 +32,9 @@ python3 infra/coolify/deploy.py
 
 Вручную: *New Resource → Public Repository → main → Docker Compose*,
 путь `/infra/coolify/docker-compose.prod.yaml`; переменные из `.env.prod`; домены
-`frontend` → `https://contest.skolhub.ru`, `sites` → `https://sites.contest.skolhub.ru`.
+`frontend` → `https://contest.skolhub.ru`.
 
-DNS: `contest.skolhub.ru` и `*.contest.skolhub.ru` (для `sites.contest.skolhub.ru`) — A‑записи на `5.252.65.50`.
+DNS: `contest.skolhub.ru` — A‑запись на `5.252.65.50`.
 
 Дальше выкатка автоматическая: после пуша в `main` workflow «Образы» собирает образы, записывает тег коммита
 в переменную `IMAGE_TAG` ресурса и запускает развёртывание. Секреты репозитория: `COOLIFY_API`

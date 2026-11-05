@@ -36,6 +36,7 @@ def _fonts() -> tuple[str, str]:
 
 
 def _wrap(c: canvas.Canvas, text: str, font: str, size: int, width: float) -> list[str]:
+    """Разбивает текст на строки по словам так, чтобы каждая помещалась в заданную ширину."""
     lines, line = [], ''
     for word in text.split():
         candidate = f'{line} {word}'.strip()

@@ -1,4 +1,5 @@
 <script setup>
+/** Страница оценочного листа: работы, судьи, статус, ссылки и QR-коды. */
 import QRCode from 'qrcode'
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'

@@ -1,15 +1,25 @@
 <script setup>
-/** Карточка заявки для модератора: содержимое, файлы и решение. */
+/** Карточка заявки для модератора: заявитель, содержимое, файлы и решение. */
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { APP_STATUS_LABELS, APP_STATUS_TONES, decide, fetchApplication } from '@/api/applications'
+import {
+  APP_STATUS_LABELS,
+  APP_STATUS_TONES,
+  DECISION_ACTIONS,
+  SOURCE_LABELS,
+  decide,
+  fetchApplication,
+  resendInvitation,
+} from '@/api/applications'
 import { errorMessage } from '@/api/http'
+import ApplicantPanel from '@/components/events/ApplicantPanel.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const props = defineProps({
   applicationId: { type: Number, required: true },
+  eventId: { type: Number, required: true },
   fields: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['decided', 'close'])
@@ -19,15 +29,11 @@ const comment = ref('')
 const error = ref('')
 const busy = ref('')
 
-const ACTIONS = [
-  { status: 'accepted', label: 'Принять', variant: 'primary' },
-  { status: 'needs_changes', label: 'Вернуть на доработку', variant: 'secondary' },
-  { status: 'rejected', label: 'Отклонить', variant: 'danger' },
-  { status: 'submitted', label: 'Вернуть на рассмотрение', variant: 'ghost' },
-]
-const actions = computed(() =>
-  ['draft', 'withdrawn'].includes(app.value?.status) ? [] : ACTIONS.filter((a) => a.status !== app.value?.status),
-)
+const notice = ref('')
+const actions = computed(() => (app.value?.allowed_decisions ?? []).map((status) => ({ status, ...DECISION_ACTIONS[status] })))
+const rawEntries = computed(() => Object.entries(app.value?.raw_payload ?? {}))
+const participants = computed(() => app.value.members.filter((m) => m.role === 'participant'))
+const supervisors = computed(() => app.value.members.filter((m) => m.role === 'supervisor'))
 
 function answer(field) {
   const value = app.value.answers[field.key]
@@ -42,18 +48,42 @@ async function load() {
   app.value = null
   try {
     app.value = await fetchApplication(props.applicationId)
-    comment.value = app.value.moderator_comment
+    comment.value = ''
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
 
+function onApplicantChanged(updated) {
+  app.value = updated
+  emit('decided', updated)
+}
+
 async function apply(status) {
   busy.value = status
   error.value = ''
+  notice.value = ''
   try {
     app.value = await decide(app.value.id, status, comment.value)
+    comment.value = ''
+    if (status === 'confirmed') {
+      notice.value = app.value.status === 'draft' ? `Приглашение отправлено на ${app.value.applicant_email}` : 'Заявка подтверждена и принята'
+    }
     emit('decided', app.value)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function invite() {
+  busy.value = 'invite'
+  error.value = ''
+  notice.value = ''
+  try {
+    app.value = await resendInvitation(app.value.id)
+    notice.value = `Приглашение отправлено на ${app.value.applicant_email}`
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -75,7 +105,7 @@ watch(() => props.applicationId, load, { immediate: true })
             <UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge>
           </div>
           <p class="text-sm text-ink-muted">
-            {{ app.direction?.title }}{{ app.participation_form ? ` · ${app.participation_form.title}` : '' }} · подал {{ app.applicant_name }}, {{ app.applicant_email }}
+            {{ [app.direction?.title, app.participation_form?.title, SOURCE_LABELS[app.source]].filter(Boolean).join(' · ') }}
           </p>
         </div>
         <div class="flex gap-1">
@@ -89,17 +119,20 @@ watch(() => props.applicationId, load, { immediate: true })
         </div>
       </div>
 
+      <ApplicantPanel :key="app.id" class="mt-4" :application="app" :event-id="eventId" @changed="onApplicantChanged" />
+
       <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[180px_1fr]">
         <dt class="text-ink-muted">Участники</dt>
         <dd>
-          <p v-for="m in app.members.filter((m) => m.role === 'participant')" :key="m.id">
+          <p v-for="m in participants" :key="m.id">
             {{ m.full_name }}<span v-if="m.grade" class="text-ink-muted">, {{ m.grade }} класс</span><span v-if="m.organization" class="text-ink-muted">, {{ m.organization }}</span>
           </p>
+          <p v-if="!participants.length">—</p>
         </dd>
         <dt class="text-ink-muted">Руководители</dt>
         <dd>
-          <p v-for="m in app.members.filter((m) => m.role === 'supervisor')" :key="m.id">{{ m.full_name }} <span class="text-ink-muted">{{ m.email }}</span></p>
-          <p v-if="!app.members.some((m) => m.role === 'supervisor')">—</p>
+          <p v-for="m in supervisors" :key="m.id">{{ m.full_name }} <span class="text-ink-muted">{{ m.email }}</span></p>
+          <p v-if="!supervisors.length">—</p>
         </dd>
         <template v-for="field in fields.filter((f) => f.type !== 'file')" :key="field.key">
           <dt class="text-ink-muted">{{ field.label }}</dt>
@@ -113,10 +146,22 @@ watch(() => props.applicationId, load, { immediate: true })
         <dt class="text-ink-muted">Согласия</dt>
         <dd>
           <p v-for="c in app.consents" :key="c.key">{{ c.title }}, версия {{ c.version }}, {{ new Date(c.accepted_at).toLocaleString('ru-RU') }}</p>
+          <p v-if="!app.consents.length">—</p>
         </dd>
       </dl>
 
-      <div v-if="actions.length" class="mt-5 grid gap-3 border-t border-line pt-4">
+      <details v-if="rawEntries.length" class="mt-4 text-sm">
+        <summary class="cursor-pointer font-medium">Исходные данные из внешней формы</summary>
+        <dl class="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-[180px_1fr]">
+          <template v-for="[key, value] in rawEntries" :key="key">
+            <dt class="text-ink-muted">{{ key }}</dt>
+            <dd class="break-words">{{ value }}</dd>
+          </template>
+        </dl>
+      </details>
+
+      <div v-if="actions.length || app.status === 'draft'" class="mt-5 grid gap-3 border-t border-line pt-4">
+        <p v-if="app.moderator_comment" class="text-sm text-ink-muted">Прошлый комментарий: {{ app.moderator_comment }}</p>
         <label class="grid gap-1.5 text-sm">
           <span class="font-medium">Комментарий для участника</span>
           <textarea v-model="comment" rows="3" class="rounded-control border border-line bg-surface px-3 py-2" placeholder="Обязателен при возврате на доработку и отклонении" />
@@ -125,8 +170,10 @@ watch(() => props.applicationId, load, { immediate: true })
           <UiButton v-for="a in actions" :key="a.status" size="sm" :variant="a.variant" :loading="busy === a.status" @click="apply(a.status)">
             {{ a.label }}
           </UiButton>
+          <UiButton v-if="app.status === 'draft'" size="sm" :loading="busy === 'invite'" @click="invite">Отправить приглашение ещё раз</UiButton>
         </div>
       </div>
+      <p v-if="notice" role="status" class="mt-3 text-sm text-green-800">{{ notice }}</p>
     </template>
     <p v-if="error" role="alert" class="mt-3 text-sm text-red-700">{{ error }}</p>
   </section>

@@ -49,8 +49,19 @@ def _payload(event, **extra) -> dict:
     }
 
 
-async def _submitted(applicant, event, **extra) -> dict:
-    app = (await applicant.post(f'/api/v1/events/{SLUG}/applications')).json()
+async def _draft(staff, applicant, event) -> dict:
+    """Вошедший пользователь оставляет общую заявку, организатор подтверждает её: анкету можно заполнять."""
+    response = await applicant.post(f'/api/v1/public/events/{SLUG}/register', json={'consents': ['personal_data']})
+    assert response.status_code == 201, response.text
+    app_id = response.json()['application_id']
+    confirmed = await staff.post(f'/api/v1/applications/{app_id}/decision', json={'status': 'confirmed'})
+    assert confirmed.status_code == 200, confirmed.text
+    return (await applicant.get(f'/api/v1/applications/{app_id}')).json()
+
+
+async def _submitted(staff, applicant, event, **extra) -> dict:
+    """Заявка прошла оба шага и ждёт решения."""
+    app = await _draft(staff, applicant, event)
     await applicant.put(f'/api/v1/applications/{app["id"]}', json=_payload(event, **extra))
     response = await applicant.post(f'/api/v1/applications/{app["id"]}/submit')
     assert response.status_code == 200, response.text
@@ -70,14 +81,14 @@ async def test_full_application_cycle(db, client, queue):
     event = await _open_event(db, client)
     async with _other(client) as applicant:
         await login_as(db, applicant, email='anna@example.org', last_name='Иванова')
-        draft = (await applicant.post(f'/api/v1/events/{SLUG}/applications')).json()
+        draft = await _draft(client, applicant, event)
         assert draft['number'] == 1 and draft['status'] == 'draft'
         assert draft['members'][0]['full_name'] == 'Иванова Тест' and draft['can_submit'] is True
 
         incomplete = await applicant.post(f'/api/v1/applications/{draft["id"]}/submit')
         assert incomplete.status_code == 422
         errors = incomplete.json()['detail']['errors']
-        assert {'title', 'direction_id', 'annotation', 'consent:personal_data', 'members'} <= set(errors)
+        assert {'title', 'direction_id', 'annotation', 'members'} <= set(errors)
 
         saved = await applicant.put(f'/api/v1/applications/{draft["id"]}', json=_payload(event))
         assert saved.status_code == 200 and saved.json()['consents'][0]['version'] == '1'
@@ -113,7 +124,7 @@ async def test_strangers_cannot_see_or_moderate(db, client):
     event = await _open_event(db, client)
     async with _other(client) as applicant, _other(client) as stranger:
         await login_as(db, applicant, email='anna@example.org')
-        app = await _submitted(applicant, event)
+        app = await _submitted(client, applicant, event)
         await login_as(db, stranger, email='stranger@example.org')
         assert (await stranger.get(f'/api/v1/applications/{app["id"]}')).status_code == 404
         assert (await stranger.get(f'/api/v1/events/{event["id"]}/applications')).status_code == 404
@@ -133,12 +144,12 @@ async def test_files_are_private(db, client):
         bad = await applicant.post('/api/v1/files', files={'file': ('x.exe', b'MZ', 'application/x-msdownload')})
         assert bad.status_code == 400
 
-        app = await _submitted(applicant, event, answers={'annotation': 'Текст', 'work': file_id})
+        app = await _submitted(client, applicant, event, answers={'annotation': 'Текст', 'work': file_id})
         assert app['files'][0]['name'] == 'работа.pdf'
 
         await login_as(db, stranger, email='stranger@example.org')
         assert (await stranger.get(f'/api/v1/files/{file_id}')).status_code == 404
-        draft = (await stranger.post(f'/api/v1/events/{SLUG}/applications')).json()
+        draft = await _draft(client, stranger, event)
         stolen = await stranger.put(
             f'/api/v1/applications/{draft["id"]}', json=_payload(event, answers={'annotation': 'x', 'work': file_id})
         )
@@ -152,9 +163,9 @@ async def test_direction_quota(db, client):
     event = await _open_event(db, client, limits={'per_direction': 1})
     async with _other(client) as first, _other(client) as second:
         await login_as(db, first, email='first@example.org')
-        await _submitted(first, event)
+        await _submitted(client, first, event)
         await login_as(db, second, email='second@example.org')
-        app = (await second.post(f'/api/v1/events/{SLUG}/applications')).json()
+        app = await _draft(client, second, event)
         await second.put(f'/api/v1/applications/{app["id"]}', json=_payload(event))
         response = await second.post(f'/api/v1/applications/{app["id"]}/submit')
         assert response.json()['detail']['errors']['direction_id'] == 'В этом направлении больше нет мест'
@@ -175,7 +186,7 @@ async def test_registration_closed(db, client):
     )
     async with _other(client) as applicant:
         await login_as(db, applicant, email='late@example.org')
-        response = await applicant.post(f'/api/v1/events/{SLUG}/applications')
+        response = await applicant.post(f'/api/v1/public/events/{SLUG}/register', json={'consents': ['personal_data']})
         assert response.status_code == 422
         assert response.json()['detail']['message'] == 'Приём заявок сейчас закрыт'
 
@@ -186,7 +197,7 @@ async def test_export_and_bulk_decision(db, client):
     for email in ('a@example.org', 'b@example.org'):
         async with _other(client) as applicant:
             await login_as(db, applicant, email=email)
-            ids.append((await _submitted(applicant, event))['id'])
+            ids.append((await _submitted(client, applicant, event))['id'])
     result = await client.post(
         f'/api/v1/events/{event["id"]}/applications/decision', json={'ids': ids, 'status': 'accepted'}
     )
@@ -197,6 +208,7 @@ async def test_export_and_bulk_decision(db, client):
     sheet = load_workbook(BytesIO(export.content)).active
     assert sheet['A1'].value == '№' and sheet.max_row == 3
     assert sheet['B2'].value == 'принята' and sheet['F2'].value == 'Иванова Анна'
+    assert sheet['I2'].value == 'Админов Тест' and sheet['J2'].value == 'a@example.org'
 
 
 async def test_staff_creates_and_edits_application(db, client):
@@ -223,3 +235,17 @@ async def test_staff_creates_and_edits_application(db, client):
 
     bad = await client.post(url, json={**_payload(event), 'direction_id': 1})
     assert bad.status_code == 422
+
+
+async def test_staff_edit_keeps_participant_files(db, client):
+    event = await _open_event(db, client)
+    async with _other(client) as applicant:
+        await login_as(db, applicant, email='anna@example.org')
+        upload = await applicant.post('/api/v1/files', files={'file': ('работа.pdf', b'%PDF', 'application/pdf')})
+        answers = {'annotation': 'Текст', 'work': upload.json()['id']}
+        app = await _submitted(client, applicant, event, answers=answers)
+    edited = await client.put(
+        f'/api/v1/applications/{app["id"]}/manage', json=_payload(event, answers=answers, title='Правка')
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()['files'][0]['name'] == 'работа.pdf'

@@ -8,8 +8,6 @@ __pycache__/
 
 # Build output
 dist/
-.nuxt/
-.output/
 coverage/
 htmlcov/
 .coverage

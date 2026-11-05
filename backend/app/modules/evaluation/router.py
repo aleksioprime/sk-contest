@@ -1,3 +1,5 @@
+"""Эндпоинты оценки: шкалы, таблицы, листы, кабинет судьи и анонимное оценивание."""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
@@ -10,6 +12,7 @@ from sk_common.security import TokenError, read_state, sign_state
 from sqlalchemy import func, or_, select
 
 from app.core.config import settings
+from app.core.letters import can_email
 from app.modules.applications.service import event_form
 from app.modules.auth.router import JUDGE_QR
 from app.modules.evaluation import service
@@ -57,10 +60,12 @@ ANON_TTL_MINUTES = 60 * 24 * 60  # анонимная оценка доступ�
 
 
 def _bad(exc: Exception) -> HTTPException:
+    """Превращает ошибку бизнес-логики в ответ 400."""
     return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
 
 def _not_found(what: str = 'Не найдено') -> HTTPException:
+    """Ответ 404 с заданным текстом."""
     return HTTPException(status.HTTP_404_NOT_FOUND, what)
 
 
@@ -72,6 +77,7 @@ LEVELS = {
 
 
 async def _event(db, event_id: int, user: User, level: str = 'manage') -> Event:
+    """Возвращает мероприятие, проверяя доступ по уровню: manage, staff или view."""
     event = await get_event(db, event_id)
     if event is None:
         raise _not_found('Мероприятие не найдено')
@@ -84,6 +90,7 @@ async def _event(db, event_id: int, user: User, level: str = 'manage') -> Event:
 
 
 async def _sheet(db, sheet_id: int, user: User, level: str = 'manage') -> tuple[Sheet, Event]:
+    """Возвращает лист и его мероприятие с проверкой доступа; если листа нет, отвечает 404."""
     sheet = await db.get(Sheet, sheet_id, populate_existing=True)
     if sheet is None:
         raise _not_found('Лист не найден')
@@ -91,6 +98,7 @@ async def _sheet(db, sheet_id: int, user: User, level: str = 'manage') -> tuple[
 
 
 def _scorecard_out(scorecard: Scorecard, in_use: bool = False) -> ScorecardOut:
+    """Схема таблицы оценок с максимальным баллом и признаком использования."""
     result = ScorecardOut.model_validate(scorecard)
     result.max_score = service.max_score(scorecard)
     result.in_use = in_use
@@ -98,17 +106,19 @@ def _scorecard_out(scorecard: Scorecard, in_use: bool = False) -> ScorecardOut:
 
 
 def _person_name(user: User) -> str:
+    """Имя пользователя для показа: ФИО, а при его отсутствии email."""
     return user.person.full_name if user.person and user.person.full_name else user.email
 
 
 def _sheet_out(sheet: Sheet) -> SheetOut:
+    """Собирает схему листа: судьи с прогрессом и работы с баллами."""
     judges = []
     for judge in sheet.judges:
         own = [e for w in sheet.works for e in w.evaluations if e.judge_id == judge.user_id]
         judges.append(
             JudgeOut(
                 user_id=judge.user_id,
-                email=judge.user.email if service.has_real_email(judge.user) else None,
+                email=judge.user.email if can_email(judge.user.email) else None,
                 full_name=_person_name(judge.user),
                 total=len(own),
                 scored=sum(e.is_scored for e in own),
@@ -157,6 +167,7 @@ def _sheet_out(sheet: Sheet) -> SheetOut:
 
 
 def _work_info(work: SheetWork, full: bool) -> WorkInfo:
+    """Сведения о работе; для полного режима добавляет руководителей, ответы анкеты и файлы."""
     app = work.application
     info = WorkInfo(
         number=app.number,
@@ -176,6 +187,7 @@ def _work_info(work: SheetWork, full: bool) -> WorkInfo:
 
 
 def _bundle(sheet: Sheet, evaluation: Evaluation, editable: bool, full: bool, siblings=None) -> EvaluationBundle:
+    """Собирает данные экрана оценки; siblings нужны для ссылок на соседние работы."""
     work = service.work_of(sheet, evaluation)
     ids = [e.id for e in siblings or []]
     position = ids.index(evaluation.id) if evaluation.id in ids else -1
@@ -461,7 +473,7 @@ async def user_search(event_id: int, db: Db, user: CurrentUser, q: str = ''):
         UserSearchItem(
             id=u.id,
             full_name=u.person.full_name if u.person and u.person.full_name else '',
-            email=u.email if service.has_real_email(u) else None,
+            email=u.email if can_email(u.email) else None,
             has_password=bool(u.password_hash),
         )
         for u in rows.unique()
@@ -586,6 +598,7 @@ async def my_sheets(db: Db, user: CurrentUser):
 
 
 async def _judge_sheet(db, sheet_id: int, user: User) -> Sheet:
+    """Возвращает лист судьи; если лист в черновике или судья в нём не назначен, отвечает 404."""
     sheet = await db.get(Sheet, sheet_id, populate_existing=True)
     if sheet is None or sheet.status == 'draft' or user.id not in {j.user_id for j in sheet.judges}:
         raise _not_found('Лист не найден')
@@ -593,6 +606,7 @@ async def _judge_sheet(db, sheet_id: int, user: User) -> Sheet:
 
 
 def _own_evaluations(sheet: Sheet, user: User) -> list[Evaluation]:
+    """Оценки судьи в листе."""
     return [e for w in sheet.works for e in w.evaluations if e.judge_id == user.id]
 
 
@@ -617,6 +631,7 @@ async def my_works(sheet_id: int, db: Db, user: CurrentUser):
 
 
 async def _judge_evaluation(db, evaluation_id: int, user: User) -> tuple[Sheet, Evaluation]:
+    """Возвращает лист и оценку судьи; чужую оценку не отдаёт."""
     evaluation = await db.get(Evaluation, evaluation_id)
     if evaluation is None or evaluation.judge_id != user.id:
         raise _not_found('Оценка не найдена')
@@ -663,6 +678,7 @@ async def set_comment(evaluation_id: int, payload: EvaluationComment, db: Db, us
 
 
 async def _public_work(db, token: str) -> tuple[Sheet, SheetWork]:
+    """Находит работу по публичному токену; для листов только с судьями и черновиков отвечает 404."""
     work = await db.scalar(select(SheetWork).where(SheetWork.public_token == token))
     if work is None:
         raise _not_found('Работа не найдена')
@@ -673,6 +689,7 @@ async def _public_work(db, token: str) -> tuple[Sheet, SheetWork]:
 
 
 async def _anonymous_evaluation(db, token: str, anon_token: str | None) -> tuple[Sheet, Evaluation]:
+    """Находит оценку анонимного оценщика по токену сессии; без действующего токена отвечает 401."""
     sheet, work = await _public_work(db, token)
     try:
         payload = read_state(anon_token or '')

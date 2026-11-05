@@ -1,4 +1,5 @@
 <script setup>
+/** Вкладка «Итоги»: рейтинг, настройка наград, публикация итогов и дипломы. */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { formatPoints } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
@@ -7,6 +8,7 @@ import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import { formatDateTime } from '@/utils/dates'
 
 const props = defineProps({ event: { type: Object, required: true } })
 
@@ -107,14 +109,14 @@ onMounted(load)
     <template v-if="results">
       <div class="flex flex-wrap items-center gap-3">
         <UiBadge :tone="results.published_at ? 'success' : 'neutral'">
-          {{ results.published_at ? `Опубликованы ${new Date(results.published_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}` : 'Не опубликованы' }}
+          {{ results.published_at ? `Опубликованы ${formatDateTime(results.published_at)}` : 'Не опубликованы' }}
         </UiBadge>
         <template v-if="manage">
           <UiButton v-if="!confirmPublish" :variant="results.published_at ? 'secondary' : 'primary'" @click="confirmPublish = true">
             {{ results.published_at ? 'Скрыть итоги' : 'Опубликовать итоги' }}
           </UiButton>
           <span v-else class="flex flex-wrap items-center gap-2 text-sm">
-            {{ results.published_at ? 'Скрыть итоги от участников и с лендинга?' : 'Участники увидят свои места и смогут скачать дипломы. Победители появятся на лендинге.' }}
+            {{ results.published_at ? 'Скрыть итоги от участников?' : 'Участники увидят свои места и смогут скачать дипломы.' }}
             <UiButton size="sm" variant="primary" @click="togglePublish">Подтвердить</UiButton>
             <UiButton size="sm" variant="ghost" @click="confirmPublish = false">Отмена</UiButton>
           </span>

@@ -1,4 +1,5 @@
 <script setup>
+/** Поля формы элемента списка мероприятия по описанию полей: строка, абзац или выбор. */
 defineProps({ fields: { type: Array, required: true } })
 const draft = defineModel('draft', { type: Object, required: true })
 </script>

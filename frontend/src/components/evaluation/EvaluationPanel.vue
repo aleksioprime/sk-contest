@@ -1,4 +1,5 @@
 <script setup>
+/** Вкладка «Оценивание» мероприятия: оценочные листы, таблицы оценок и шкалы. */
 import { onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import {

@@ -14,6 +14,8 @@ JUDGE_QR = 'judge_qr'
 
 
 class ContestMe(Me):
+    """Профиль текущего пользователя с признаком режима судьи."""
+
     judge_mode: bool = False
 
 
@@ -32,6 +34,7 @@ async def _judge_mode(db: AsyncSession, request: Request, user: User) -> bool:
 
 
 async def _me_extra(db: AsyncSession, request: Request, user: User) -> dict:
+    """Дополняет профиль пользователя признаком судейского режима."""
     return {'judge_mode': await _judge_mode(db, request, user)}
 
 

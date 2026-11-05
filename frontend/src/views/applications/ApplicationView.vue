@@ -1,4 +1,5 @@
 <script setup>
+/** Страница заявки: просмотр и редактирование заявителем, решения сотрудников. */
 import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import { AWARD_LABELS, diplomaUrl, fetchMyResults } from '@/api/stages'
+import ConsentsList from '@/components/applications/ConsentsList.vue'
 import FieldInput from '@/components/applications/FieldInput.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -38,6 +40,8 @@ const result = ref(null)
 const form = computed(() => schema.value?.form ?? { fields: [], team: {}, consents: [] })
 // Правка оргкомитетом: в любом статусе, без отправки и согласий
 const staffMode = computed(() => !!app.value?.can_manage && route.query.manage === '1')
+// На первом шаге заявителю нечего заполнять: анкета откроется после подтверждения
+const waitingConfirmation = computed(() => app.value?.status === 'requested' && !staffMode.value)
 const editable = computed(() => !!app.value?.can_edit || staffMode.value)
 const participants = computed(() => draft.members.filter((m) => m.role === 'participant'))
 const supervisors = computed(() => draft.members.filter((m) => m.role === 'supervisor'))
@@ -105,7 +109,7 @@ async function save() {
     if (await run('save', () => manageApplication(app.value.id, payload()))) notice.value = 'Заявка сохранена'
     return
   }
-  if (await run('save', () => saveApplication(app.value.id, payload()))) notice.value = 'Черновик сохранён'
+  if (await run('save', () => saveApplication(app.value.id, payload()))) notice.value = 'Заявка сохранена'
 }
 
 async function submit() {
@@ -160,11 +164,14 @@ watch(() => props.id, load, { immediate: true })
       Правка оргкомитетом. Заявитель: {{ app.applicant_name }}, {{ app.applicant_email }}.
     </p>
     <p v-if="app.status === 'draft' && !editable" class="rounded-control bg-canvas px-4 py-3 text-ink-muted">
-      Приём заявок закрыт, черновик больше нельзя отправить.
+      Срок заполнения заявок закончился, отправить её больше нельзя.
+    </p>
+    <p v-if="waitingConfirmation" class="rounded-control bg-brand-50 px-4 py-3 text-brand-700">
+      Заявка ждёт подтверждения организаторов. Когда они её подтвердят, придёт письмо и здесь откроется анкета.
     </p>
 
     <form class="grid gap-6" novalidate @submit.prevent="submit">
-      <fieldset :disabled="!editable" class="grid gap-6">
+      <fieldset v-if="!waitingConfirmation" :disabled="!editable" class="grid gap-6">
         <UiCard>
           <template #title>Работа</template>
           <div class="grid gap-4">
@@ -233,19 +240,7 @@ watch(() => props.id, load, { immediate: true })
 
         <UiCard v-if="form.consents.length && !staffMode">
           <template #title>Согласия</template>
-          <div class="grid gap-4">
-            <div v-for="consent in form.consents" :key="consent.key">
-              <label class="flex items-start gap-2">
-                <input v-model="draft.consents" type="checkbox" :value="consent.key" class="mt-1 size-4 accent-brand-600" />
-                <span class="font-medium">{{ consent.title }}<span v-if="consent.required" class="text-red-600" aria-hidden="true"> *</span></span>
-              </label>
-              <details class="ml-6 mt-1 text-sm text-ink-muted">
-                <summary class="cursor-pointer">Текст согласия</summary>
-                <p class="mt-1 whitespace-pre-line">{{ consent.text }}</p>
-              </details>
-              <p v-if="errors[`consent:${consent.key}`]" class="ml-6 text-sm text-red-600">{{ errors[`consent:${consent.key}`] }}</p>
-            </div>
-          </div>
+          <ConsentsList v-model="draft.consents" :consents="form.consents" :errors="errors" />
         </UiCard>
       </fieldset>
 
@@ -255,7 +250,7 @@ watch(() => props.id, load, { immediate: true })
         <UiButton v-if="staffMode" variant="primary" :loading="busy === 'save'" @click="save">Сохранить заявку</UiButton>
         <template v-else-if="editable">
           <UiButton type="submit" variant="primary" :loading="busy === 'submit'">{{ app.status === 'needs_changes' ? 'Отправить повторно' : 'Отправить заявку' }}</UiButton>
-          <UiButton :loading="busy === 'save'" @click="save">Сохранить черновик</UiButton>
+          <UiButton :loading="busy === 'save'" @click="save">Сохранить</UiButton>
         </template>
         <template v-if="app.can_withdraw && !staffMode">
           <UiButton v-if="!confirmWithdraw" variant="ghost" @click="confirmWithdraw = true">Отозвать заявку</UiButton>

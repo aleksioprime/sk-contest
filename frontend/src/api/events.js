@@ -24,7 +24,6 @@ export const ROLE_LABELS = {
 }
 
 export const MODULE_LABELS = {
-  landing: 'Лендинг',
   registration: 'Регистрация',
   stages: 'Этапы',
   evaluation: 'Оценивание',
@@ -71,6 +70,11 @@ export async function deleteEvent(id) {
 
 export async function isSlugAvailable(slug, excludeId) {
   return (await http.get('/v1/events/slug-available', { params: { slug, exclude_id: excludeId } })).data.available
+}
+
+/** Адрес открытой формы мероприятия. */
+export function applyUrl(slug) {
+  return `${window.location.origin}/apply/${slug}`
 }
 
 /** kind: directions | stages | forms */

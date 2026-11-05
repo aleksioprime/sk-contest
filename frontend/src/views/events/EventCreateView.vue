@@ -1,7 +1,8 @@
 <script setup>
+/** Создание мероприятия: тип, копирование прошлого, название и адрес. */
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { MODULE_LABELS, createEvent, fetchEventTypes, fetchEvents, isSlugAvailable, slugify } from '@/api/events'
+import { MODULE_LABELS, applyUrl, createEvent, fetchEventTypes, fetchEvents, isSlugAvailable, slugify } from '@/api/events'
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
@@ -116,7 +117,7 @@ async function submit() {
       <UiInput
         v-model="slug"
         label="Адрес"
-        :hint="slug ? `Страница: ${slug}.sites.contest.skolhub.ru` : 'Формируется из названия, можно изменить'"
+        :hint="slug ? `Открытая форма заявки: ${applyUrl(slug)}` : 'Формируется из названия, можно изменить'"
         :error="slugError"
         @input="slugTouched = true"
       />

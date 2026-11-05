@@ -1,3 +1,5 @@
+"""Логика этапов: подтягивание баллов, места, переходы между этапами и итоговый рейтинг."""
+
 from collections import defaultdict
 from decimal import Decimal
 
@@ -24,22 +26,27 @@ RULE_TYPES = ('top_n', 'threshold', 'manual')
 
 
 class StageError(Exception):
+    """Ошибка операции с этапом."""
+
     pass
 
 
 def next_stage(event: Event, stage: Stage) -> Stage | None:
+    """Следующий по порядку этап мероприятия или None, если этап последний."""
     ordered = sorted(event.stages, key=lambda s: s.order)
     index = ordered.index(stage)
     return ordered[index + 1] if index + 1 < len(ordered) else None
 
 
 def previous_stage(event: Event, stage: Stage) -> Stage | None:
+    """Предыдущий по порядку этап мероприятия или None, если этап первый."""
     ordered = sorted(event.stages, key=lambda s: s.order)
     index = ordered.index(stage)
     return ordered[index - 1] if index > 0 else None
 
 
 async def participations(session: AsyncSession, stage_id: int) -> list[StageParticipation]:
+    """Участия заявок в этапе, отсортированные по номеру заявки."""
     rows = await session.scalars(select(StageParticipation).where(StageParticipation.stage_id == stage_id))
     return sorted(rows.unique(), key=lambda p: p.application.number)
 
@@ -126,6 +133,7 @@ async def admit(session: AsyncSession, actor: User, event: Event, stage: Stage) 
 
 
 def validate_rule(rule: dict) -> dict:
+    """Проверяет правило перехода и приводит его к каноническому виду."""
     kind = rule.get('type', 'manual')
     if kind not in RULE_TYPES:
         raise StageError('Неизвестное правило перехода')
@@ -166,6 +174,7 @@ def proposal(items: list[StageParticipation], rule: dict) -> dict[int, str | Non
 async def apply_decisions(
     session: AsyncSession, actor: User, event: Event, stage: Stage, decisions: dict[int, str]
 ) -> dict:
+    """Применяет решения «прошёл»/«не прошёл» и допускает прошедших на следующий этап."""
     items = {p.id: p for p in await participations(session, stage.id)}
     unknown = set(decisions) - set(items)
     if unknown:
@@ -206,6 +215,7 @@ def results_stage(event: Event, with_participants: set[int]) -> Stage | None:
 
 
 def award_for(rank: int | None, awards: dict) -> str:
+    """Награда по месту: победитель, призёр или участник."""
     winners = int(awards.get('winners', 1))
     prize_places = int(awards.get('prize_places', 3))
     if rank is not None and rank <= winners:
@@ -238,7 +248,10 @@ async def results(session: AsyncSession, event: Event) -> list[dict]:
         rows = [(app, scores.get(app.id)) for app in apps]
 
     class Row:
+        """Элемент рейтинга для расчёта мест по направлениям."""
+
         def __init__(self, app, score):
+            """Запоминает заявку и её балл."""
             self.id, self.app, self.score = app.id, app, score
 
     awards = event.awards or {}
@@ -273,30 +286,3 @@ async def results(session: AsyncSession, event: Event) -> list[dict]:
         )
     )
     return result
-
-
-async def published_winners(session: AsyncSession, event: Event) -> list[dict]:
-    """Победители и призёры по направлениям для лендинга. Без опубликованных итогов — пусто."""
-    if event.results_published_at is None:
-        return []
-    overall = (event.awards or {}).get('rank_scope') == 'overall'
-    groups: dict[str, list[dict]] = {}
-    by_nomination: dict[str, list[dict]] = {}
-    for row in await results(session, event):
-        app = row['application']
-        entry = {
-            'title': app.title,
-            'participants': [m.full_name for m in app.members if m.role == 'participant'],
-        }
-        for title in row['nominations']:
-            by_nomination.setdefault(title, []).append({**entry, 'rank': None, 'award': 'nomination'})
-        if row['award'] == 'participant':
-            continue
-        key = '' if overall else (app.direction.title if app.direction else '')
-        groups.setdefault(key, []).append({**entry, 'rank': row['rank'], 'award': row['award']})
-    return [
-        {'direction': direction, 'winners': winners, 'nomination': False} for direction, winners in groups.items()
-    ] + [
-        {'direction': f'Номинация «{title}»', 'winners': winners, 'nomination': True}
-        for title, winners in by_nomination.items()
-    ]

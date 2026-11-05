@@ -1,9 +1,11 @@
 <script setup>
+/** Вкладка «Заявки» мероприятия: список с фильтрами, массовые решения, создание заявки сотрудником и выгрузка. */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   APP_STATUS_LABELS,
   APP_STATUS_TONES,
+  SOURCE_LABELS,
   createStaffApplication,
   decideMany,
   exportUrl,
@@ -12,6 +14,7 @@ import {
 } from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import ApplicationReview from '@/components/events/ApplicationReview.vue'
+import { formatDateTime } from '@/utils/dates'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
@@ -21,7 +24,7 @@ const props = defineProps({ event: { type: Object, required: true } })
 const PAGE = 50
 const page = ref({ items: [], total: 0, counts: {} })
 const fields = ref([])
-const status = ref('submitted')
+const status = ref('requested')
 const directionId = ref('')
 const search = ref('')
 const offset = ref(0)
@@ -49,7 +52,7 @@ async function createApplication() {
   }
 }
 
-const statuses = ['submitted', 'needs_changes', 'accepted', 'rejected', 'withdrawn']
+const statuses = ['requested', 'draft', 'submitted', 'needs_changes', 'accepted', 'rejected', 'withdrawn']
 const total = computed(() => Object.values(page.value.counts).reduce((sum, n) => sum + n, 0))
 const allSelected = computed(() => page.value.items.length > 0 && selected.value.length === page.value.items.length)
 
@@ -88,10 +91,6 @@ async function bulk(newStatus) {
   } catch (e) {
     error.value = errorMessage(e)
   }
-}
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—'
 }
 
 let timer
@@ -136,7 +135,7 @@ onMounted(async () => {
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
-      <input v-model="search" type="search" placeholder="Название или участник" aria-label="Поиск заявок" class="h-10 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 sm:max-w-xs" />
+      <input v-model="search" type="search" placeholder="Название, участник или email" aria-label="Поиск заявок" class="h-10 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 sm:max-w-xs" />
       <select v-if="event.directions.length" v-model="directionId" aria-label="Направление" class="h-10 rounded-control border border-line bg-surface px-3 text-sm">
         <option value="">Все направления</option>
         <option v-for="d in event.directions" :key="d.id" :value="d.id">{{ d.title }}</option>
@@ -168,14 +167,15 @@ onMounted(async () => {
 
     <div v-if="selected.length" class="flex flex-wrap items-center gap-3 rounded-control border border-brand-200 bg-brand-50 p-3 text-sm">
       <span class="font-medium">Выбрано: {{ selected.length }}</span>
-      <UiButton size="sm" variant="primary" @click="bulk('accepted')">Принять</UiButton>
+      <UiButton v-if="status === 'requested'" size="sm" variant="primary" @click="bulk('confirmed')">Подтвердить и пригласить</UiButton>
+      <UiButton v-else size="sm" variant="primary" @click="bulk('accepted')">Принять</UiButton>
       <input v-model="bulkComment" placeholder="Комментарий (нужен для отклонения)" aria-label="Комментарий" class="h-8 min-w-0 flex-1 rounded-control border border-line bg-surface px-2" />
       <UiButton size="sm" variant="danger" @click="bulk('rejected')">Отклонить</UiButton>
     </div>
     <p v-if="bulkResult" role="status" class="text-sm text-ink-muted">{{ bulkResult }}</p>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
 
-    <ApplicationReview v-if="openedId" :application-id="openedId" :fields="fields" @decided="load" @close="openedId = null" />
+    <ApplicationReview v-if="openedId" :application-id="openedId" :event-id="event.id" :fields="fields" @decided="load" @close="openedId = null" />
 
     <div class="overflow-x-auto rounded-card border border-line bg-surface" :aria-busy="loading">
       <SkeletonTable v-if="loading && !page.items.length" :rows="5" :columns="5" />
@@ -185,9 +185,9 @@ onMounted(async () => {
             <th class="w-10 px-3 py-2"><input type="checkbox" :checked="allSelected" aria-label="Выбрать все" class="size-4 accent-brand-600" @change="toggleAll($event.target.checked)" /></th>
             <th class="px-3 py-2">№</th>
             <th class="px-3 py-2">Работа</th>
-            <th class="px-3 py-2">Участники</th>
+            <th class="px-3 py-2">Заявитель и участники</th>
             <th class="px-3 py-2">Руководитель</th>
-            <th class="px-3 py-2">Отправлена</th>
+            <th class="px-3 py-2">Поступила</th>
             <th class="px-3 py-2">Статус</th>
           </tr>
         </thead>
@@ -205,9 +205,15 @@ onMounted(async () => {
               <p class="font-medium">{{ app.title || 'Без названия' }}</p>
               <p v-if="app.direction" class="text-xs text-ink-muted">{{ app.direction }}</p>
             </td>
-            <td class="px-3 py-2">{{ app.participants.join(', ') }}</td>
+            <td class="px-3 py-2">
+              <p>{{ app.participants.join(', ') || app.applicant_name }}</p>
+              <p class="text-xs text-ink-muted">{{ [app.applicant_email, app.is_linked ? '' : 'без учётной записи'].filter(Boolean).join(' · ') }}</p>
+            </td>
             <td class="px-3 py-2">{{ app.supervisors.join(', ') || '—' }}</td>
-            <td class="px-3 py-2 whitespace-nowrap text-ink-muted">{{ formatDate(app.submitted_at) }}</td>
+            <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+              <p>{{ formatDateTime(app.submitted_at ?? app.created_at) }}</p>
+              <p class="text-xs">{{ SOURCE_LABELS[app.source] }}</p>
+            </td>
             <td class="px-3 py-2"><UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge></td>
           </tr>
         </tbody>

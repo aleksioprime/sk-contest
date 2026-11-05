@@ -8,7 +8,7 @@ from sk_common.testing import FakeQueue, login_as
 from app.modules.evaluation.models import Sheet
 from app.modules.events.models import Event
 from app.modules.reminders.service import run_hourly
-from tests.test_applications import SLUG, _open_event, _other, _payload
+from tests.test_applications import _draft, _open_event, _other, _payload
 from tests.test_evaluation import _as, _prepared_sheet
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
@@ -22,7 +22,7 @@ async def test_draft_reminder_before_registration_closes(db, client):
     event = await _open_event(db, client)
     async with _other(client) as applicant:
         await login_as(db, applicant, email='anna@example.org')
-        app = (await applicant.post(f'/api/v1/events/{SLUG}/applications')).json()
+        app = await _draft(client, applicant, event)
         await applicant.put(f'/api/v1/applications/{app["id"]}', json=_payload(event))
 
     queue = FakeQueue()
@@ -35,6 +35,22 @@ async def test_draft_reminder_before_registration_closes(db, client):
     assert _mails(queue) == [('anna@example.org', 'Заявка не отправлена: SkolStart')]
     await db.commit()
     assert (await run_hourly(db, queue))['drafts'] == 0  # второй раз не напоминаем
+
+
+async def test_draft_reminder_uses_details_deadline(db, client):
+    event = await _open_event(db, client)
+    async with _other(client) as applicant:
+        await login_as(db, applicant, email='anna@example.org')
+        await _draft(client, applicant, event)
+    stored = await db.get(Event, event['id'], populate_existing=True)
+    stored.registration_closes_at = now_utc() + timedelta(hours=30)
+    stored.details_closes_at = now_utc() + timedelta(days=10)
+    await db.commit()
+    assert (await run_hourly(db, FakeQueue()))['drafts'] == 0  # до конца заполнения далеко
+
+    stored.details_closes_at = now_utc() + timedelta(hours=30)
+    await db.commit()
+    assert (await run_hourly(db, FakeQueue()))['drafts'] == 1
 
 
 async def test_deadline_reminders_and_auto_close(db, client, queue):

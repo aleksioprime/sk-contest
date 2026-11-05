@@ -15,6 +15,7 @@ logger = logging.getLogger('sk_contest.cli')
 
 
 async def nocobase_fetch(target: str) -> None:
+    """Выгружает данные старой системы NocoBase в каталог target как JSON и печатает число записей по таблицам."""
     from app.legacy.nocobase import fetch
 
     if not settings.nocobase_url or not settings.nocobase_api_key:
@@ -24,6 +25,7 @@ async def nocobase_fetch(target: str) -> None:
 
 
 async def nocobase_load(source: str) -> None:
+    """Загружает выгрузку NocoBase из каталога source в БД и печатает сводку загрузки."""
     from app.legacy.nocobase import load
 
     async with UnitOfWork() as uow:
@@ -34,6 +36,7 @@ async def nocobase_load(source: str) -> None:
 
 
 def main() -> None:
+    """Точка входа CLI: выбирает команду по первому аргументу командной строки."""
     command, *args = sys.argv[1:] or ['']
     if command == 'bootstrap':
         asyncio.run(bootstrap())

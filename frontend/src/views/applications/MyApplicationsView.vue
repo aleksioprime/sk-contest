@@ -1,21 +1,25 @@
 <script setup>
+/** Кабинет участника: мои заявки, результаты и мероприятия с открытым приёмом. */
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { APP_STATUS_LABELS, APP_STATUS_TONES, fetchMyApplications } from '@/api/applications'
+import { APP_STATUS_LABELS, APP_STATUS_TONES, fetchMyApplications, fetchOpenEvents } from '@/api/applications'
 import { errorMessage } from '@/api/http'
 import { AWARD_LABELS, AWARD_TONES, fetchMyResults } from '@/api/stages'
+import { formatRange } from '@/utils/dates'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const apps = ref([])
+const openEvents = ref([])
 const resultsById = ref({})
 const loading = ref(true)
 const error = ref('')
 
 onMounted(async () => {
   try {
-    const [list, results] = await Promise.all([fetchMyApplications(), fetchMyResults()])
+    const [list, results, events] = await Promise.all([fetchMyApplications(), fetchMyResults(), fetchOpenEvents()])
     apps.value = list
+    openEvents.value = events
     resultsById.value = Object.fromEntries(results.map((r) => [r.application_id, r]))
   } catch (e) {
     error.value = errorMessage(e)
@@ -32,7 +36,7 @@ onMounted(async () => {
     <SkeletonList v-else-if="loading" />
     <div v-else-if="!apps.length" class="rounded-card border border-dashed border-line bg-surface p-10 text-center">
       <h2 class="text-lg font-semibold">Заявок пока нет</h2>
-      <p class="mt-1 text-ink-muted">Подать заявку можно на странице мероприятия, кнопкой «Подать заявку».</p>
+      <p class="mt-1 text-ink-muted">Мероприятия с открытым приёмом заявок появятся на этой странице.</p>
     </div>
     <ul v-else class="grid gap-3">
       <li v-for="app in apps" :key="app.id">
@@ -49,9 +53,24 @@ onMounted(async () => {
           </UiBadge>
           <UiBadge v-for="n in resultsById[app.id]?.nominations ?? []" :key="n" tone="warning">{{ n }}</UiBadge>
           <span v-if="app.status === 'needs_changes'" class="text-sm text-amber-800">Внесите правки</span>
+          <span v-else-if="app.status === 'draft' && app.can_edit" class="text-sm text-brand-700">Заполните заявку</span>
           <UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge>
         </RouterLink>
       </li>
     </ul>
+
+    <section v-if="openEvents.length" class="grid gap-3">
+      <h2 class="text-lg font-semibold">Открыт приём заявок</h2>
+      <ul class="grid gap-3 sm:grid-cols-2">
+        <li v-for="event in openEvents" :key="event.slug">
+          <RouterLink :to="{ name: 'apply', params: { slug: event.slug } }" class="block rounded-card border border-line bg-surface p-4 hover:border-brand-200">
+            <p class="font-semibold">{{ event.title }}</p>
+            <p v-if="event.date_start" class="text-sm text-ink-muted">{{ formatRange(event.date_start, event.date_end) }}</p>
+            <p v-if="event.short_description" class="mt-1 text-sm">{{ event.short_description }}</p>
+            <p class="mt-2 text-sm font-medium text-brand-700">Подать заявку →</p>
+          </RouterLink>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>

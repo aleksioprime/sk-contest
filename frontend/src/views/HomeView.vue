@@ -1,4 +1,5 @@
 <script setup>
+/** Страница состояния системы: версия API и доступность базы данных и Redis. */
 import { onMounted } from 'vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -29,8 +30,6 @@ const labels = { database: 'PostgreSQL', redis: 'Redis' }
           <dd>{{ system.meta.version }}</dd>
           <dt class="text-ink-muted">Окружение</dt>
           <dd>{{ system.meta.environment }}</dd>
-          <dt class="text-ink-muted">Домен лендингов</dt>
-          <dd>*.{{ system.meta.sites_base_domain }}</dd>
         </dl>
         <SkeletonTable v-else :rows="3" :columns="2" />
       </UiCard>

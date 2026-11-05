@@ -1,3 +1,5 @@
+"""Эндпоинты загрузки и скачивания файлов."""
+
 from typing import Annotated
 from urllib.parse import quote
 
@@ -15,6 +17,7 @@ public_router = APIRouter(prefix='/v1/public/files', tags=['public'])
 
 
 def file_out(stored: StoredFile) -> dict:
+    """Описание файла для клиента со ссылкой на скачивание: публичную или защищённую."""
     return {
         'id': stored.id,
         'name': stored.original_name,
@@ -29,10 +32,10 @@ async def upload(
     db: Db,
     user: CurrentUser,
     file: Annotated[UploadFile, File()],
-    purpose: Annotated[str, Form(pattern='^(document|image|site_document)$')] = 'document',
+    purpose: Annotated[str, Form(pattern='^(document|image)$')] = 'document',
 ) -> dict:
     try:
-        stored = await save_upload(db, file, user.id, purpose, is_public=purpose in {'image', 'site_document'})
+        stored = await save_upload(db, file, user.id, purpose, is_public=purpose == 'image')
     except FileError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     await db.commit()
@@ -40,6 +43,7 @@ async def upload(
 
 
 def _stream(stored: StoredFile, inline: bool) -> StreamingResponse:
+    """Отдаёт файл потоком (inline или attachment); если файла нет в хранилище, отвечает 404."""
     try:
         handle = storage.open(stored.key)
     except StorageError as exc:
@@ -63,7 +67,7 @@ async def download(file_id: int, db: Db, user: CurrentUser) -> StreamingResponse
     return _stream(stored, inline=stored.content_type in {'application/pdf', 'image/jpeg', 'image/png', 'image/webp'})
 
 
-@public_router.get('/{file_id}', summary='Публичный файл (обложки, картинки лендингов)')
+@public_router.get('/{file_id}', summary='Публичный файл (обложка мероприятия)')
 async def public_download(file_id: int, db: Db) -> StreamingResponse:
     stored = await db.get(StoredFile, file_id)
     if stored is None or not stored.is_public:

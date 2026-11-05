@@ -1,15 +1,18 @@
 <script setup>
-/** Конструктор анкеты заявки: поля, команда, ограничения и согласия. */
+/** Форма заявки: общая заявка, вебхук, вопросы анкеты, команда, ограничения и согласия. */
 import { computed, onMounted, ref } from 'vue'
 import { fetchForm, resetForm, saveForm } from '@/api/applications'
 import { slugify } from '@/api/events'
 import { errorMessage } from '@/api/http'
+import RegistrationSettings from '@/components/events/RegistrationSettings.vue'
+import WebhookSettings from '@/components/events/WebhookSettings.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({
   eventId: { type: Number, required: true },
+  slug: { type: String, required: true },
   readonly: { type: Boolean, default: false },
 })
 
@@ -45,7 +48,7 @@ function keyFor(label, except) {
 }
 
 function addField() {
-  const field = { key: '', type: 'text', label: 'Новый вопрос', help: '', required: false, options: [], visible_if: null }
+  const field = { key: '', type: 'text', label: 'Новый вопрос', help: '', required: false, on_registration: false, options: [], visible_if: null }
   field.key = keyFor(field.label, field)
   form.value.fields.push(field)
 }
@@ -113,10 +116,12 @@ onMounted(load)
 
   <form v-else class="grid gap-6" @submit.prevent="save">
     <fieldset :disabled="readonly" class="grid gap-6">
-      <p class="text-sm text-ink-muted">Название работы, направление и форма участия есть в каждой заявке. Здесь — дополнительные вопросы.</p>
+      <RegistrationSettings v-model="form.registration" :slug="slug" />
+      <WebhookSettings v-if="!readonly" v-model="form.registration.webhook_fields" :event-id="eventId" :fields="form.fields" />
 
       <UiCard>
-        <template #title>Вопросы</template>
+        <template #title>Вопросы анкеты</template>
+        <p class="mb-3 text-sm text-ink-muted">Название работы, направление и форма участия есть в каждой заявке. Здесь — дополнительные вопросы.</p>
         <ol class="grid gap-3">
           <li v-for="(field, index) in form.fields" :key="index" class="grid gap-3 rounded-control border border-line p-4">
             <div class="grid gap-3 sm:grid-cols-[2fr_1fr]">
@@ -141,6 +146,9 @@ onMounted(load)
             </label>
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
               <label class="flex items-center gap-2"><input v-model="field.required" type="checkbox" class="size-4 accent-brand-600" /> Обязательный</label>
+              <label class="flex items-center gap-2" title="Спросить уже на первом шаге, до подтверждения. Файлы загружаются только в кабинете.">
+                <input v-model="field.on_registration" type="checkbox" class="size-4 accent-brand-600" :disabled="field.type === 'file'" /> В общей заявке
+              </label>
               <label class="flex items-center gap-2">
                 Показывать, если
                 <select :value="field.visible_if?.field ?? ''" class="h-8 rounded-control border border-line bg-surface px-2" @change="setCondition(field, $event.target.value)">

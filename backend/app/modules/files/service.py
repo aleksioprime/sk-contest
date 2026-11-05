@@ -1,3 +1,5 @@
+"""Сохранение загруженных файлов с проверкой типа и размера."""
+
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -19,11 +21,12 @@ DOCUMENT_TYPES = IMAGE_TYPES | {
     'application/zip',
     'text/plain',
 }
-# site_document — положения и шаблоны на лендинге, доступны всем по ссылке
-PURPOSES = {'document': DOCUMENT_TYPES, 'image': IMAGE_TYPES, 'site_document': DOCUMENT_TYPES}
+PURPOSES = {'document': DOCUMENT_TYPES, 'image': IMAGE_TYPES}
 
 
 class FileError(Exception):
+    """Ошибка загрузки файла: неподдерживаемый тип, пустой или слишком большой файл."""
+
     pass
 
 
@@ -31,9 +34,11 @@ class _LimitedReader:
     """Читает поток и прерывает загрузку, если файл больше лимита."""
 
     def __init__(self, stream, limit: int):
+        """Принимает поток и предельный размер в байтах."""
         self.stream, self.limit, self.size = stream, limit, 0
 
     def read(self, n: int = -1) -> bytes:
+        """Читает очередную порцию, учитывая общий размер; при превышении лимита бросает FileError."""
         chunk = self.stream.read(n)
         self.size += len(chunk)
         if self.size > self.limit:
@@ -44,6 +49,7 @@ class _LimitedReader:
 async def save_upload(
     session: AsyncSession, upload: UploadFile, owner_id: int, purpose: str = 'document', is_public: bool = False
 ) -> StoredFile:
+    """Проверяет тип и размер загрузки, сохраняет файл в хранилище и создаёт запись StoredFile."""
     content_type = (upload.content_type or '').split(';')[0].strip().lower()
     if content_type not in PURPOSES[purpose]:
         raise FileError('Этот тип файла не поддерживается')

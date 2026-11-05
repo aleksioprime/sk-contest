@@ -1,4 +1,5 @@
 <script setup>
+/** Форма создания и редактирования шкалы оценок с уровнями и баллами. */
 import { reactive, ref } from 'vue'
 import { createScale, updateScale } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
