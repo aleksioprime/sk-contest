@@ -1,3 +1,5 @@
+"""Модель загруженного файла."""
+
 from datetime import datetime
 
 from sk_common.db import Base, IdMixin

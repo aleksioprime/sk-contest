@@ -1,3 +1,5 @@
+"""Модели этапов, участия заявок в этапах и слотов защит."""
+
 from datetime import datetime
 from decimal import Decimal
 

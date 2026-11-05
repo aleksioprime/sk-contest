@@ -1,3 +1,5 @@
+"""Точка входа FastAPI-приложения."""
+
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 from sk_common.web import add_common_middleware, setup_logging
@@ -7,6 +9,7 @@ from app.core.config import settings
 
 
 def create_app() -> FastAPI:
+    """Создаёт приложение: логирование, общие middleware и корневой роутер API."""
     setup_logging()
     app = FastAPI(
         title=settings.project_name,

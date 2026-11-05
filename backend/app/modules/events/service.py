@@ -1,3 +1,5 @@
+"""Логика мероприятий: создание, изменение, статусы, вложенные списки и команда."""
+
 from datetime import datetime
 
 from sk_common.audit import record
@@ -13,19 +15,24 @@ from app.modules.files.models import StoredFile
 
 
 class EventError(Exception):
+    """Ошибка операции с мероприятием."""
+
     pass
 
 
 async def get_event(session: AsyncSession, event_id: int) -> Event | None:
     # populate_existing перечитывает связи, если объект уже был в сессии (например, сразу после создания)
+    """Мероприятие по id с перечитыванием связей или None."""
     return await session.get(Event, event_id, populate_existing=True)
 
 
 async def get_by_slug(session: AsyncSession, slug: str) -> Event | None:
+    """Мероприятие по адресу (slug) или None."""
     return await session.scalar(select(Event).where(Event.slug == slug))
 
 
 async def slug_taken(session: AsyncSession, slug: str, exclude_id: int | None = None) -> bool:
+    """Занят ли адрес; exclude_id исключает само мероприятие при переименовании."""
     query = select(func.count()).select_from(Event).where(Event.slug == slug)
     if exclude_id:
         query = query.where(Event.id != exclude_id)
@@ -33,6 +40,7 @@ async def slug_taken(session: AsyncSession, slug: str, exclude_id: int | None = 
 
 
 async def list_events(session: AsyncSession, user: User, scope: str = 'mine') -> list[Event]:
+    """Мероприятия пользователя; суперпользователь с scope=all видит все."""
     query = select(Event).order_by(Event.date_start.desc().nulls_first(), Event.created_at.desc())
     if not (scope == 'all' and user.is_superuser):
         query = query.where(Event.id.in_(select(EventMember.event_id).where(EventMember.user_id == user.id)))
@@ -42,6 +50,7 @@ async def list_events(session: AsyncSession, user: User, scope: str = 'mine') ->
 async def create_event(
     session: AsyncSession, user: User, type_: str, title: str, slug: str, copy_from: Event | None = None
 ) -> Event:
+    """Создаёт мероприятие по шаблону типа или копией другого; создатель становится организатором."""
     template = EVENT_TYPES.get(type_)
     if template is None:
         raise EventError('Неизвестный тип мероприятия')
@@ -83,6 +92,7 @@ async def create_event(
 
 
 async def update_event(session: AsyncSession, user: User, event: Event, changes: dict) -> Event:
+    """Применяет изменения полей с проверкой адреса, обложки и дат, пишет запись аудита."""
     if 'slug' in changes and await slug_taken(session, changes['slug'], exclude_id=event.id):
         raise EventError('Этот адрес уже занят')
     if changes.get('cover_file_id'):
@@ -100,14 +110,19 @@ async def update_event(session: AsyncSession, user: User, event: Event, changes:
 
 
 def _check_dates(event: Event) -> None:
+    """Проверяет согласованность дат мероприятия, приёма и заполнения заявок."""
     if event.date_start and event.date_end and event.date_end < event.date_start:
         raise EventError('Дата окончания раньше даты начала')
     opens, closes = event.registration_opens_at, event.registration_closes_at
     if opens and closes and closes <= opens:
         raise EventError('Приём заявок должен закрываться позже, чем открывается')
+    details = event.details_closes_at
+    if details and closes and details < closes:
+        raise EventError('Заполнение заявок не может закончиться раньше приёма заявок')
 
 
 async def change_status(session: AsyncSession, user: User, event: Event, new_status: str) -> Event:
+    """Переводит мероприятие в новый статус по допустимым переходам; для публикации нужна дата начала."""
     if new_status not in TRANSITIONS[event.status]:
         raise EventError('Такой переход статуса недоступен')
     if new_status != 'draft' and not event.date_start:
@@ -118,25 +133,23 @@ async def change_status(session: AsyncSession, user: User, event: Event, new_sta
     return event
 
 
-def public_event_payload(event: Event) -> dict:
-    """Публичные данные мероприятия для лендинга (схема PublicEvent)."""
-    from app.modules.events.schemas import PublicEvent
-
-    fields = {c: getattr(event, c) for c in PublicEvent.model_fields if c not in ('registration_open', 'cover_url')}
-    return {
-        **fields,
-        'registration_open': registration_open(event),
-        'cover_url': f'/api/v1/public/files/{event.cover_file_id}' if event.cover_file_id else None,
-    }
-
-
 def registration_open(event: Event, at: datetime | None = None) -> bool:
+    """Открыт ли приём новых заявок: статус мероприятия, модуль и окно дат."""
     if event.status != 'registration' or not event.modules.get('registration'):
         return False
     at = at or now_utc()
     if event.registration_opens_at and at < event.registration_opens_at:
         return False
     return not (event.registration_closes_at and at > event.registration_closes_at)
+
+
+def details_open(event: Event, at: datetime | None = None) -> bool:
+    """Можно ли дописывать подтверждённые заявки: своя дата, а без неё — пока идёт регистрация."""
+    if event.status not in ('registration', 'running') or not event.modules.get('registration'):
+        return False
+    if event.details_closes_at:
+        return (at or now_utc()) <= event.details_closes_at
+    return registration_open(event, at)
 
 
 # --- Направления, этапы, формы участия -----------------------------------------------------
@@ -146,6 +159,7 @@ CHILD_ATTR = {'directions': 'directions', 'stages': 'stages', 'forms': 'particip
 
 
 async def add_child(session: AsyncSession, event: Event, kind: str, data: dict):
+    """Добавляет в конец вложенного списка (направления, этапы, формы участия) новый элемент."""
     items = getattr(event, CHILD_ATTR[kind])
     child = CHILDREN[kind](**data, order=max((item.order for item in items), default=-1) + 1)
     items.append(child)
@@ -154,6 +168,7 @@ async def add_child(session: AsyncSession, event: Event, kind: str, data: dict):
 
 
 def find_child(event: Event, kind: str, child_id: int):
+    """Элемент вложенного списка по id; если его нет, бросает EventError."""
     child = next((item for item in getattr(event, CHILD_ATTR[kind]) if item.id == child_id), None)
     if child is None:
         raise EventError('Элемент не найден')
@@ -161,6 +176,7 @@ def find_child(event: Event, kind: str, child_id: int):
 
 
 async def reorder_children(session: AsyncSession, event: Event, kind: str, ids: list[int]) -> None:
+    """Задаёт порядок элементов вложенного списка; нужно передать все id."""
     items = {item.id: item for item in getattr(event, CHILD_ATTR[kind])}
     if set(ids) != set(items):
         raise EventError('Передайте все элементы списка')
@@ -174,6 +190,7 @@ async def reorder_children(session: AsyncSession, event: Event, kind: str, ids: 
 
 
 async def add_member(session: AsyncSession, actor: User, event: Event, user: User, role: str) -> EventMember:
+    """Добавляет участника команды с ролью; повторное добавление той же роли ничего не меняет."""
     existing = next((m for m in event.members if m.user_id == user.id and m.role == role), None)
     if existing:
         return existing
@@ -186,6 +203,7 @@ async def add_member(session: AsyncSession, actor: User, event: Event, user: Use
 
 
 async def remove_member(session: AsyncSession, actor: User, event: Event, member_id: int) -> None:
+    """Удаляет участника команды; единственного организатора удалить нельзя."""
     member = next((m for m in event.members if m.id == member_id), None)
     if member is None:
         raise EventError('Участник команды не найден')

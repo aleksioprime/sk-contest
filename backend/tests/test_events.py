@@ -1,5 +1,3 @@
-from datetime import date
-
 import pytest
 from sk_common.auth.service import open_session
 from sk_common.people.service import get_user_by_email
@@ -47,7 +45,7 @@ async def test_only_staff_creates_events(db, client):
     assert response.status_code == 403
 
 
-@pytest.mark.parametrize('slug', ['app', 'Bad_Slug', '-x'])
+@pytest.mark.parametrize('slug', ['Bad_Slug', '-x'])
 async def test_slug_validation(db, client, slug):
     await _employee(db, client)
     response = await client.post('/api/v1/events', json={'type': 'conference', 'title': 'Тест', 'slug': slug})
@@ -146,18 +144,3 @@ async def test_copy_event(db, client):
     copy = await _create(client, slug='skolstart-2028', copy_from_id=source['id'])
     assert [d['title'] for d in copy['directions']] == ['Инженерия']
     assert len(copy['stages']) == 2 and copy['status'] == 'draft'
-
-
-async def test_public_event(db, client):
-    await _employee(db, client)
-    event = await _create(client)
-    url = f'/api/v1/events/{event["id"]}'
-    assert (await client.get('/api/v1/public/events/skolstart-2027')).status_code == 404
-
-    await client.patch(url, json={'date_start': date(2027, 3, 12).isoformat(), 'short_description': 'Конференция'})
-    await client.post(f'{url}/status', json={'status': 'registration'})
-    public = await client.get('/api/v1/public/events/skolstart-2027')
-    assert public.status_code == 200
-    body = public.json()
-    assert body['title'] == 'SkolStart 2027' and body['registration_open'] is True
-    assert 'members' not in body and len(body['stages']) == 2

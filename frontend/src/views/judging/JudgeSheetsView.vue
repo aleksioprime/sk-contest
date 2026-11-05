@@ -1,4 +1,5 @@
 <script setup>
+/** Список листов судьи; в режиме судьи единственный лист открывается сразу. */
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { SHEET_STATUS_LABELS, SHEET_STATUS_TONES, fetchMySheets } from '@/api/evaluation'

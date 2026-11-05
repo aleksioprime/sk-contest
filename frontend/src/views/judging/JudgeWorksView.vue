@@ -1,4 +1,5 @@
 <script setup>
+/** Работы листа для судьи с прогрессом оценки. */
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { deadlinePassed, fetchMySheets, fetchMyWorks, formatDeadline, formatPoints } from '@/api/evaluation'

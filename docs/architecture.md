@@ -4,28 +4,24 @@
 
 ```mermaid
 flowchart TB
-  V[Посетитель лендинга] --> T1["Traefik: *.sites.contest.skolhub.ru, свои домены"]
-  U[Участник, судья, организатор] --> T2["Traefik: contest.skolhub.ru"]
-  T1 --> SITES["sites: Nuxt 4 SSR"]
-  T2 --> APP["frontend: Vue 3 SPA"]
-  SITES --> API["backend: FastAPI /api/v1"]
-  APP --> API
+  U[Участник, судья, организатор] --> T["Traefik: contest.skolhub.ru"]
+  X[Внешняя форма: Tilda и другие] -->|вебхук| T
+  T --> APP["frontend: Vue 3 SPA"]
+  APP --> API["backend: FastAPI /api/v1"]
+  T --> API
   API --> PG[(PostgreSQL 16)]
   API --> RD[(Redis)]
   API --> FS[(Файлы на диске)]
   WK[worker] --> PG
   WK --> SS[(SkolStream)]
   WK --> SMTP[[SMTP]]
-  WK --> TR[Traefik dynamic config]
 ```
 
 | Сервис | Стек | Назначение |
 |---|---|---|
 | `backend` | Python 3.12, FastAPI, SQLAlchemy 2 async, Alembic, Pydantic 2 | REST API, бизнес-логика, права |
-| `worker` | тот же образ, arq на Redis | письма, PDF, синхронизация SkolStream, выпуск доменов |
-| `frontend` | Vue 3, Pinia, Vue Router, Tailwind 4, Vite | оргкомитет, кабинет участника, судья, анонимная оценка, редактор лендингов |
-| `sites` | Nuxt 4 SSR | публичные лендинги по заголовку Host |
-| `packages/blocks` | Vue 3 | компоненты и схемы блоков, общие для редактора и `sites` |
+| `worker` | тот же образ, arq на Redis | письма, синхронизация SkolStream, напоминания |
+| `frontend` | Vue 3, Pinia, Vue Router, Tailwind 4, Vite | открытая форма заявки, оргкомитет, кабинет участника, судья, анонимная оценка |
 
 Инфраструктура: PostgreSQL 16, Redis, файлы на диске сервера (Docker volume), Mailpit в разработке. Деплой в Coolify, прокси coolify-proxy (Traefik).
 
@@ -34,30 +30,27 @@ flowchart TB
 ```
 backend/
   app/
-    core/          конфиг, БД, безопасность, логирование
+    core/          конфиг, файловое хранилище, общие части писем
+    legacy/        перенос истории из NocoBase
     modules/
-      auth/        вход SkolStream, magic-link, сессии
-      people/      users, persons, classes, departments
-      events/      мероприятия, направления, этапы, шаблоны
-      forms/       конструктор анкет
-      applications/заявки, модерация, кабинет
-      stages/      участие в этапах, правила перехода, слоты
+      auth/        вход: из sk-common, здесь режим судьи
+      events/      мероприятия, направления, этапы, команда
+      applications/заявки: первый шаг, вебхук, модерация, анкета (docs/registration.md)
+      files/       загрузка файлов и права на них
+      stages/      участие в этапах, правила перехода, итоги, дипломы
       evaluation/  шкалы, таблицы, листы, оценки, подсчёт
-      results/     рейтинги, публикация, дипломы
-      sites/       лендинги, блоки, домены
-      integrations/skolstream, nocobase-импорт
+      reminders/   напоминания по расписанию
+      system/      проверка состояния
     workers/
   migrations/
   tests/
 frontend/
-sites/
-packages/blocks/
-infra/             compose, шаблоны Traefik, бэкапы
+infra/             compose и скрипт для Coolify, nginx
 docs/
 ```
 
-Каждый модуль backend устроен одинаково: `models.py`, `schemas.py`, `repository.py`, `service.py`, `router.py`, `permissions.py`.
-Роутеры тонкие, логика в сервисах, транзакция на запрос через unit of work.
+Люди, вход и журнал действий — из общего пакета `sk-common`.
+Роутеры тонкие, логика в сервисах, транзакция на запрос.
 
 ## Принципы
 
@@ -65,16 +58,13 @@ docs/
 - **Подсчёт в одной транзакции.** Изменение оценки сразу пересчитывает оценку судьи, балл работы и ранги листа. Фоновых пересчётов и workflow нет.
 - **Аудит.** Изменения оценок, статусов заявок и итогов пишутся в `audit_log`.
 - **Ключи.** `bigint` из функции PostgreSQL `next_id()`: миллисекунды с 2020-01-01 (41 бит) + счётчик (12 бит). Число помещается в 53 бита и безопасно для JavaScript, а новые ID всегда больше ID из NocoBase, поэтому архив переносится с исходными ID. Внешние ID SkolStream хранятся как `uuid` в `skolstream_id`.
-- **Файлы.** На диске в volume, в БД метаданные. Работа с файлами только через `app/core/storage.py`, чтобы хранилище можно было заменить без правок модулей. Картинки лендингов кадрируются в редакторе и загружаются не шире 2000 px, публичные файлы API отдаёт с `Cache-Control`.
-- **Публичные формы.** Капча (Yandex SmartCaptcha) и ограничение частоты запросов.
+- **Файлы.** На диске в volume, в БД метаданные. Работа с файлами только через `app/core/storage.py`, чтобы хранилище можно было заменить без правок модулей. Публичные файлы (обложки мероприятий) API отдаёт с `Cache-Control`.
+- **Публичные формы.** Капча (Yandex SmartCaptcha) и ограничение частоты запросов. Вебхук защищён секретом в адресе и лимитом на мероприятие.
 
-## Домены
+## Адреса
 
 | Адрес | Что |
 |---|---|
 | `contest.skolhub.ru` | приложение и API (`/api/v1`) |
-| `sites.contest.skolhub.ru/<slug>` | тот же лендинг по пути |
-| `<slug>.sites.contest.skolhub.ru` | лендинг, wildcard-сертификат через DNS-01 |
-| свой домен | лендинг, CNAME + сертификат HTTP-01 через динамическую конфигурацию Traefik |
-
-Настройка DNS, сертификатов и Traefik: [domains.md](domains.md).
+| `contest.skolhub.ru/apply/<адрес>` | открытая форма заявки |
+| `contest.skolhub.ru/api/v1/public/webhooks/<секрет>` | заявки из внешних приложений |

@@ -1,3 +1,5 @@
+"""Выгрузка заявок в XLSX."""
+
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -6,10 +8,11 @@ from openpyxl.utils import get_column_letter
 
 from app.modules.applications.form import ApplicationForm
 from app.modules.applications.models import Application
-from app.modules.applications.service import STATUS_TITLES
+from app.modules.applications.service import SOURCE_TITLES, STATUS_TITLES
 
 
 def _answer(value) -> str:
+    """Приводит ответ формы к тексту для ячейки."""
     if isinstance(value, bool):
         return 'да' if value else 'нет'
     if isinstance(value, list):
@@ -18,6 +21,7 @@ def _answer(value) -> str:
 
 
 def applications_xlsx(applications: list[Application], form: ApplicationForm) -> bytes:
+    """Формирует XLSX со списком заявок: служебные колонки и поля формы, кроме файлов."""
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'Заявки'
@@ -31,7 +35,10 @@ def applications_xlsx(applications: list[Application], form: ApplicationForm) ->
         'Участники',
         'Классы',
         'Руководители',
+        'Заявитель',
         'Email заявителя',
+        'Телефон',
+        'Источник',
         'Отправлена',
         *[f.label for f in fields],
         'Файлы',
@@ -55,7 +62,10 @@ def applications_xlsx(applications: list[Application], form: ApplicationForm) ->
                 '\n'.join(m.full_name for m in participants),
                 '\n'.join(m.grade for m in participants if m.grade),
                 '\n'.join(m.full_name for m in supervisors),
-                app.user.email,
+                app.applicant_name,
+                app.applicant_email,
+                app.contact_phone,
+                SOURCE_TITLES.get(app.source, app.source),
                 app.submitted_at.strftime('%d.%m.%Y %H:%M') if app.submitted_at else '',
                 *[_answer(app.answers.get(f.key)) for f in fields],
                 '\n'.join(f.file.original_name for f in app.files),
@@ -63,7 +73,7 @@ def applications_xlsx(applications: list[Application], form: ApplicationForm) ->
             ]
         )
 
-    widths = {1: 6, 2: 16, 3: 40, 6: 32, 8: 28, 9: 28}
+    widths = {1: 6, 2: 16, 3: 40, 6: 32, 8: 28, 9: 28, 10: 28}
     for index in range(1, len(header) + 1):
         sheet.column_dimensions[get_column_letter(index)].width = widths.get(index, 20)
     for row in sheet.iter_rows(min_row=2):

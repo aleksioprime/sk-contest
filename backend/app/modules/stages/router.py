@@ -1,17 +1,18 @@
+"""Эндпоинты этапов: участники, слоты защит, правила перехода, итоги и дипломы."""
+
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Response, status
 from sk_common.audit import record
 from sk_common.deps import CurrentUser, Db
 from sk_common.people.models import User
-from sk_common.redis import get_redis
 from sk_common.security import now_utc
 from sqlalchemy import select
 
 from app.modules.applications.models import Application
 from app.modules.events.models import Event, Stage
 from app.modules.events.permissions import ensure_manage, ensure_view, roles_of
-from app.modules.events.service import get_by_slug, get_event
+from app.modules.events.service import get_event
 from app.modules.stages import service
 from app.modules.stages.documents import diplomas_pdf, program_xlsx
 from app.modules.stages.models import DefenseSlot, StageParticipation
@@ -21,7 +22,6 @@ from app.modules.stages.schemas import (
     EventResults,
     ParticipantOut,
     ParticipantUpdate,
-    PublicDirectionResults,
     ResultRow,
     SlotIn,
     SlotOut,
@@ -30,16 +30,17 @@ from app.modules.stages.schemas import (
 )
 
 router = APIRouter(prefix='/v1', tags=['stages'])
-public_router = APIRouter(prefix='/v1/public/events', tags=['public'])
 
 VIEW_ROLES = {'organizer', 'moderator', 'observer'}
 
 
 def _bad(exc: Exception) -> HTTPException:
+    """Превращает ошибку бизнес-логики в ответ 400."""
     return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
 
 async def _event(db, event_id: int, user: User, manage: bool = True) -> Event:
+    """Возвращает мероприятие, проверяя права: управление или (при manage=False) просмотр для участников процесса."""
     event = await get_event(db, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Мероприятие не найдено')
@@ -52,6 +53,7 @@ async def _event(db, event_id: int, user: User, manage: bool = True) -> Event:
 
 
 async def _stage(db, event_id: int, stage_id: int, user: User, manage: bool = True) -> tuple[Event, Stage]:
+    """Возвращает мероприятие и его этап по id; если этапа нет, отвечает 404."""
     event = await _event(db, event_id, user, manage)
     stage = next((s for s in event.stages if s.id == stage_id), None)
     if stage is None:
@@ -60,6 +62,7 @@ async def _stage(db, event_id: int, stage_id: int, user: User, manage: bool = Tr
 
 
 def _participant(p: StageParticipation, proposal: str | None = None) -> ParticipantOut:
+    """Преобразует участие заявки в этапе в схему ответа вместе с предложением перехода."""
     app = p.application
     return ParticipantOut(
         id=p.id,
@@ -80,6 +83,7 @@ def _participant(p: StageParticipation, proposal: str | None = None) -> Particip
 
 
 async def _overview(db, event: Event, stage: Stage, with_proposal: bool = True) -> StageOverview:
+    """Собирает обзор этапа: участники с предложениями по правилу, слоты и следующий этап."""
     items = await service.refresh(db, event, stage)
     rule = stage.advance_rule or {'type': 'manual'}
     proposals = service.proposal(items, rule) if with_proposal else {}
@@ -273,6 +277,7 @@ async def program(event_id: int, stage_id: int, db: Db, user: CurrentUser) -> Re
 
 
 def _row(item: dict) -> ResultRow:
+    """Преобразует элемент итогового рейтинга в строку ответа."""
     app = item['application']
     return ResultRow(
         application_id=app.id,
@@ -319,11 +324,6 @@ async def publish(event_id: int, db: Db, user: CurrentUser, published: bool = Tr
     event.results_published_at = now_utc() if published else None
     record(db, 'event.results', 'event', event.id, user.id, published=published)
     await db.commit()
-    # Итоги видны на лендинге: сбрасываем кэш сайта
-    from app.modules.sites.service import get_site, invalidate
-
-    site = await get_site(db, event.id)
-    await invalidate(get_redis(), event, site.domains if site else [])
     return await event_results(event_id, db, user)
 
 
@@ -345,6 +345,7 @@ def _diploma_entries(rows: list[dict]) -> list[dict]:
 
 
 def _pdf(content: bytes, name: str) -> Response:
+    """Оборачивает PDF в ответ со скачиванием под заданным именем."""
     return Response(
         content,
         media_type='application/pdf',
@@ -401,11 +402,3 @@ async def my_results(db: Db, user: CurrentUser) -> list[dict]:
                     }
                 )
     return result
-
-
-@public_router.get('/{slug}/results', response_model=list[PublicDirectionResults], summary='Опубликованные итоги')
-async def public_results(slug: str, db: Db):
-    event = await get_by_slug(db, slug)
-    if event is None or event.results_published_at is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Итоги не опубликованы')
-    return await service.published_winners(db, event)

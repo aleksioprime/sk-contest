@@ -16,3 +16,8 @@ export function formatRange(start, end) {
   if (y1 === y2) return `${formatDate(start).replace(` ${y1}`, '')} – ${formatDate(end)}`
   return `${formatDate(start)} – ${formatDate(end)}`
 }
+
+/** Дата и время коротко: «05.11.2026, 12:30». */
+export function formatDateTime(value) {
+  return value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+}

@@ -2,9 +2,7 @@
   "name": "sk-contest",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "frontend",
-    "sites"
+    "frontend"
   ],
   "scripts": {
     "lint": "npm run lint --workspaces --if-present",

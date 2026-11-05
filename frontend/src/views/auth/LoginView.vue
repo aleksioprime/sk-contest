@@ -1,4 +1,5 @@
 <script setup>
+/** Вход: по паролю, по ссылке на почту и через SkolStream. */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchProviders, loginWithPassword, requestMagicLink, skolstreamLoginUrl } from '@/api/auth'

@@ -1,5 +1,5 @@
 # Окружение разработки: docker compose -p sk-contest up -d --build
-# Приложение: http://localhost:8501 · API: http://localhost:8500/api/docs · Лендинги: http://localhost:8502
+# Приложение: http://localhost:8501 · API: http://localhost:8500/api/docs
 # Почта: http://localhost:8504 · PostgreSQL: localhost:8510 · Redis: localhost:8511
 
 x-backend: &backend
@@ -17,7 +17,7 @@ x-backend: &backend
     STORAGE_DIR: /data/files
     SMTP__HOST: mailpit
     SMTP__PORT: 1025
-    CORS_ORIGINS: '["http://localhost:8501","http://localhost:8502"]'
+    CORS_ORIGINS: '["http://localhost:8501"]'
     RELOAD: '1'
     BOOTSTRAP_ADMIN_EMAILS: '["admin@example.org"]'
     BOOTSTRAP_ADMIN_PASSWORD: dev-admin-pass  # только для локальной разработки
@@ -70,25 +70,7 @@ services:
       VITE_API_PROXY: http://backend:8000
     volumes:
       - ./frontend/src:/repo/frontend/src
-      - ./packages/blocks/src:/repo/packages/blocks/src
     ports: ['8501:5173']
-    depends_on: [backend]
-
-  sites:
-    build:
-      context: .
-      dockerfile: sites/Dockerfile
-      target: dev
-    environment:
-      NUXT_API_INTERNAL_URL: http://backend:8000
-      NUXT_PUBLIC_SITES_BASE_DOMAIN: contest.localhost
-      NUXT_PUBLIC_APP_URL: http://localhost:8501
-    volumes:
-      - ./sites/app:/repo/sites/app
-      - ./sites/lib:/repo/sites/lib
-      - ./sites/server:/repo/sites/server
-      - ./packages/blocks/src:/repo/packages/blocks/src
-    ports: ['8502:3000']
     depends_on: [backend]
 
 volumes:

@@ -1,3 +1,5 @@
+"""Модели мероприятий, их направлений, этапов, форм участия и команды."""
+
 from datetime import date, datetime
 
 from sk_common.db import Base, IdMixin, TimestampMixin
@@ -8,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class Event(IdMixin, TimestampMixin, Base):
+    """Мероприятие: описание, даты, статус, настройки приёма заявок, модули, анкета и награды."""
+
     __tablename__ = 'events'
 
     slug: Mapped[str] = mapped_column(String(63), unique=True)
@@ -23,6 +27,10 @@ class Event(IdMixin, TimestampMixin, Base):
     date_end: Mapped[date | None] = mapped_column(Date)
     registration_opens_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     registration_closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # До какого момента участники дописывают подтверждённые заявки; пусто — пока идёт регистрация
+    details_closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Секрет в адресе вебхука для заявок из внешних форм; пусто — вебхук выключен
+    webhook_token: Mapped[str | None] = mapped_column(String(64), unique=True)
     modules: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
     academic_year_id: Mapped[int | None] = mapped_column(ForeignKey('academic_years.id', ondelete='SET NULL'))
     copied_from_id: Mapped[int | None] = mapped_column(ForeignKey('events.id', ondelete='SET NULL'))

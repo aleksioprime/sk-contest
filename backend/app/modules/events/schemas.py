@@ -1,3 +1,5 @@
+"""Схемы мероприятий, их направлений, этапов, форм участия и команды."""
+
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -5,20 +7,17 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 from app.modules.events.templates import FORMATS, LEVELS, MODULES, ROLES, STATUSES
 
 SLUG_PATTERN = r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'
-RESERVED_SLUGS = {'www', 'app', 'api', 'admin', 'static', 'mail', 'uat', 'events'}
 
 
 class ORMModel(BaseModel):
+    """Базовая схема для ответов, создаваемых из ORM-объектов."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
-def _check_slug(value: str | None) -> str | None:
-    if value is not None and value in RESERVED_SLUGS:
-        raise ValueError('Этот адрес зарезервирован')
-    return value
-
-
 class EventTypeOut(BaseModel):
+    """Тип мероприятия: описание и набор включаемых модулей."""
+
     id: str
     title: str
     description: str
@@ -44,6 +43,7 @@ class StageIn(BaseModel):
 
     @model_validator(mode='after')
     def _dates(self):
+        """Проверяет, что этап не заканчивается раньше начала."""
         if self.date_start and self.date_end and self.date_end < self.date_start:
             raise ValueError('Дата окончания этапа раньше даты начала')
         return self
@@ -64,6 +64,8 @@ class FormOut(ORMModel, FormIn):
 
 
 class Reorder(BaseModel):
+    """Новый порядок элементов: список их id."""
+
     ids: list[int]
 
 
@@ -74,6 +76,7 @@ class MemberIn(BaseModel):
     @field_validator('role')
     @classmethod
     def _role(cls, value: str) -> str:
+        """Проверяет, что роль известна."""
         if value not in ROLES:
             raise ValueError('Неизвестная роль')
         return value
@@ -88,12 +91,12 @@ class MemberOut(BaseModel):
 
 
 class EventCreate(BaseModel):
+    """Создание мероприятия; copy_from_id указывает мероприятие-образец."""
+
     type: str
     title: str = Field(min_length=3, max_length=200)
     slug: str = Field(pattern=SLUG_PATTERN)
     copy_from_id: int | None = None
-
-    _slug = field_validator('slug')(_check_slug)
 
 
 class EventUpdate(BaseModel):
@@ -108,15 +111,15 @@ class EventUpdate(BaseModel):
     date_end: date | None = None
     registration_opens_at: datetime | None = None
     registration_closes_at: datetime | None = None
+    details_closes_at: datetime | None = None
     academic_year_id: int | None = None
     cover_file_id: int | None = None
     modules: dict[str, bool] | None = None
 
-    _slug = field_validator('slug')(_check_slug)
-
     @field_validator('level')
     @classmethod
     def _level(cls, value):
+        """Проверяет, что уровень известен."""
         if value is not None and value not in LEVELS:
             raise ValueError('Неизвестный уровень')
         return value
@@ -124,6 +127,7 @@ class EventUpdate(BaseModel):
     @field_validator('format')
     @classmethod
     def _format(cls, value):
+        """Проверяет, что формат известен."""
         if value is not None and value not in FORMATS:
             raise ValueError('Неизвестный формат')
         return value
@@ -131,6 +135,7 @@ class EventUpdate(BaseModel):
     @field_validator('modules')
     @classmethod
     def _modules(cls, value):
+        """Проверяет, что названия модулей известны."""
         if value is not None and set(value) - set(MODULES):
             raise ValueError('Неизвестный модуль')
         return value
@@ -142,12 +147,15 @@ class StatusChange(BaseModel):
     @field_validator('status')
     @classmethod
     def _status(cls, value):
+        """Проверяет, что статус известен."""
         if value not in STATUSES:
             raise ValueError('Неизвестный статус')
         return value
 
 
 class EventListItem(BaseModel):
+    """Мероприятие в списке с ролями пользователя."""
+
     id: int
     slug: str
     type: str
@@ -173,6 +181,7 @@ class EventOut(ORMModel):
     date_end: date | None
     registration_opens_at: datetime | None
     registration_closes_at: datetime | None
+    details_closes_at: datetime | None
     academic_year_id: int | None
     cover_file_id: int | None
     modules: dict[str, bool]
@@ -182,34 +191,3 @@ class EventOut(ORMModel):
     allowed_statuses: list[str] = []
     my_roles: list[str] = []
     can_manage: bool = False
-
-
-class PublicDirection(ORMModel):
-    title: str
-    description: str
-
-
-class PublicStage(ORMModel):
-    title: str
-    kind: str
-    date_start: date | None
-    date_end: date | None
-
-
-class PublicEvent(ORMModel):
-    slug: str
-    type: str
-    title: str
-    short_description: str
-    description: str
-    status: str
-    format: str
-    place: str
-    date_start: date | None
-    date_end: date | None
-    registration_opens_at: datetime | None
-    registration_closes_at: datetime | None
-    registration_open: bool
-    cover_url: str | None = None
-    directions: list[PublicDirection]
-    stages: list[PublicStage]

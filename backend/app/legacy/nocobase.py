@@ -27,7 +27,8 @@ from sk_common.people.service import normalize_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.applications.models import ACCEPTED, Application, ApplicationMember
+from app.core.letters import NO_EMAIL_DOMAIN
+from app.modules.applications.models import ACCEPTED, Application, ApplicationMember, Source
 from app.modules.evaluation import scoring
 from app.modules.evaluation.models import (
     Category,
@@ -43,7 +44,7 @@ from app.modules.evaluation.models import (
     SheetJudge,
     SheetWork,
 )
-from app.modules.evaluation.service import NO_EMAIL_DOMAIN, recompute_sheet
+from app.modules.evaluation.service import recompute_sheet
 from app.modules.events.models import Direction, Event, EventMember, ParticipationForm, Stage
 from app.modules.events.templates import MODULES
 from app.modules.stages.models import StageParticipation
@@ -112,27 +113,33 @@ async def fetch(base_url: str, api_key: str, target: Path, page_size: int = 500)
 
 
 def _read(source: Path, name: str) -> list[dict]:
+    """Читает выгрузку коллекции name.json из каталога source; без файла возвращает пустой список."""
     path = source / f'{name}.json'
     return json.loads(path.read_text()) if path.exists() else []
 
 
 def _date(value) -> date | None:
+    """Дата из строки ISO; пустое значение даёт None."""
     return date.fromisoformat(str(value)[:10]) if value else None
 
 
 def _dt(value) -> datetime | None:
+    """Дата и время из строки ISO (в том числе с суффиксом Z); пустое значение даёт None."""
     return datetime.fromisoformat(str(value).replace('Z', '+00:00')) if value else None
 
 
 def _dec(value) -> Decimal:
+    """Десятичное число; пустое значение считается нулём."""
     return Decimal(str(value or 0))
 
 
 def _text(value, limit: int) -> str:
+    """Строка без пробелов по краям, обрезанная до limit символов; None даёт пустую строку."""
     return (str(value) if value is not None else '').strip()[:limit]
 
 
 def _slug(title: str, year: str, used: set[str]) -> str:
+    """Адрес мероприятия латиницей из названия и года; повторы получают числовой суффикс, адрес попадает в used."""
     table = str.maketrans(
         'абвгдеёжзийклмнопрстуфхцчшщъыьэюя',
         'abvgdeejziiklmnoprstufhccss_y_eua',
@@ -147,6 +154,7 @@ def _slug(title: str, year: str, used: set[str]) -> str:
 
 
 def _name_parts(row: dict) -> tuple[str, str, str]:
+    """Фамилия, имя и отчество персоны: из отдельных полей или из полного имени."""
     if any(row.get(k) for k in ('last_name', 'first_name')):
         return _text(row.get('last_name'), 100), _text(row.get('first_name'), 100), _text(row.get('middle_name'), 100)
     full = _text(row.get('full_name') or row.get('name') or row.get('nickname'), 300).split()
@@ -159,7 +167,10 @@ def _ids(value) -> list[int]:
 
 
 class Loader:
+    """Переносит выгрузку NocoBase в БД; повторный запуск пропускает уже перенесённое."""
+
     def __init__(self, session: AsyncSession, source: Path):
+        """Читает все коллекции выгрузки и готовит отчёт и соответствия идентификаторов."""
         self.session = session
         self.source = source
         self.data = {name: _read(source, name) for name in COLLECTIONS}
@@ -172,11 +183,13 @@ class Loader:
         self.judge_users: dict[int, int] = {}  # id персоны NocoBase → id пользователя SK Contest
 
     def skip(self, kind: str, row_id, reason: str) -> None:
+        """Заносит пропущенную запись в отчёт с причиной."""
         self.report['skipped'][kind].append({'id': row_id, 'reason': reason})
 
     # --- люди
 
     async def person(self, nb_id: int) -> int | None:
+        """Находит или создаёт персону по id из NocoBase и возвращает её id; без записи в выгрузке пропускает."""
         if nb_id in self.person_ids:
             return self.person_ids[nb_id]
         row = self.persons.get(nb_id)
@@ -208,10 +221,12 @@ class Loader:
         return existing.id
 
     def email_of(self, row: dict) -> str | None:
+        """Нормализованный email персоны: свой или пользователя NocoBase."""
         email = row.get('email') or self.user_emails.get(int(row.get('user_id') or 0))
         return normalize_email(email) if email else None
 
     async def judge_user(self, nb_person_id: int) -> int | None:
+        """Находит или создаёт пользователя-судью для персоны NocoBase и возвращает его id."""
         if nb_person_id in self.judge_users:
             return self.judge_users[nb_person_id]
         person_id = await self.person(nb_person_id)
@@ -231,6 +246,7 @@ class Loader:
         return user.id
 
     async def archive_owner(self) -> int:
+        """Возвращает id неактивного пользователя — владельца перенесённых заявок; создаёт его при необходимости."""
         user = await self.session.scalar(select(User).where(User.email == ARCHIVE_OWNER))
         if user is None:
             user = User(email=ARCHIVE_OWNER, is_active=False)
@@ -241,6 +257,7 @@ class Loader:
     # --- загрузка
 
     async def run(self) -> dict:
+        """Переносит конкурсы, заявки, шкалы, таблицы оценок и листы, затем пересчитывает баллы; возвращает отчёт."""
         s = self.session
         d = self.data
         owner = await self.archive_owner()
@@ -318,6 +335,8 @@ class Loader:
                 title=_text(row.get('title'), 300),
                 direction_id=int(row['direction_id']) if row.get('direction_id') else None,
                 status=ACCEPTED,
+                source=Source.IMPORT,
+                confirmed_at=created,
                 answers={'notes': _text(row.get('notes'), 5000)} if row.get('notes') else {},
                 moderator_comment='',
                 submitted_at=created,
@@ -553,6 +572,7 @@ class Loader:
         return self.report
 
     async def _member(self, event_id: int, user_id: int, role: str) -> None:
+        """Добавляет участника в команду мероприятия, если его там ещё нет."""
         exists = await self.session.scalar(
             select(EventMember.id).where(
                 EventMember.event_id == event_id, EventMember.user_id == user_id, EventMember.role == role
@@ -564,6 +584,7 @@ class Loader:
 
 
 async def load(session: AsyncSession, source: Path) -> dict:
+    """Загружает выгрузку из каталога source в БД и сохраняет отчёт в report.json рядом с ней."""
     report = await Loader(session, source).run()
     (source / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1))
     return report

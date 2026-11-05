@@ -1,4 +1,5 @@
 <script setup>
+/** Вход по ссылке из письма: проверяет токен и переходит на страницу, указанную в ответе. */
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { verifyMagicLink } from '@/api/auth'

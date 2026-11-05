@@ -10,6 +10,7 @@ STAFF_ROLES = ('organizer', 'moderator')
 
 
 async def can_read(session: AsyncSession, user: User, stored: StoredFile) -> bool:
+    """Проверяет право читать файл: публичный, свой, для суперпользователя или вложенный в заявку его события."""
     if stored.is_public or user.is_superuser or stored.owner_id == user.id:
         return True
     from app.modules.applications.models import Application, ApplicationFile

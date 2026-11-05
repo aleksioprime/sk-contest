@@ -1,6 +1,6 @@
 """Типы мероприятий: набор модулей, этапы и формы участия по умолчанию (docs/event-types.md)."""
 
-MODULES = ('landing', 'registration', 'stages', 'evaluation', 'results')
+MODULES = ('registration', 'stages', 'evaluation', 'results')
 
 STATUSES = {
     'draft': 'Черновик',
@@ -25,6 +25,7 @@ ROLES = ('organizer', 'moderator', 'judge', 'observer')
 
 
 def _modules(*enabled: str) -> dict[str, bool]:
+    """Словарь модулей с включёнными из переданных."""
     return {module: module in enabled for module in MODULES}
 
 
@@ -32,35 +33,35 @@ EVENT_TYPES = {
     'project_contest': {
         'title': 'Конкурс проектов',
         'description': 'Заявки с работами, жюри по критериям, этапы и итоговый рейтинг',
-        'modules': _modules('landing', 'registration', 'stages', 'evaluation', 'results'),
+        'modules': _modules('registration', 'stages', 'evaluation', 'results'),
         'stages': [('Заочный этап', 'remote'), ('Очная защита', 'onsite')],
         'participation_forms': ['Устная защита', 'Стендовая защита'],
     },
     'conference': {
         'title': 'Конференция',
         'description': 'Секции, доклады и слушатели, программа и сертификаты',
-        'modules': _modules('landing', 'registration', 'stages', 'results'),
+        'modules': _modules('registration', 'stages', 'results'),
         'stages': [('Приём тезисов', 'remote'), ('Конференция', 'onsite')],
         'participation_forms': ['Доклад', 'Стендовый доклад', 'Слушатель'],
     },
     'creative': {
         'title': 'Творческий конкурс',
         'description': 'Работы в медиа, жюри и зрительское голосование',
-        'modules': _modules('landing', 'registration', 'evaluation', 'results'),
+        'modules': _modules('registration', 'evaluation', 'results'),
         'stages': [('Приём работ', 'remote')],
         'participation_forms': ['Индивидуальная работа', 'Коллективная работа'],
     },
     'open_event': {
         'title': 'Открытое событие',
         'description': 'Лекция, мастер-класс или день открытых дверей с регистрацией слушателей',
-        'modules': _modules('landing', 'registration'),
+        'modules': _modules('registration'),
         'stages': [],
         'participation_forms': ['Слушатель'],
     },
     'selection': {
         'title': 'Отбор',
         'description': 'Анкета, оценка комиссией и собеседование',
-        'modules': _modules('landing', 'registration', 'stages', 'evaluation', 'results'),
+        'modules': _modules('registration', 'stages', 'evaluation', 'results'),
         'stages': [('Анкета', 'remote'), ('Собеседование', 'onsite')],
         'participation_forms': [],
     },

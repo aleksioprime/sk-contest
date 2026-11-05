@@ -1,4 +1,5 @@
 <script setup>
+/** Экран оценки одной работы судьёй. */
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { judgeClient } from '@/api/evaluation'

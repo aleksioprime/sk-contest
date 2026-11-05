@@ -30,7 +30,7 @@ async def _prepared_sheet(db, client, mode='mixed'):
     for email in ('anna@example.org', 'boris@example.org'):
         async with _other(client) as applicant:
             await login_as(db, applicant, email=email)
-            apps.append(await _submitted(applicant, event))
+            apps.append(await _submitted(client, applicant, event))
     for app in apps:
         await client.post(f'/api/v1/applications/{app["id"]}/decision', json={'status': 'accepted'})
 

@@ -1,3 +1,5 @@
+"""Схемы оценки: шкалы, таблицы оценок, листы, судьи и оценивание."""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -5,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 
 
 class ORM(BaseModel):
+    """Базовая схема для ответов, создаваемых из ORM-объектов."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -32,6 +36,8 @@ class ScaleOut(ORM):
 
 
 class OptionIn(BaseModel):
+    """Пункт чек-листа: баллы и признак взаимоисключающего пункта."""
+
     title: str = Field(min_length=1, max_length=300)
     points: Decimal = Field(ge=-1000, le=1000)
     is_exclusive: bool = False
@@ -42,6 +48,8 @@ class OptionOut(ORM, OptionIn):
 
 
 class CriterionIn(BaseModel):
+    """Критерий таблицы оценок: шкала или чек-лист, вес и индекс категории."""
+
     title: str = Field(min_length=1, max_length=300)
     description: str = Field(default='', max_length=5000)
     type: str = Field(default='scale', pattern='^(scale|checklist)$')
@@ -52,6 +60,7 @@ class CriterionIn(BaseModel):
 
     @model_validator(mode='after')
     def _kind(self):
+        """Требует шкалу для критерия-шкалы и пункты для чек-листа."""
         if self.type == 'scale' and self.scale_id is None:
             raise ValueError(f'Для критерия «{self.title}» выберите шкалу')
         if self.type == 'checklist' and not self.options:
@@ -66,6 +75,7 @@ class ScorecardIn(BaseModel):
 
     @model_validator(mode='after')
     def _categories(self):
+        """Проверяет, что индексы категорий критериев существуют."""
         for criterion in self.criteria:
             if criterion.category is not None and not 0 <= criterion.category < len(self.categories):
                 raise ValueError(f'У критерия «{criterion.title}» неизвестная категория')
@@ -102,6 +112,8 @@ class ScorecardOut(ORM):
 
 
 class SheetBase(BaseModel):
+    """Общие настройки листа: режим, способ подсчёта и ранжирования, дедлайн."""
+
     title: str | None = Field(default=None, min_length=1, max_length=200)
     stage_id: int | None = None
     mode: str | None = Field(default=None, pattern='^(jury|anonymous|mixed)$')
@@ -132,19 +144,27 @@ class JudgeOut(BaseModel):
 
 
 class JudgeAccess(BaseModel):
+    """Открыт ли судье доступ к закрытому листу."""
+
     open: bool
 
 
 class RemindResult(BaseModel):
+    """Итог рассылки напоминаний: отправлено и без email."""
+
     sent: int
     no_email: int = Field(description='Судьи без email: им напоминание не ушло')
 
 
 class JudgeCardsRequest(BaseModel):
+    """Судьи, для которых нужны карточки входа."""
+
     user_ids: list[int] | None = None
 
 
 class JudgeCard(BaseModel):
+    """Карточка входа судьи по QR: ссылка, срок действия и работы для оценки."""
+
     user_id: int
     full_name: str
     login_url: str
@@ -187,6 +207,8 @@ class SheetOut(BaseModel):
 
 
 class SheetListItem(BaseModel):
+    """Лист в списке: число работ и судей, прогресс оценивания."""
+
     id: int
     title: str
     status: str
@@ -197,6 +219,8 @@ class SheetListItem(BaseModel):
 
 
 class AddWorks(BaseModel):
+    """Добавление работ в лист: источник и фильтры по заявкам, номерам, направлениям и статусам."""
+
     source: str = Field(default='accepted', pattern='^(accepted|stage)$', description='stage — участники этапа листа')
     application_ids: list[int] | None = None
     numbers: list[int] | None = Field(
@@ -207,6 +231,8 @@ class AddWorks(BaseModel):
 
 
 class JudgeIn(BaseModel):
+    """Судья, добавляемый в лист: существующий пользователь или новый по ФИО и email."""
+
     user_id: int | None = Field(default=None, description='Существующий пользователь из базы')
     full_name: str = Field(default='', max_length=300)
     email: EmailStr | None = None
@@ -216,6 +242,7 @@ class JudgeIn(BaseModel):
 
     @model_validator(mode='after')
     def _identity(self):
+        """Нормализует ФИО и требует ФИО или email для нового судьи."""
         self.full_name = ' '.join(self.full_name.split())
         if not self.user_id and not self.full_name and not self.email:
             raise ValueError('Укажите ФИО или email судьи')
@@ -223,6 +250,8 @@ class JudgeIn(BaseModel):
 
 
 class UserSearchItem(BaseModel):
+    """Пользователь в результатах поиска судей."""
+
     id: int
     full_name: str
     email: str | None
@@ -230,11 +259,15 @@ class UserSearchItem(BaseModel):
 
 
 class SetJudges(BaseModel):
+    """Новый состав судей листа; force разрешает удалить уже выставленные оценки."""
+
     judges: list[JudgeIn] = Field(max_length=200)
     force: bool = Field(default=False, description='Удалить и выставленные оценки убираемых судей')
 
 
 class Distribute(BaseModel):
+    """Способ распределения работ между судьями."""
+
     mode: str = Field(pattern='^(all|per_work)$')
     per_work: int = Field(default=3, ge=1, le=50)
 
@@ -247,6 +280,8 @@ class SheetStatus(BaseModel):
 
 
 class CriterionValue(BaseModel):
+    """Значение критерия, выставленное судьёй: уровень шкалы или пункты чек-листа; clear сбрасывает."""
+
     level_id: int | None = None
     option_ids: list[int] | None = None
     comment: str | None = Field(default=None, max_length=5000)
@@ -258,6 +293,8 @@ class EvaluationComment(BaseModel):
 
 
 class ItemOut(BaseModel):
+    """Сохранённая оценка по критерию."""
+
     criterion_id: int
     level_id: int | None
     option_ids: list[int]
@@ -266,6 +303,8 @@ class ItemOut(BaseModel):
 
 
 class MySheet(BaseModel):
+    """Лист в кабинете судьи с прогрессом."""
+
     id: int
     title: str
     status: str
@@ -277,6 +316,8 @@ class MySheet(BaseModel):
 
 
 class JudgeWork(BaseModel):
+    """Работа в списке судьи с его оценкой."""
+
     evaluation_id: int
     number: int
     title: str
@@ -287,6 +328,8 @@ class JudgeWork(BaseModel):
 
 
 class WorkInfo(BaseModel):
+    """Сведения о работе для судьи: участники, ответы анкеты и файлы."""
+
     number: int
     title: str
     direction: str
@@ -298,6 +341,8 @@ class WorkInfo(BaseModel):
 
 
 class EvaluationBundle(BaseModel):
+    """Всё для экрана оценки: работа, таблица, выставленные значения и соседние работы."""
+
     evaluation_id: int
     sheet_id: int
     sheet_title: str
@@ -315,20 +360,27 @@ class EvaluationBundle(BaseModel):
 
 
 class AnonymousStart(BaseModel):
+    """Начало анонимной оценки: имя оценщика."""
+
     name: str = Field(default='', max_length=100)
 
     @field_validator('name')
     @classmethod
     def _strip(cls, value: str) -> str:
+        """Убирает пробелы по краям имени."""
         return value.strip()
 
 
 class AnonymousStarted(BaseModel):
+    """Результат начала анонимной оценки: токен и оценка."""
+
     token: str
     evaluation: EvaluationBundle
 
 
 class PublicWork(BaseModel):
+    """Работа по публичной ссылке с признаком открытого оценивания."""
+
     sheet_title: str
     event_title: str
     open: bool

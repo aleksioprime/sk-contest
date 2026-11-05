@@ -27,7 +27,6 @@ PROJECT = 'Contest'
 COMPOSE = '/infra/coolify/docker-compose.prod.yaml'
 DOMAINS = {
     'frontend': 'https://contest.skolhub.ru',
-    'sites': 'https://sites.contest.skolhub.ru',
 }
 # Переменные из .env.prod, которые передаются в Coolify (остальные строки файла — старое приложение и служебные)
 APP_VARS = [
@@ -38,7 +37,6 @@ APP_VARS = [
     'SMTP__PASSWORD',
     'CAPTCHA__CLIENT_KEY',
     'CAPTCHA__SERVER_KEY',
-    'TRAEFIK_DYNAMIC_DIR',
     'SKOLSTREAM__CLIENT_ID',
     'SKOLSTREAM__CLIENT_SECRET',
     'SKOLSTREAM__DIRECTORY_TOKEN',
@@ -102,7 +100,7 @@ def main() -> None:
             'docker_compose_location': COMPOSE,
             'ports_exposes': '80',
             'name': NAME,
-            'description': 'SK Contest: конкурсы, заявки, оценивание, лендинги',
+            'description': 'SK Contest: конкурсы, заявки, оценивание',
             'instant_deploy': False,
         }
         print('Создаю ресурс', json.dumps({k: v for k, v in body.items() if 'uuid' not in k}, ensure_ascii=False))
