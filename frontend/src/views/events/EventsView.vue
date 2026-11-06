@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router'
 import { ROLE_LABELS, STATUS_LABELS, STATUS_TONES, fetchEvents } from '@/api/events'
 import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatRange } from '@/utils/dates'
 import SkeletonList from '@/components/skeleton/SkeletonList.vue'
@@ -42,10 +43,10 @@ onMounted(load)
     <div class="flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold">Мероприятия</h1>
       <div class="flex items-center gap-3">
-        <select v-if="auth.isAdmin" v-model="scope" aria-label="Какие мероприятия показать" class="h-10 rounded-control border border-line bg-surface px-3 text-sm">
+        <UiSelect v-if="auth.isAdmin" v-model="scope" aria-label="Какие мероприятия показать" class="text-sm">
           <option value="mine">Мои</option>
           <option value="all">Все</option>
-        </select>
+        </UiSelect>
         <RouterLink
           v-if="canCreate"
           :to="{ name: 'event-new' }"

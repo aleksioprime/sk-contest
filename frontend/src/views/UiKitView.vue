@@ -5,6 +5,11 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
+
+const KIT_TOPICS = ['Биология', 'География', 'Информатика', 'История', 'Литература', 'Математика', 'Физика', 'Химия', 'Экология']
+const kitStage = ref(null)
+const kitTopics = ref([])
 
 const title = ref('')
 </script>
@@ -37,6 +42,20 @@ const title = ref('')
       <div class="grid max-w-md gap-4">
         <UiInput v-model="title" label="Название мероприятия" placeholder="SkolStart 2027" hint="Показывается на открытой форме и в кабинете" />
         <UiInput label="Адрес формы" model-value="skolstart" error="Этот адрес уже занят" />
+        <label class="grid gap-1.5 text-sm font-medium">
+          Этап
+          <UiSelect v-model="kitStage">
+            <option :value="null">Без этапа</option>
+            <option value="first">Заочный этап</option>
+            <option value="final">Финал</option>
+          </UiSelect>
+        </label>
+        <label class="grid gap-1.5 text-sm font-medium">
+          Направления, несколько и с поиском
+          <UiSelect v-model="kitTopics" multiple searchable placeholder="Выберите направления">
+            <option v-for="topic in KIT_TOPICS" :key="topic" :value="topic">{{ topic }}</option>
+          </UiSelect>
+        </label>
       </div>
     </UiCard>
   </div>

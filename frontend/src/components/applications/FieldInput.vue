@@ -3,6 +3,7 @@
 import { computed, ref, useId } from 'vue'
 import { uploadFile } from '@/api/applications'
 import { errorMessage } from '@/api/http'
+import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({
   field: { type: Object, required: true },
@@ -19,11 +20,6 @@ const uploaded = ref(null)
 const currentFile = computed(() => uploaded.value ?? props.files.find((f) => f.id === model.value) ?? null)
 const inputType = { email: 'email', phone: 'tel', url: 'url', date: 'date', number: 'number' }
 const placeholder = { email: 'name@example.ru', phone: '+7 900 000-00-00', url: 'https://' }
-
-function toggle(option, checked) {
-  const list = Array.isArray(model.value) ? [...model.value] : []
-  model.value = checked ? [...list, option] : list.filter((v) => v !== option)
-}
 
 async function pickFile(event) {
   const file = event.target.files?.[0]
@@ -58,20 +54,17 @@ function size(bytes) {
       :id="id" v-model="model" rows="4" :disabled="disabled"
       class="rounded-control border bg-surface px-3 py-2" :class="error ? 'border-red-500' : 'border-line'"
     />
-    <select
+    <UiSelect
       v-else-if="field.type === 'select'"
       :id="id" v-model="model" :disabled="disabled"
-      class="h-10 rounded-control border bg-surface px-3" :class="error ? 'border-red-500' : 'border-line'"
+      :invalid="!!error"
     >
       <option :value="null">Не выбрано</option>
       <option v-for="option in field.options" :key="option" :value="option">{{ option }}</option>
-    </select>
-    <fieldset v-else-if="field.type === 'multiselect'" :id="id" class="grid gap-1.5" :disabled="disabled">
-      <label v-for="option in field.options" :key="option" class="flex items-center gap-2">
-        <input type="checkbox" class="size-4 accent-brand-600" :checked="model?.includes(option)" @change="toggle(option, $event.target.checked)" />
-        {{ option }}
-      </label>
-    </fieldset>
+    </UiSelect>
+    <UiSelect v-else-if="field.type === 'multiselect'" :id="id" v-model="model" multiple :disabled="disabled" :invalid="!!error">
+      <option v-for="option in field.options" :key="option" :value="option">{{ option }}</option>
+    </UiSelect>
     <label v-else-if="field.type === 'checkbox'" class="flex items-start gap-2">
       <input :id="id" v-model="model" type="checkbox" class="mt-1 size-4 accent-brand-600" :disabled="disabled" />
       <span class="text-sm font-medium">{{ field.label }}<span v-if="field.required" class="text-red-600" aria-hidden="true"> *</span></span>

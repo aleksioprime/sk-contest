@@ -30,6 +30,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -311,15 +312,15 @@ watch(() => props.id, load, { immediate: true })
             <UiInput v-model="form.place" label="Место" class="sm:col-span-2" placeholder="Гимназия Сколково, ул. Новая, 100" />
             <label class="grid gap-1.5 text-sm">
               <span class="font-medium">Формат</span>
-              <select v-model="form.format" class="h-10 rounded-control border border-line bg-surface px-3">
+              <UiSelect v-model="form.format">
                 <option v-for="(label, value) in FORMAT_LABELS" :key="value" :value="value">{{ label }}</option>
-              </select>
+              </UiSelect>
             </label>
             <label class="grid gap-1.5 text-sm">
               <span class="font-medium">Уровень</span>
-              <select v-model="form.level" class="h-10 rounded-control border border-line bg-surface px-3">
+              <UiSelect v-model="form.level">
                 <option v-for="(label, value) in LEVEL_LABELS" :key="value" :value="value">{{ label }}</option>
-              </select>
+              </UiSelect>
             </label>
           </div>
         </UiCard>
@@ -404,9 +405,9 @@ watch(() => props.id, load, { immediate: true })
     <div v-else-if="tab === 'team'" class="grid gap-4">
       <form v-if="!readonly" class="flex flex-wrap items-start gap-3" novalidate @submit.prevent="invite">
         <UiInput v-model="memberEmail" type="email" placeholder="expert@example.ru" aria-label="Email" class="min-w-0 flex-1" :error="memberError" />
-        <select v-model="memberRole" aria-label="Роль" class="h-10 rounded-control border border-line bg-surface px-3">
+        <UiSelect v-model="memberRole" aria-label="Роль">
           <option v-for="(label, value) in ROLE_LABELS" :key="value" :value="value">{{ label }}</option>
-        </select>
+        </UiSelect>
         <UiButton type="submit" variant="primary">Добавить</UiButton>
       </form>
       <p class="text-sm text-ink-muted">Если человека ещё нет в системе, он сможет войти по ссылке, отправленной на этот адрес.</p>

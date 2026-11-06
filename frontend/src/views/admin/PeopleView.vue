@@ -6,6 +6,7 @@ import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, setPersonAdmin, st
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/dates'
 import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
@@ -236,9 +237,9 @@ onMounted(() => {
         aria-label="Поиск"
         class="h-10 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 sm:max-w-xs"
       />
-      <select v-if="tab === 'persons'" v-model="kind" aria-label="Тип" class="h-10 rounded-control border border-line bg-surface px-3">
+      <UiSelect v-if="tab === 'persons'" v-model="kind" aria-label="Тип">
         <option v-for="item in kinds" :key="item.value" :value="item.value">{{ item.label }}</option>
-      </select>
+      </UiSelect>
       <span class="text-sm text-ink-muted">Найдено: {{ page.total }}</span>
     </div>
 

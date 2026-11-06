@@ -17,6 +17,7 @@ import ApplicationReview from '@/components/events/ApplicationReview.vue'
 import { formatDateTime } from '@/utils/dates'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
@@ -136,10 +137,10 @@ onMounted(async () => {
 
     <div class="flex flex-wrap items-center gap-3">
       <input v-model="search" type="search" placeholder="Название, участник или email" aria-label="Поиск заявок" class="h-10 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 sm:max-w-xs" />
-      <select v-if="event.directions.length" v-model="directionId" aria-label="Направление" class="h-10 rounded-control border border-line bg-surface px-3 text-sm">
+      <UiSelect v-if="event.directions.length" v-model="directionId" aria-label="Направление" class="text-sm">
         <option value="">Все направления</option>
         <option v-for="d in event.directions" :key="d.id" :value="d.id">{{ d.title }}</option>
-      </select>
+      </UiSelect>
       <div class="ml-auto flex gap-2 text-sm">
         <UiButton variant="primary" @click="creating = !creating">Добавить заявку</UiButton>
         <a :href="exportUrl(event.id)" class="rounded-control border border-line bg-surface px-3 py-2 hover:bg-brand-50">Выгрузить все</a>
@@ -154,10 +155,10 @@ onMounted(async () => {
       </label>
       <label class="grid gap-1">
         <span class="font-medium">Статус</span>
-        <select v-model="fresh.status" class="h-10 rounded-control border border-line bg-surface px-3">
+        <UiSelect v-model="fresh.status">
           <option value="accepted">Сразу принята</option>
           <option value="submitted">На рассмотрении</option>
-        </select>
+        </UiSelect>
       </label>
       <div class="flex items-end"><UiButton type="submit" variant="primary">Создать и заполнить</UiButton></div>
       <p class="text-ink-muted sm:col-span-3">
