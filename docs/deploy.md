@@ -65,6 +65,9 @@ python -m app.cli nocobase-load /data/nocobase   # в контейнере backe
 ## 6. Резервные копии
 
 База работает внутри ресурса compose, поэтому встроенные бэкапы Coolify для неё не включаются.
-До отдельной настройки (restic, план этапа 0) — задача *Scheduled Tasks* в ресурсе для контейнера `postgres`
-раз в сутки: `pg_dump -U sk_events sk_events | gzip > /var/lib/postgresql/data/backup-$(date +%u).sql.gz`
-(семь копий по дням недели). Файлы участников — том `files_data`.
+Копии снимает задача «Копия базы» в *Scheduled Tasks* ресурса: контейнер `postgres`, каждый день в 03:00 по времени
+сервера, команда `pg_dump -U sk_events sk_events | gzip > /var/lib/postgresql/data/backup-$(date +%u).sql.gz`
+(семь копий по дням недели). Копии лежат на томе базы, поэтому от потери тома или диска не защищают; копии вне
+сервера пока не настроены.
+
+Файлы участников — том `files_data`.
