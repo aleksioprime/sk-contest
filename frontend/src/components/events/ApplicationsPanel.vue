@@ -208,7 +208,7 @@ onMounted(async () => {
             </td>
             <td class="px-3 py-2">
               <p>{{ app.participants.join(', ') || app.applicant_name }}</p>
-              <p class="text-xs text-ink-muted">{{ [app.applicant_email, app.is_linked ? '' : 'без учётной записи'].filter(Boolean).join(' · ') }}</p>
+              <p class="text-xs text-ink-muted">{{ [app.applicant_email, app.is_linked || app.source === 'import' ? '' : 'без учётной записи'].filter(Boolean).join(' · ') }}</p>
             </td>
             <td class="px-3 py-2">{{ app.supervisors.join(', ') || '—' }}</td>
             <td class="px-3 py-2 whitespace-nowrap text-ink-muted">

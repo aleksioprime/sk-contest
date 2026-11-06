@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.letters import NO_EMAIL_DOMAIN
-from app.modules.applications.models import ACCEPTED, Application, ApplicationMember, Source
+from app.modules.applications.models import ACCEPTED, ARCHIVE_OWNER_EMAIL, Application, ApplicationMember, Source
 from app.modules.evaluation import scoring
 from app.modules.evaluation.models import (
     Category,
@@ -76,7 +76,6 @@ COLLECTIONS: dict[str, list[str]] = {
 
 SHEET_STATUS = {'active': 'active', 'inactive': 'closed', 'archived': 'closed'}
 STAGE_STATUS = {'accepted': 'admitted', 'evaluated': 'evaluated', 'passed': 'passed', 'not_passed': 'not_passed'}
-ARCHIVE_OWNER = 'archive@import.sk-events.local'
 
 
 # --- Шаг 1: выгрузка из API -----------------------------------------------------------------------
@@ -247,9 +246,9 @@ class Loader:
 
     async def archive_owner(self) -> int:
         """Возвращает id неактивного пользователя — владельца перенесённых заявок; создаёт его при необходимости."""
-        user = await self.session.scalar(select(User).where(User.email == ARCHIVE_OWNER))
+        user = await self.session.scalar(select(User).where(User.email == ARCHIVE_OWNER_EMAIL))
         if user is None:
-            user = User(email=ARCHIVE_OWNER, is_active=False)
+            user = User(email=ARCHIVE_OWNER_EMAIL, is_active=False)
             self.session.add(user)
             await self.session.flush()
         return user.id

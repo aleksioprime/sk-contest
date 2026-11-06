@@ -81,7 +81,8 @@ onMounted(loadMatches)
   <div class="grid gap-3 rounded-control border border-line bg-canvas p-4 text-sm">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="font-semibold">Заявитель</p>
-      <UiBadge :tone="application.is_linked ? 'success' : 'warning'">{{ application.is_linked ? 'Связан с учётной записью' : 'Без учётной записи' }}</UiBadge>
+      <UiBadge v-if="!application.is_linked && application.source === 'import'">Из архива</UiBadge>
+      <UiBadge v-else :tone="application.is_linked ? 'success' : 'warning'">{{ application.is_linked ? 'Связан с учётной записью' : 'Без учётной записи' }}</UiBadge>
     </div>
 
     <form v-if="editing" class="grid gap-3 sm:grid-cols-2" novalidate @submit.prevent="saveContact">
@@ -113,7 +114,7 @@ onMounted(loadMatches)
 
     <div class="grid gap-2 border-t border-line pt-3">
       <p class="font-medium">{{ application.is_linked ? 'Передать заявку другому человеку' : 'Присоединить к человеку из базы' }}</p>
-      <p v-if="!application.is_linked" class="text-ink-muted">Если никого не выбрать, при подтверждении человек определится по email: найдётся существующий или будет создан новый.</p>
+      <p v-if="!application.is_linked && application.source !== 'import'" class="text-ink-muted">Если никого не выбрать, при подтверждении человек определится по email: найдётся существующий или будет создан новый.</p>
       <ul v-if="matches.length" class="grid gap-1" aria-label="Похожие люди">
         <li v-for="person in matches" :key="person.person_id" class="flex flex-wrap items-center gap-2 rounded-control border border-line bg-surface px-3 py-2">
           <span class="min-w-0 flex-1">
