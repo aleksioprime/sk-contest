@@ -36,7 +36,7 @@ python3 infra/coolify/deploy.py
 
 DNS: `contest.skolhub.ru` — A‑запись на `5.252.65.50`.
 
-Дальше выкатка автоматическая: после пуша в `main` workflow «Образы» собирает образы, записывает тег коммита
+Дальше выкатка автоматическая: после успешных «Проверок» на `main` workflow «Образы» собирает образы, записывает тег коммита
 в переменную `IMAGE_TAG` ресурса и запускает развёртывание. Секреты репозитория: `COOLIFY_API`
 (`https://devops.skolhub.ru/api/v1`), `COOLIFY_APP` (UUID ресурса), `COOLIFY_TOKEN` (токен панели с правами
 write и deploy). Откат — `git revert` в `main` или в панели `IMAGE_TAG` = SHA прежнего коммита и Redeploy.
