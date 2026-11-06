@@ -289,3 +289,35 @@ async def test_judge_qr_link_expires_in_20_minutes(db, client):
     assert len(cards) == 3
     record = await db.scalar(select(MagicLinkToken).where(MagicLinkToken.purpose == 'judge_qr').limit(1))
     assert record.expires_at - record.created_at <= timedelta(minutes=20, seconds=5)
+
+
+async def test_event_copy_brings_scales_and_scorecards(db, client):
+    event, scorecard, _sheet = await _prepared_sheet(db, client)
+    response = await client.post(
+        '/api/v1/events', json={'title': 'Копия', 'slug': 'copy-2', 'copy_from_id': event['id']}
+    )
+    assert response.status_code == 201, response.text
+    copy = response.json()
+
+    scales = (await client.get(f'/api/v1/events/{copy["id"]}/scales')).json()
+    source_scales = (await client.get(f'/api/v1/events/{event["id"]}/scales')).json()
+    assert [s['title'] for s in scales] == [s['title'] for s in source_scales]
+    assert {s['id'] for s in scales}.isdisjoint(s['id'] for s in source_scales)
+
+    cards = (await client.get(f'/api/v1/events/{copy["id"]}/scorecards')).json()
+    assert [c['title'] for c in cards] == [scorecard['title']]
+    assert cards[0]['max_score'] == scorecard['max_score']
+    assert cards[0]['in_use'] is False
+    scale_ids = {c['scale_id'] for c in cards[0]['criteria'] if c['scale_id']}
+    assert scale_ids <= {s['id'] for s in scales}
+    assert (await client.get(f'/api/v1/events/{copy["id"]}/sheets')).json() == []
+
+
+async def test_event_copy_skips_scales_without_evaluation(db, client):
+    event, *_ = await _prepared_sheet(db, client)
+    modules = {'registration': True, 'stages': False, 'evaluation': False, 'results': False}
+    response = await client.post(
+        '/api/v1/events', json={'title': 'Копия', 'slug': 'copy-3', 'copy_from_id': event['id'], 'modules': modules}
+    )
+    assert response.status_code == 201, response.text
+    assert (await client.get(f'/api/v1/events/{response.json()["id"]}/scales')).json() == []

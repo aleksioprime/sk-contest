@@ -313,23 +313,7 @@ async def copy_scorecard(scorecard_id: int, db: Db, user: CurrentUser):
     if source is None:
         raise _not_found('Таблица не найдена')
     await _event(db, source.event_id, user)
-    category_index = {c.id: i for i, c in enumerate(source.categories)}
-    payload = ScorecardIn(
-        title=f'{source.title} (копия)',
-        categories=[c.title for c in source.categories],
-        criteria=[
-            {
-                'title': c.title,
-                'description': c.description,
-                'type': c.type,
-                'scale_id': c.scale_id,
-                'weight': c.weight,
-                'category': category_index.get(c.category_id),
-                'options': [{'title': o.title, 'points': o.points, 'is_exclusive': o.is_exclusive} for o in c.options],
-            }
-            for c in source.criteria
-        ],
-    )
+    payload = service.scorecard_payload(source, f'{source.title} (копия)')
     copy = Scorecard(event_id=source.event_id, categories=[], criteria=[])
     db.add(copy)
     await service.fill_scorecard(db, copy, source.event_id, payload)

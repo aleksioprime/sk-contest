@@ -8,6 +8,7 @@ from sk_common.deps import CurrentUser, Db
 from sk_common.people.models import User
 from sk_common.people.service import find_or_create_user_by_email
 
+from app.modules.evaluation.service import copy_evaluation_setup
 from app.modules.events import service
 from app.modules.events.models import Event
 from app.modules.events.permissions import can_create_event, can_manage, ensure_manage, ensure_view, roles_of
@@ -104,6 +105,8 @@ async def create_event(payload: EventCreate, db: Db, user: CurrentUser) -> Event
         copy_from = await _load(db, payload.copy_from_id, user)
     try:
         event = await service.create_event(db, user, payload.title, payload.slug, payload.modules, copy_from)
+        if copy_from is not None and event.modules.get('evaluation'):
+            await copy_evaluation_setup(db, copy_from.id, event.id)
     except service.EventError as exc:
         raise _bad_request(exc) from exc
     await db.commit()
