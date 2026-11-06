@@ -29,6 +29,8 @@ SEARCH_LIMIT = 20
 
 def allowed_decisions(app: Application) -> list[str]:
     """Какие решения доступны модератору при текущем статусе заявки."""
+    if app.event.status == 'archived':
+        return []
     match app.status:
         case 'requested':
             return [CONFIRMED, REJECTED]
