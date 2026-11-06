@@ -4,6 +4,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from sk_common.people.models import Person
+from sk_common.people.service import find_or_create_user_by_email
 from sk_common.testing import login_as
 
 from app.modules.applications.form import ApplicationForm, FormField
@@ -412,3 +413,25 @@ def test_webhook_parse_coerces_answers():
     assert data.participation_form_id == 2 and data.direction_id is None
     assert external_id == '7' and raw['size'] == 'XL'  # неподходящее значение осталось в исходных данных
     assert is_test_request({'test': 'test'}) and not is_test_request({'test': 'другое'})
+
+
+async def test_confirm_does_not_rename_existing_account(db, client, queue):
+    event = await _open_event(db, client)
+    owner = await find_or_create_user_by_email(db, 'owner@example.org')
+    await db.commit()
+    assert not (owner.person and owner.person.full_name)
+
+    async with _anonymous(client) as visitor:
+        await visitor.post(
+            REGISTER,
+            json={**CONSENT, 'full_name': 'Чужое Имя', 'email': 'owner@example.org', 'organization': 'Чужая школа'},
+        )
+    app_id = await _pending_id(client, event)
+    confirmed = await client.post(f'/api/v1/applications/{app_id}/decision', json={'status': 'confirmed'})
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()['is_linked'] is True
+    assert confirmed.json()['members'][0]['full_name'] == 'Чужое Имя'
+
+    await db.refresh(owner, ['person'])
+    assert not (owner.person and owner.person.full_name)
+    assert not (owner.person and owner.person.organization)
