@@ -1,9 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import BrandMark from '@/components/brand/BrandMark.vue'
-import SchoolFooter from '@/components/brand/SchoolFooter.vue'
-import OverflowNav from '@/components/OverflowNav.vue'
+import { BrandMark, OverflowNav, SchoolFooter } from 'sk-ui'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()

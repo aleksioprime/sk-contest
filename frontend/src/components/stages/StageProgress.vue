@@ -2,7 +2,7 @@
 /** Ход по этапам: участники, баллы из листов, правило перехода, расписание защит. */
 import { computed, reactive, ref, watch } from 'vue'
 import { formatPoints } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiConfirm, UiSelect } from 'sk-ui'
 import {
   STAGE_STATUS_LABELS,
   STAGE_STATUS_TONES,
@@ -15,12 +15,6 @@ import {
   setStageRule,
   updateParticipant,
 } from '@/api/stages'
-import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiConfirm from '@/components/ui/UiConfirm.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
 

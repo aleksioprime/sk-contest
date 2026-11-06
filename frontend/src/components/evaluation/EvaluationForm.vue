@@ -5,7 +5,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { formatPoints } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
+import { errorMessage } from 'sk-ui'
 
 const props = defineProps({
   bundle: { type: Object, required: true },

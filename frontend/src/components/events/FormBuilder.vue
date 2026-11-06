@@ -3,14 +3,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { fetchForm, resetForm, saveForm } from '@/api/applications'
 import { slugify } from '@/api/events'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonPage, UiButton, UiCard, UiConfirm, UiSelect } from 'sk-ui'
 import RegistrationSettings from '@/components/events/RegistrationSettings.vue'
 import WebhookSettings from '@/components/events/WebhookSettings.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiConfirm from '@/components/ui/UiConfirm.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({
   eventId: { type: Number, required: true },

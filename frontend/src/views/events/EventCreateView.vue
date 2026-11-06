@@ -3,10 +3,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MODULE_HINTS, MODULE_LABELS, applyUrl, createEvent, fetchEvent, fetchEvents, isSlugAvailable, slugify } from '@/api/events'
-import { errorMessage } from '@/api/http'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiInput from '@/components/ui/UiInput.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { errorMessage, UiButton, UiInput, UiSelect } from 'sk-ui'
 
 const router = useRouter()
 const previous = ref([])

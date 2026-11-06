@@ -5,9 +5,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { fetchSheet, issueJudgeCards } from '@/api/evaluation'
 import { fetchEvent } from '@/api/events'
-import { errorMessage } from '@/api/http'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
-import UiButton from '@/components/ui/UiButton.vue'
+import { errorMessage, SkeletonPage, UiButton } from 'sk-ui'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })
 const route = useRoute()

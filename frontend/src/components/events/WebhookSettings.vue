@@ -2,11 +2,7 @@
 /** Вебхук для внешних форм: адрес и соответствие полей. Поля сохраняются вместе с анкетой, адрес — сразу. */
 import { computed, onMounted, ref } from 'vue'
 import { ASKABLE_FIELDS, disableWebhook, enableWebhook, fetchWebhook } from '@/api/applications'
-import { errorMessage } from '@/api/http'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiConfirm from '@/components/ui/UiConfirm.vue'
-import UiCopyField from '@/components/ui/UiCopyField.vue'
+import { errorMessage, UiButton, UiCard, UiConfirm, UiCopyField } from 'sk-ui'
 
 const props = defineProps({
   eventId: { type: Number, required: true },

@@ -3,9 +3,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { deadlinePassed, fetchMySheets, fetchMyWorks, formatDeadline, formatPoints } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import SkeletonList from '@/components/skeleton/SkeletonList.vue'
+import { errorMessage, SkeletonList, UiBadge } from 'sk-ui'
 
 const props = defineProps({ id: { type: String, required: true } })
 const works = ref([])

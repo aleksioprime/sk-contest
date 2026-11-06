@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { DECISION_ACTIONS, fieldErrors, isVisible } from '@/api/applications'
 import { applyUrl } from '@/api/events'
-import { errorMessage } from '@/api/http'
+import { errorMessage } from 'sk-ui'
 import ConsentsList from '@/components/applications/ConsentsList.vue'
 import { resolveAccess, routes } from '@/router'
 

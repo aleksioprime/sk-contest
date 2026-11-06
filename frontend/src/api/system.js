@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export async function fetchMeta() {
   const { data } = await http.get('/v1/meta')

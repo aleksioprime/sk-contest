@@ -5,9 +5,8 @@
  */
 import { reactive, ref } from 'vue'
 import { addChild, deleteChild, reorderChildren, updateChild } from '@/api/events'
-import { errorMessage } from '@/api/http'
+import { errorMessage, UiButton } from 'sk-ui'
 import EventItemFields from '@/components/events/EventItemFields.vue'
-import UiButton from '@/components/ui/UiButton.vue'
 
 const props = defineProps({
   eventId: { type: Number, required: true },

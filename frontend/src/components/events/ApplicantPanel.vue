@@ -2,10 +2,7 @@
 /** Заявитель в карточке заявки: контакты, связь с человеком из базы и поиск подходящего. */
 import { onMounted, ref, watch } from 'vue'
 import { PERSON_KIND_LABELS, fetchMatches, linkPerson, searchPeople, unlinkPerson, updateContact } from '@/api/applications'
-import { errorMessage } from '@/api/http'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiInput from '@/components/ui/UiInput.vue'
+import { errorMessage, UiBadge, UiButton, UiInput } from 'sk-ui'
 
 const props = defineProps({
   application: { type: Object, required: true },

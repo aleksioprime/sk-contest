@@ -2,10 +2,7 @@
 /** Профиль: данные пользователя и смена пароля. */
 import { ref } from 'vue'
 import { changePassword } from '@/api/auth'
-import { errorMessage } from '@/api/http'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiInput from '@/components/ui/UiInput.vue'
+import { errorMessage, UiButton, UiCard, UiInput } from 'sk-ui'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()

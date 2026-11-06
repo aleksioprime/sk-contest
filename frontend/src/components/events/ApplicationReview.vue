@@ -11,11 +11,8 @@ import {
   fetchApplication,
   resendInvitation,
 } from '@/api/applications'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonTable, UiBadge, UiButton } from 'sk-ui'
 import ApplicantPanel from '@/components/events/ApplicantPanel.vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const props = defineProps({
   applicationId: { type: Number, required: true },

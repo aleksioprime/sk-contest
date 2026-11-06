@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export const SHEET_STATUS_LABELS = { draft: 'Черновик', active: 'Идёт оценка', closed: 'Закрыт' }
 export const SHEET_STATUS_TONES = { draft: 'neutral', active: 'success', closed: 'score' }

@@ -3,12 +3,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROLE_LABELS, STATUS_LABELS, STATUS_TONES, fetchEvents } from '@/api/events'
-import { errorMessage } from '@/api/http'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { errorMessage, SkeletonList, UiBadge, UiSelect } from 'sk-ui'
 import { useAuthStore } from '@/stores/auth'
 import { formatRange } from '@/utils/dates'
-import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const auth = useAuthStore()
 const events = ref([])

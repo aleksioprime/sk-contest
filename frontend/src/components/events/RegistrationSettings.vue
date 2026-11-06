@@ -2,8 +2,7 @@
 /** Настройки первого шага: открытая форма и что в ней спрашивать. Сохраняются вместе с анкетой. */
 import { ASKABLE_FIELDS } from '@/api/applications'
 import { applyUrl } from '@/api/events'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiCopyField from '@/components/ui/UiCopyField.vue'
+import { UiCard, UiCopyField } from 'sk-ui'
 
 defineProps({ slug: { type: String, required: true } })
 const settings = defineModel({ type: Object, required: true })

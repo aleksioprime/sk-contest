@@ -1,5 +1,5 @@
 <script setup>
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { UiSelect } from 'sk-ui'
 /** Поля формы элемента списка мероприятия по описанию полей: строка, абзац или выбор. */
 defineProps({ fields: { type: Array, required: true } })
 const draft = defineModel('draft', { type: Object, required: true })

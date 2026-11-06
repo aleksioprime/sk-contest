@@ -3,9 +3,8 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { judgeClient } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonPage } from 'sk-ui'
 import EvaluationForm from '@/components/evaluation/EvaluationForm.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const bundle = ref(null)

@@ -3,11 +3,9 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { APP_STATUS_LABELS, APP_STATUS_TONES, fetchMyApplications, fetchOpenEvents } from '@/api/applications'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonList, UiBadge } from 'sk-ui'
 import { AWARD_LABELS, AWARD_TONES, fetchMyResults } from '@/api/stages'
 import { formatRange } from '@/utils/dates'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const apps = ref([])
 const openEvents = ref([])

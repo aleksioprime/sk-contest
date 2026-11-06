@@ -23,13 +23,8 @@ import {
   updateSheet,
 } from '@/api/evaluation'
 import { fetchEvent } from '@/api/events'
-import { errorMessage } from '@/api/http'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiSelect } from 'sk-ui'
 import JudgesPanel from '@/components/evaluation/JudgesPanel.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })
 const router = useRouter()

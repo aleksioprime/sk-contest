@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export const APP_STATUS_LABELS = {
   requested: 'Ждёт подтверждения',

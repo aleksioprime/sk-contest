@@ -3,8 +3,7 @@
 import { ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { deadlinePassed, distribute, judgesPayload, searchUsers, setJudgeAccess, setJudges } from '@/api/evaluation'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
+import { UiBadge, UiButton } from 'sk-ui'
 
 const props = defineProps({
   sheet: { type: Object, required: true },
