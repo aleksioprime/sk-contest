@@ -21,6 +21,7 @@ import FieldInput from '@/components/applications/FieldInput.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
@@ -254,12 +255,10 @@ watch(() => props.id, load, { immediate: true })
           <UiButton :loading="busy === 'save'" @click="save">Сохранить</UiButton>
         </template>
         <template v-if="app.can_withdraw && !staffMode">
-          <UiButton v-if="!confirmWithdraw" variant="ghost" @click="confirmWithdraw = true">Отозвать заявку</UiButton>
-          <span v-else class="flex flex-wrap items-center gap-2 text-sm">
-            Отозвать заявку? Отменить это будет нельзя.
-            <UiButton size="sm" variant="danger" :loading="busy === 'withdraw'" @click="withdraw">Отозвать</UiButton>
-            <UiButton size="sm" variant="ghost" @click="confirmWithdraw = false">Отмена</UiButton>
-          </span>
+          <UiButton variant="ghost" @click="confirmWithdraw = true">Отозвать заявку</UiButton>
+          <UiConfirm v-model:open="confirmWithdraw" title="Отозвать заявку?" confirm-label="Отозвать" variant="danger" @confirm="withdraw">
+            Отменить это будет нельзя.
+          </UiConfirm>
         </template>
       </div>
     </form>

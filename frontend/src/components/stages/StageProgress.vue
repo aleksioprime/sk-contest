@@ -19,6 +19,7 @@ import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
@@ -186,12 +187,10 @@ watch(stageId, load, { immediate: true })
           Предложение можно поправить в таблице. При равенстве баллов на границе проходят все.
         </p>
         <div class="mt-4 flex flex-wrap items-center gap-2">
-          <UiButton v-if="!confirmApply" variant="primary" :disabled="!pending" @click="confirmApply = true">Применить решения ({{ pending }})</UiButton>
-          <template v-else>
-            <span class="text-sm">Отметить прошедших{{ data.has_next ? ' и допустить их на следующий этап' : '' }}?</span>
-            <UiButton size="sm" variant="primary" @click="apply">Применить</UiButton>
-            <UiButton size="sm" variant="ghost" @click="confirmApply = false">Отмена</UiButton>
-          </template>
+          <UiButton variant="primary" :disabled="!pending" @click="confirmApply = true">Применить решения ({{ pending }})</UiButton>
+          <UiConfirm v-model:open="confirmApply" title="Применить решения?" confirm-label="Применить" @confirm="apply">
+            Прошедшие будут отмечены{{ data.has_next ? ' и допущены на следующий этап' : '' }}. Решений: {{ pending }}.
+          </UiConfirm>
         </div>
       </UiCard>
 
