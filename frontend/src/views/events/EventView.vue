@@ -29,6 +29,7 @@ import FormBuilder from '@/components/events/FormBuilder.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
@@ -170,6 +171,7 @@ async function setStatus(status) {
 }
 
 async function remove() {
+  confirmDelete.value = false
   try {
     await deleteEvent(event.value.id)
     await router.push({ name: 'events' })
@@ -235,12 +237,10 @@ watch(() => props.id, load, { immediate: true })
         >
           {{ STATUS_ACTIONS[status] }}
         </UiButton>
-        <UiButton v-if="event.status === 'draft' && !confirmDelete" variant="ghost" @click="confirmDelete = true">Удалить</UiButton>
-        <span v-if="confirmDelete" class="flex items-center gap-2 text-sm">
-          Удалить черновик без возможности восстановления?
-          <UiButton size="sm" variant="danger" @click="remove">Удалить</UiButton>
-          <UiButton size="sm" variant="ghost" @click="confirmDelete = false">Отмена</UiButton>
-        </span>
+        <UiButton v-if="event.status === 'draft'" variant="ghost" @click="confirmDelete = true">Удалить</UiButton>
+        <UiConfirm v-model:open="confirmDelete" title="Удалить черновик?" confirm-label="Удалить" variant="danger" @confirm="remove">
+          Мероприятие «{{ event.title }}» удалится без возможности восстановления.
+        </UiConfirm>
       </div>
     </div>
     <p v-if="statusError" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ statusError }}</p>

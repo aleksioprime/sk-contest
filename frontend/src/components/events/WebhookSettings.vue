@@ -5,6 +5,7 @@ import { ASKABLE_FIELDS, disableWebhook, enableWebhook, fetchWebhook } from '@/a
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiCopyField from '@/components/ui/UiCopyField.vue'
 
 const props = defineProps({
@@ -60,12 +61,10 @@ onMounted(() => run(() => fetchWebhook(props.eventId)))
       <template v-if="url">
         <UiCopyField :value="url" label="Адрес вебхука" />
         <div class="flex flex-wrap items-center gap-2">
-          <UiButton v-if="!confirmChange" size="sm" variant="ghost" @click="confirmChange = true">Сменить адрес</UiButton>
-          <span v-else class="flex flex-wrap items-center gap-2">
-            Прежний адрес перестанет работать.
-            <UiButton size="sm" variant="danger" :loading="busy" @click="run(() => enableWebhook(eventId))">Сменить</UiButton>
-            <UiButton size="sm" variant="ghost" @click="confirmChange = false">Отмена</UiButton>
-          </span>
+          <UiButton size="sm" variant="ghost" @click="confirmChange = true">Сменить адрес</UiButton>
+          <UiConfirm v-model:open="confirmChange" title="Сменить адрес вебхука?" confirm-label="Сменить" variant="danger" @confirm="run(() => enableWebhook(eventId))">
+            Прежний адрес перестанет работать, внешние формы нужно будет настроить заново.
+          </UiConfirm>
           <UiButton size="sm" variant="ghost" :loading="busy" @click="run(async () => (await disableWebhook(eventId), null))">Выключить</UiButton>
         </div>
 

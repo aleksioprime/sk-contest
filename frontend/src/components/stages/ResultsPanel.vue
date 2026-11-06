@@ -8,6 +8,7 @@ import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 import { formatDateTime } from '@/utils/dates'
 
@@ -113,14 +114,17 @@ onMounted(load)
           {{ results.published_at ? `Опубликованы ${formatDateTime(results.published_at)}` : 'Не опубликованы' }}
         </UiBadge>
         <template v-if="manage">
-          <UiButton v-if="!confirmPublish" :variant="results.published_at ? 'secondary' : 'primary'" @click="confirmPublish = true">
+          <UiButton :variant="results.published_at ? 'secondary' : 'primary'" @click="confirmPublish = true">
             {{ results.published_at ? 'Скрыть итоги' : 'Опубликовать итоги' }}
           </UiButton>
-          <span v-else class="flex flex-wrap items-center gap-2 text-sm">
-            {{ results.published_at ? 'Скрыть итоги от участников?' : 'Участники увидят свои места и смогут скачать дипломы.' }}
-            <UiButton size="sm" variant="primary" @click="togglePublish">Подтвердить</UiButton>
-            <UiButton size="sm" variant="ghost" @click="confirmPublish = false">Отмена</UiButton>
-          </span>
+          <UiConfirm
+            v-model:open="confirmPublish"
+            :title="results.published_at ? 'Скрыть итоги?' : 'Опубликовать итоги?'"
+            :confirm-label="results.published_at ? 'Скрыть' : 'Опубликовать'"
+            @confirm="togglePublish"
+          >
+            {{ results.published_at ? 'Участники перестанут видеть свои места и дипломы.' : 'Участники увидят свои места и смогут скачать дипломы.' }}
+          </UiConfirm>
         </template>
         <a v-if="results.rows.length" :href="diplomasUrl(event.id)" class="ml-auto rounded-control border border-line bg-surface px-3 py-2 text-sm hover:bg-brand-50">Все дипломы (PDF)</a>
       </div>

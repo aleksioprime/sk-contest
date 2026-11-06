@@ -8,6 +8,7 @@ import RegistrationSettings from '@/components/events/RegistrationSettings.vue'
 import WebhookSettings from '@/components/events/WebhookSettings.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
@@ -215,12 +216,10 @@ onMounted(load)
 
     <div v-if="!readonly" class="flex flex-wrap items-center gap-3">
       <UiButton type="submit" variant="primary" :loading="saving">Сохранить анкету</UiButton>
-      <UiButton v-if="!confirmReset" variant="ghost" @click="confirmReset = true">Вернуть анкету по умолчанию</UiButton>
-      <span v-else class="flex items-center gap-2 text-sm">
-        Заменить текущие вопросы стандартными?
-        <UiButton size="sm" variant="danger" @click="reset">Заменить</UiButton>
-        <UiButton size="sm" variant="ghost" @click="confirmReset = false">Отмена</UiButton>
-      </span>
+      <UiButton variant="ghost" @click="confirmReset = true">Вернуть анкету по умолчанию</UiButton>
+      <UiConfirm v-model:open="confirmReset" title="Вернуть анкету по умолчанию?" confirm-label="Заменить" variant="danger" @confirm="reset">
+        Текущие вопросы будут заменены стандартными.
+      </UiConfirm>
       <span v-if="error" role="alert" class="text-sm text-red-700">{{ error }}</span>
       <span v-else-if="notice" role="status" class="text-sm text-ink-muted">{{ notice }}</span>
     </div>

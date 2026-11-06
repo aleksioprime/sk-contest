@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiConfirm from '@/components/ui/UiConfirm.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 
@@ -105,5 +106,50 @@ describe('UiSelect', () => {
     await nextTick()
     expect(document.body.querySelector('input[type="search"]')).toBeNull()
     wrapper.unmount()
+  })
+})
+
+describe('UiConfirm', () => {
+  const mountConfirm = (props = {}) =>
+    mount(UiConfirm, {
+      props: { title: 'Удалить?', confirmLabel: 'Удалить', open: true, 'onUpdate:open': (v) => wrapper.setProps({ open: v }), ...props },
+      slots: { default: 'Без восстановления' },
+      attachTo: document.body,
+    })
+  let wrapper
+  const dialog = () => document.body.querySelector('dialog')
+  const button = (text) => [...dialog().querySelectorAll('button')].find((b) => b.textContent.trim() === text)
+  afterEach(() => {
+    wrapper.unmount()
+    document.body.innerHTML = ''
+  })
+
+  it('показывает текст и сообщает о подтверждении', async () => {
+    wrapper = mountConfirm()
+    await nextTick()
+    expect(dialog().textContent).toContain('Без восстановления')
+    button('Удалить').click()
+    expect(wrapper.emitted('confirm')).toHaveLength(1)
+  })
+
+  it('закрывается отменой, по Esc и по фону', async () => {
+    for (const close of [() => button('Отмена').click(), () => dialog().dispatchEvent(new Event('cancel')), () => dialog().click()]) {
+      wrapper = mountConfirm()
+      await nextTick()
+      close()
+      await nextTick()
+      expect(dialog()).toBeNull()
+      expect(wrapper.emitted('confirm')).toBeUndefined()
+      wrapper.unmount()
+    }
+    wrapper = mountConfirm({ open: false })
+  })
+
+  it('не закрывается, пока идёт действие', async () => {
+    wrapper = mountConfirm({ loading: true })
+    await nextTick()
+    dialog().dispatchEvent(new Event('cancel'))
+    await nextTick()
+    expect(dialog()).not.toBeNull()
   })
 })
