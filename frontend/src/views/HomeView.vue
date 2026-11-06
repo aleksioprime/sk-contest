@@ -1,11 +1,8 @@
 <script setup>
 /** Страница состояния системы: версия API и доступность базы данных и Redis. */
 import { onMounted } from 'vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
+import { SkeletonTable, UiBadge, UiButton, UiCard } from 'sk-ui'
 import { useSystemStore } from '@/stores/system'
-import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const system = useSystemStore()
 onMounted(system.load)

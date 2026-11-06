@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorMessage } from '@/api/http'
+import { errorMessage } from 'sk-ui'
 import { resolveAccess } from '@/router'
 
 const route = (meta = {}, fullPath = '/admin/people') => ({ meta, fullPath })

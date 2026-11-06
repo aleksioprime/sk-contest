@@ -15,14 +15,9 @@ import {
   fetchSheets,
   formatPoints,
 } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiSelect } from 'sk-ui'
 import ScaleEditor from '@/components/evaluation/ScaleEditor.vue'
 import ScorecardEditor from '@/components/evaluation/ScorecardEditor.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
 const router = useRouter()

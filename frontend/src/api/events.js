@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export const STATUS_LABELS = {
   draft: 'Черновик',

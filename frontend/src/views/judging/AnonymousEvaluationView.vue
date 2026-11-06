@@ -2,13 +2,8 @@
 /** Оценка работы зрителем по QR-коду, без входа. Токен оценки хранится в браузере. */
 import { onMounted, ref } from 'vue'
 import { anonymousClient, fetchPublicWork, readAnonymousToken, startAnonymous } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
-import BrandMark from '@/components/brand/BrandMark.vue'
-import SchoolFooter from '@/components/brand/SchoolFooter.vue'
+import { BrandMark, errorMessage, SchoolFooter, SkeletonPage, UiButton, UiInput } from 'sk-ui'
 import EvaluationForm from '@/components/evaluation/EvaluationForm.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiInput from '@/components/ui/UiInput.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ token: { type: String, required: true } })
 const work = ref(null)

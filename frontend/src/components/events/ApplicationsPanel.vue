@@ -12,13 +12,9 @@ import {
   fetchEventApplications,
   fetchForm,
 } from '@/api/applications'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonTable, UiBadge, UiButton, UiSelect } from 'sk-ui'
 import ApplicationReview from '@/components/events/ApplicationReview.vue'
 import { formatDateTime } from '@/utils/dates'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
-import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
 

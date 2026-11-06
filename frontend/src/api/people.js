@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export async function fetchPersons(params) {
   const { data } = await http.get('/v1/people/persons', { params })

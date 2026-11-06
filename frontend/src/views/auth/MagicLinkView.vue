@@ -3,7 +3,7 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { verifyMagicLink } from '@/api/auth'
-import { errorMessage } from '@/api/http'
+import { errorMessage } from 'sk-ui'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()

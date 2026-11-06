@@ -1,11 +1,7 @@
 <script setup>
 /** Витрина компонентов интерфейса. */
 import { ref } from 'vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiInput from '@/components/ui/UiInput.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { UiBadge, UiButton, UiCard, UiInput, UiSelect } from 'sk-ui'
 
 const KIT_TOPICS = ['Биология', 'География', 'Информатика', 'История', 'Литература', 'Математика', 'Физика', 'Химия', 'Экология']
 const kitStage = ref(null)

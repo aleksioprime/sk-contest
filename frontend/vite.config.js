@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
+  // sk-ui отдаёт исходники .vue: не предсобирать их esbuild
+  optimizeDeps: { exclude: ['sk-ui'] },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
@@ -17,5 +19,6 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    server: { deps: { inline: ['sk-ui'] } },
   },
 })

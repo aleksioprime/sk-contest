@@ -2,8 +2,7 @@
 /** Поле анкеты заявки по его типу. Для файла загружает его и хранит id. */
 import { computed, ref, useId } from 'vue'
 import { uploadFile } from '@/api/applications'
-import { errorMessage } from '@/api/http'
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { errorMessage, UiSelect } from 'sk-ui'
 
 const props = defineProps({
   field: { type: Object, required: true },

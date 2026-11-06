@@ -2,9 +2,7 @@
 /** Редактор таблицы оценок: категории и критерии (шкала или чек-лист), веса. */
 import { reactive, ref } from 'vue'
 import { createScorecard, updateScorecard } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
+import { errorMessage, UiButton, UiSelect } from 'sk-ui'
 
 const props = defineProps({
   eventId: { type: Number, required: true },

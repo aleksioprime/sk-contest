@@ -18,7 +18,7 @@ import {
   removeMember,
   updateEvent,
 } from '@/api/events'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect } from 'sk-ui'
 import { uploadFile } from '@/api/applications'
 import ApplicationsPanel from '@/components/events/ApplicationsPanel.vue'
 import EvaluationPanel from '@/components/evaluation/EvaluationPanel.vue'
@@ -26,13 +26,6 @@ import ResultsPanel from '@/components/stages/ResultsPanel.vue'
 import StageProgress from '@/components/stages/StageProgress.vue'
 import EventItemsEditor from '@/components/events/EventItemsEditor.vue'
 import FormBuilder from '@/components/events/FormBuilder.vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiConfirm from '@/components/ui/UiConfirm.vue'
-import UiInput from '@/components/ui/UiInput.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const route = useRoute()

@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export async function fetchProviders() {
   const { data } = await http.get('/v1/auth/providers')

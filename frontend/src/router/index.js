@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { setUnauthorizedHandler } from '@/api/http'
+import { setUnauthorizedHandler } from 'sk-ui'
 import { pageTitle } from '@/brand'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { useAuthStore } from '@/stores/auth'

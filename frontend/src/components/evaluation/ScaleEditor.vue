@@ -2,8 +2,7 @@
 /** Форма создания и редактирования шкалы оценок с уровнями и баллами. */
 import { reactive, ref } from 'vue'
 import { createScale, updateScale } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
-import UiButton from '@/components/ui/UiButton.vue'
+import { errorMessage, UiButton } from 'sk-ui'
 
 const props = defineProps({
   eventId: { type: Number, required: true },

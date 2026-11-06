@@ -3,12 +3,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchProviders, loginWithPassword, requestMagicLink, skolstreamLoginUrl } from '@/api/auth'
-import { errorMessage } from '@/api/http'
-import BrandMark from '@/components/brand/BrandMark.vue'
-import SchoolFooter from '@/components/brand/SchoolFooter.vue'
+import { BrandMark, errorMessage, SchoolFooter, UiButton, UiInput } from 'sk-ui'
 import SmartCaptcha from '@/components/SmartCaptcha.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiInput from '@/components/ui/UiInput.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()

@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http } from 'sk-ui'
 
 export const STAGE_STATUS_LABELS = {
   admitted: 'Допущен',

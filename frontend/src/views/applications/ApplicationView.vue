@@ -14,17 +14,10 @@ import {
   submitApplication,
   withdrawApplication,
 } from '@/api/applications'
-import { errorMessage } from '@/api/http'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect } from 'sk-ui'
 import { AWARD_LABELS, diplomaUrl, fetchMyResults } from '@/api/stages'
 import ConsentsList from '@/components/applications/ConsentsList.vue'
 import FieldInput from '@/components/applications/FieldInput.vue'
-import UiBadge from '@/components/ui/UiBadge.vue'
-import UiButton from '@/components/ui/UiButton.vue'
-import UiCard from '@/components/ui/UiCard.vue'
-import UiConfirm from '@/components/ui/UiConfirm.vue'
-import UiInput from '@/components/ui/UiInput.vue'
-import UiSelect from '@/components/ui/UiSelect.vue'
-import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const route = useRoute()

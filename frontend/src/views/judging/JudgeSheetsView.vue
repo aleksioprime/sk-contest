@@ -3,10 +3,8 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { SHEET_STATUS_LABELS, SHEET_STATUS_TONES, fetchMySheets } from '@/api/evaluation'
-import { errorMessage } from '@/api/http'
-import UiBadge from '@/components/ui/UiBadge.vue'
+import { errorMessage, SkeletonList, UiBadge } from 'sk-ui'
 import { useAuthStore } from '@/stores/auth'
-import SkeletonList from '@/components/skeleton/SkeletonList.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
