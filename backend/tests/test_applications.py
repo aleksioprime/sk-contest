@@ -3,7 +3,10 @@ from io import BytesIO
 import pytest
 from httpx import AsyncClient
 from openpyxl import load_workbook
+from sk_common.people.models import User
 from sk_common.testing import login_as
+
+from app.modules.applications.models import ARCHIVE_OWNER_EMAIL, Application, Source
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
 
@@ -249,3 +252,15 @@ async def test_staff_edit_keeps_participant_files(db, client):
     )
     assert edited.status_code == 200, edited.text
     assert edited.json()['files'][0]['name'] == 'работа.pdf'
+
+
+def test_archive_owner_is_hidden_from_applicant():
+    owner = User(email=ARCHIVE_OWNER_EMAIL)
+    app = Application(user=owner, contact_name='', contact_email='', source=Source.IMPORT)
+    assert app.applicant_email == ''
+    assert app.applicant_name == ''
+    assert app.is_linked is False
+
+    app.user = User(email='real@example.com')
+    assert app.applicant_email == 'real@example.com'
+    assert app.is_linked is True

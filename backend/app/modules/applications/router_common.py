@@ -80,7 +80,7 @@ def application_out(app: Application, user: User) -> ApplicationOut:
             organization=app.contact_organization,
             grade=app.contact_grade,
         ),
-        is_linked=app.user_id is not None,
+        is_linked=app.is_linked,
         raw_payload=app.raw_payload if staff else {},
         members=[MemberOut.model_validate(m, from_attributes=True) for m in app.members],
         consents=[ConsentOut.model_validate(c, from_attributes=True) for c in app.consents],

@@ -156,7 +156,7 @@ async def event_applications(
                 supervisors=[m.full_name for m in a.members if m.role == 'supervisor'],
                 applicant_name=a.applicant_name,
                 applicant_email=a.applicant_email,
-                is_linked=a.user_id is not None,
+                is_linked=a.is_linked,
                 created_at=a.created_at,
                 submitted_at=a.submitted_at,
             )

@@ -25,6 +25,10 @@ EDITABLE = {DRAFT, NEEDS_CHANGES}
 ACTIVE = {SUBMITTED, NEEDS_CHANGES, ACCEPTED}  # учитываются в лимитах
 
 
+# Служебный владелец заявок, перенесённых из старой системы: человека за ним нет, поэтому адрес нигде не показывается
+ARCHIVE_OWNER_EMAIL = 'archive@import.sk-events.local'
+
+
 class Source(StrEnum):
     """Откуда пришла заявка."""
 
@@ -85,9 +89,14 @@ class Application(IdMixin, TimestampMixin, Base):
     files: Mapped[list['ApplicationFile']] = relationship(cascade='all, delete-orphan', lazy='selectin')
 
     @property
+    def is_linked(self) -> bool:
+        """Заявка связана с учётной записью реального человека."""
+        return self.user is not None and self.user.email != ARCHIVE_OWNER_EMAIL
+
+    @property
     def applicant_email(self) -> str:
         """Адрес для писем: учётная запись, а до привязки — контакт из заявки."""
-        return self.user.email if self.user else self.contact_email
+        return self.user.email if self.is_linked else self.contact_email
 
     @property
     def applicant_name(self) -> str:
