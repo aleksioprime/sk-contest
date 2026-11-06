@@ -2,7 +2,7 @@
 
 from sk_common.audit import record
 from sk_common.people.models import Person, User
-from sk_common.people.service import ensure_user, find_or_create_user_by_email, set_full_name
+from sk_common.people.service import ensure_user, find_or_create_user_by_email, get_user_by_email, set_full_name
 from sk_common.queue import Queue
 from sk_common.security import now_utc
 from sqlalchemy import func, or_, select
@@ -99,12 +99,15 @@ async def _ensure_applicant(session: AsyncSession, app: Application) -> User:
         return await session.get(User, app.user_id)
     if not can_email(app.contact_email):
         raise ApplicationError('В заявке нет email: укажите его или свяжите заявку с человеком из базы')
-    user = await find_or_create_user_by_email(session, app.contact_email)
-    if app.contact_name and not (user.person and user.person.full_name):
-        await set_full_name(session, user, app.contact_name)
-    person = user.person
-    if person and person.is_external and app.contact_organization and not person.organization:
-        person.organization = app.contact_organization[:255]
+    existing = await get_user_by_email(session, app.contact_email)
+    user = existing or await find_or_create_user_by_email(session, app.contact_email)
+    # Адрес в заявке никто не проверял, поэтому данные из неё заполняют только новую учётную запись
+    if existing is None:
+        if app.contact_name and not (user.person and user.person.full_name):
+            await set_full_name(session, user, app.contact_name)
+        person = user.person
+        if person and person.is_external and app.contact_organization and not person.organization:
+            person.organization = app.contact_organization[:255]
     app.user_id = user.id
     return user
 
