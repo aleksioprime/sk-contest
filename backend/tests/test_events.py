@@ -15,18 +15,10 @@ async def _employee(db, client, email='org@skolkovo.example.org'):
     return user
 
 
-async def _create(client, slug='skolstart-2027', type_='project_contest', **extra):
-    response = await client.post(
-        '/api/v1/events', json={'type': type_, 'title': 'SkolStart 2027', 'slug': slug, **extra}
-    )
+async def _create(client, slug='skolstart-2027', **extra):
+    response = await client.post('/api/v1/events', json={'title': 'SkolStart 2027', 'slug': slug, **extra})
     assert response.status_code == 201, response.text
     return response.json()
-
-
-async def test_types_list(db, client):
-    await _employee(db, client)
-    types = (await client.get('/api/v1/events/types')).json()
-    assert {t['id'] for t in types} == {'project_contest', 'conference', 'creative', 'open_event', 'selection'}
 
 
 async def test_create_from_template(db, client):
@@ -41,23 +33,21 @@ async def test_create_from_template(db, client):
 
 async def test_only_staff_creates_events(db, client):
     await login_as(db, client, email='guest@example.org')
-    response = await client.post('/api/v1/events', json={'type': 'conference', 'title': 'Тест', 'slug': 'test'})
+    response = await client.post('/api/v1/events', json={'title': 'Тест', 'slug': 'test'})
     assert response.status_code == 403
 
 
 @pytest.mark.parametrize('slug', ['Bad_Slug', '-x'])
 async def test_slug_validation(db, client, slug):
     await _employee(db, client)
-    response = await client.post('/api/v1/events', json={'type': 'conference', 'title': 'Тест', 'slug': slug})
+    response = await client.post('/api/v1/events', json={'title': 'Тест', 'slug': slug})
     assert response.status_code == 422
 
 
 async def test_slug_must_be_unique(db, client):
     await _employee(db, client)
     await _create(client)
-    response = await client.post(
-        '/api/v1/events', json={'type': 'conference', 'title': 'Тест', 'slug': 'skolstart-2027'}
-    )
+    response = await client.post('/api/v1/events', json={'title': 'Тест', 'slug': 'skolstart-2027'})
     assert response.status_code == 400
     assert (await client.get('/api/v1/events/slug-available', params={'slug': 'skolstart-2027'})).json() == {
         'available': False
@@ -144,3 +134,23 @@ async def test_copy_event(db, client):
     copy = await _create(client, slug='skolstart-2028', copy_from_id=source['id'])
     assert [d['title'] for d in copy['directions']] == ['Инженерия']
     assert len(copy['stages']) == 2 and copy['status'] == 'draft'
+
+
+async def test_create_with_selected_modules(db, client):
+    await _employee(db, client)
+    event = await _create(client, modules={'registration': True, 'evaluation': True})
+    assert event['modules'] == {'registration': True, 'stages': False, 'evaluation': True, 'results': False}
+    assert event['stages'] == []
+
+
+async def test_create_with_all_modules_by_default(db, client):
+    await _employee(db, client)
+    event = await _create(client)
+    assert all(event['modules'].values())
+    assert len(event['stages']) == 2
+
+
+async def test_create_rejects_unknown_module(db, client):
+    await _employee(db, client)
+    response = await client.post('/api/v1/events', json={'title': 'Тест', 'slug': 'test', 'modules': {'landing': True}})
+    assert response.status_code == 422

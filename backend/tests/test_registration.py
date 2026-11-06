@@ -229,7 +229,9 @@ async def test_one_step_event_is_accepted_on_confirmation(db, client, queue):
     organizer.person.is_employee = True
     await db.commit()
     event = (
-        await client.post('/api/v1/events', json={'type': 'open_event', 'title': 'Лекция', 'slug': 'lecture'})
+        await client.post(
+            '/api/v1/events', json={'modules': {'registration': True}, 'title': 'Лекция', 'slug': 'lecture'}
+        )
     ).json()
     url = f'/api/v1/events/{event["id"]}'
     await client.patch(url, json={'date_start': '2027-03-12'})
@@ -383,7 +385,7 @@ async def test_public_form_hides_webhook_settings(db, client):
 
 
 def test_webhook_parse_coerces_answers():
-    event = Event(title='Тест', slug='t', type='project_contest', modules={})
+    event = Event(title='Тест', slug='t', modules={})
     event.directions = [Direction(id=1, title='Инженерия')]
     event.participation_forms = [ParticipationForm(id=2, title='Доклад')]
     form = ApplicationForm(

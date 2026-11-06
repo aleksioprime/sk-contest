@@ -17,7 +17,6 @@ from app.modules.events.schemas import (
     EventCreate,
     EventListItem,
     EventOut,
-    EventTypeOut,
     EventUpdate,
     FormIn,
     FormOut,
@@ -28,7 +27,7 @@ from app.modules.events.schemas import (
     StageOut,
     StatusChange,
 )
-from app.modules.events.templates import EVENT_TYPES, TRANSITIONS
+from app.modules.events.templates import TRANSITIONS
 
 router = APIRouter(prefix='/v1/events', tags=['events'])
 
@@ -72,14 +71,6 @@ def _member_out(member) -> MemberOut:
     )
 
 
-@router.get('/types', response_model=list[EventTypeOut], summary='Типы мероприятий')
-async def event_types(_: CurrentUser) -> list[EventTypeOut]:
-    return [
-        EventTypeOut(id=key, title=value['title'], description=value['description'], modules=value['modules'])
-        for key, value in EVENT_TYPES.items()
-    ]
-
-
 @router.get('', response_model=list[EventListItem], summary='Мои мероприятия')
 async def list_events(
     db: Db, user: CurrentUser, scope: Annotated[str, Query(pattern='^(mine|all)$')] = 'mine'
@@ -89,7 +80,6 @@ async def list_events(
         EventListItem(
             id=e.id,
             slug=e.slug,
-            type=e.type,
             title=e.title,
             status=e.status,
             date_start=e.date_start,
@@ -113,7 +103,7 @@ async def create_event(payload: EventCreate, db: Db, user: CurrentUser) -> Event
     if payload.copy_from_id:
         copy_from = await _load(db, payload.copy_from_id, user)
     try:
-        event = await service.create_event(db, user, payload.type, payload.title, payload.slug, copy_from)
+        event = await service.create_event(db, user, payload.title, payload.slug, payload.modules, copy_from)
     except service.EventError as exc:
         raise _bad_request(exc) from exc
     await db.commit()

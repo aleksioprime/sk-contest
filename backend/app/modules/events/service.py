@@ -10,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.applications.form import default_form
 from app.modules.events.models import Direction, Event, EventMember, ParticipationForm, Stage
-from app.modules.events.templates import EVENT_TYPES, TRANSITIONS
+from app.modules.events.templates import (
+    DEFAULT_PARTICIPATION_FORMS,
+    DEFAULT_STAGES,
+    LISTENER_PARTICIPATION_FORMS,
+    MODULES,
+    TRANSITIONS,
+    only_registration,
+)
 from app.modules.files.models import StoredFile
 
 
@@ -48,26 +55,31 @@ async def list_events(session: AsyncSession, user: User, scope: str = 'mine') ->
 
 
 async def create_event(
-    session: AsyncSession, user: User, type_: str, title: str, slug: str, copy_from: Event | None = None
+    session: AsyncSession,
+    user: User,
+    title: str,
+    slug: str,
+    modules: dict[str, bool] | None = None,
+    copy_from: Event | None = None,
 ) -> Event:
-    """Создаёт мероприятие по шаблону типа или копией другого; создатель становится организатором."""
-    template = EVENT_TYPES.get(type_)
-    if template is None:
-        raise EventError('Неизвестный тип мероприятия')
+    """Создаёт мероприятие с выбранными разделами или копией другого; создатель становится организатором."""
     if await slug_taken(session, slug):
         raise EventError('Этот адрес уже занят')
 
+    source_modules = copy_from.modules if copy_from is not None else {}
+    selected = modules if modules is not None else source_modules or dict.fromkeys(MODULES, True)
+    enabled = {module: bool(selected.get(module)) for module in MODULES}
+
     event = Event(
-        type=type_,
         title=title,
         slug=slug,
         created_by_id=user.id,
-        modules=dict(template['modules']),
-        application_form=default_form(type_),
+        modules=enabled,
+        application_form=default_form(enabled),
     )
     if copy_from is not None:
         event.copied_from_id = copy_from.id
-        for field in ('short_description', 'description', 'level', 'format', 'place', 'modules', 'application_form'):
+        for field in ('short_description', 'description', 'level', 'format', 'place', 'application_form'):
             setattr(event, field, getattr(copy_from, field))
         event.directions = [
             Direction(title=d.title, description=d.description, order=d.order) for d in copy_from.directions
@@ -80,14 +92,14 @@ async def create_event(
         ]
     else:
         event.directions = []
-        event.stages = [Stage(title=title_, kind=kind, order=i) for i, (title_, kind) in enumerate(template['stages'])]
-        event.participation_forms = [
-            ParticipationForm(title=title_, order=i) for i, title_ in enumerate(template['participation_forms'])
-        ]
+        stages = DEFAULT_STAGES if enabled['stages'] else ()
+        forms = LISTENER_PARTICIPATION_FORMS if only_registration(enabled) else DEFAULT_PARTICIPATION_FORMS
+        event.stages = [Stage(title=title_, kind=kind, order=i) for i, (title_, kind) in enumerate(stages)]
+        event.participation_forms = [ParticipationForm(title=title_, order=i) for i, title_ in enumerate(forms)]
     event.members = [EventMember(user_id=user.id, role='organizer')]
     session.add(event)
     await session.flush()
-    record(session, 'event.create', 'event', event.id, user.id, type=type_, copied_from=copy_from and copy_from.id)
+    record(session, 'event.create', 'event', event.id, user.id, copied_from=copy_from and copy_from.id)
     return event
 
 
