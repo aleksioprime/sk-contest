@@ -1,8 +1,13 @@
 """Фоновые задачи на arq: письма, синхронизация SkolStream, напоминания."""
 
 import logging
+from dataclasses import replace
 
 from arq import cron
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sk_common import worker
 from sk_common.queue import get_queue
 from sk_common.uow import UnitOfWork
@@ -36,4 +41,9 @@ class WorkerSettings:
     ]
     on_startup = startup
     max_tries = 3
-    redis_settings = worker.redis_settings()
+    # При выкатке соединение с Redis может оборваться; без повторов воркер падает на первом же сбое
+    redis_settings = replace(
+        worker.redis_settings(),
+        retry=Retry(ExponentialBackoff(cap=5, base=0.5), 10),
+        retry_on_error=[RedisConnectionError, RedisTimeoutError],
+    )
