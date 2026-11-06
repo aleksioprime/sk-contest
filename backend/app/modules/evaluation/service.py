@@ -94,6 +94,49 @@ async def fill_scorecard(session: AsyncSession, scorecard: Scorecard, event_id: 
     await session.flush()
 
 
+def scorecard_payload(source: Scorecard, title: str, scale_ids: dict[int, int] | None = None) -> ScorecardIn:
+    """Содержимое таблицы для копии; scale_ids заменяет шкалы при копировании в другое мероприятие."""
+    category_index = {category.id: i for i, category in enumerate(source.categories)}
+    return ScorecardIn(
+        title=title,
+        categories=[category.title for category in source.categories],
+        criteria=[
+            {
+                'title': c.title,
+                'description': c.description,
+                'type': c.type,
+                'scale_id': scale_ids.get(c.scale_id) if scale_ids else c.scale_id,
+                'weight': c.weight,
+                'category': category_index.get(c.category_id),
+                'options': [{'title': o.title, 'points': o.points, 'is_exclusive': o.is_exclusive} for o in c.options],
+            }
+            for c in source.criteria
+        ],
+    )
+
+
+async def copy_evaluation_setup(session: AsyncSession, source_event_id: int, target_event_id: int) -> None:
+    """Копирует шкалы и таблицы оценок в другое мероприятие; листы, судьи и оценки не переносятся."""
+    scales = await session.scalars(select(Scale).where(Scale.event_id == source_event_id).order_by(Scale.created_at))
+    scale_ids = {}
+    for scale in scales.unique().all():
+        copy = Scale(
+            event_id=target_event_id,
+            title=scale.title,
+            levels=[ScaleLevel(title=lv.title, points=lv.points, order=lv.order) for lv in scale.levels],
+        )
+        session.add(copy)
+        await session.flush()
+        scale_ids[scale.id] = copy.id
+    scorecards = await session.scalars(
+        select(Scorecard).where(Scorecard.event_id == source_event_id).order_by(Scorecard.created_at)
+    )
+    for scorecard in scorecards.unique().all():
+        copy = Scorecard(event_id=target_event_id, categories=[], criteria=[])
+        session.add(copy)
+        await fill_scorecard(session, copy, target_event_id, scorecard_payload(scorecard, scorecard.title, scale_ids))
+
+
 def max_score(scorecard: Scorecard) -> Decimal:
     """Максимально возможный балл таблицы: сумма лучших значений критериев с учётом весов."""
     total = Decimal(0)

@@ -144,7 +144,7 @@ onMounted(async () => {
               <template #title>О вас</template>
               <div class="grid gap-4">
                 <template v-if="auth.isAuthenticated">
-                  <p class="text-sm">Вы вошли как <span class="font-medium">{{ auth.displayName }}</span>, {{ auth.user.email }}. Заявка появится в вашем кабинете.</p>
+                  <p class="text-sm">Вы вошли как <span class="font-medium">{{ auth.displayName }}</span><template v-if="auth.displayName !== auth.user.email">, {{ auth.user.email }}</template>. Заявка появится в вашем кабинете.</p>
                 </template>
                 <template v-else>
                   <p class="text-sm text-ink-muted">

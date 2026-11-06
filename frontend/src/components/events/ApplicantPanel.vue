@@ -99,7 +99,7 @@ onMounted(loadMatches)
     <dl v-else class="grid gap-x-4 gap-y-1 sm:grid-cols-[120px_1fr]">
       <template v-if="application.is_linked">
         <dt class="text-ink-muted">Учётная запись</dt>
-        <dd>{{ application.applicant_name }}, {{ application.applicant_email }}</dd>
+        <dd>{{ [...new Set([application.applicant_name, application.applicant_email])].filter(Boolean).join(', ') }}</dd>
       </template>
       <dt class="text-ink-muted">Указал в заявке</dt>
       <dd>

@@ -163,7 +163,7 @@ watch(() => props.id, load, { immediate: true })
       <p class="mt-1 whitespace-pre-line">{{ app.moderator_comment }}</p>
     </div>
     <p v-if="staffMode" class="rounded-control bg-brand-50 px-4 py-3 text-sm text-brand-700">
-      Правка оргкомитетом. Заявитель: {{ [app.applicant_name, app.applicant_email].filter(Boolean).join(', ') || 'из архива' }}.
+      Правка оргкомитетом. Заявитель: {{ [...new Set([app.applicant_name, app.applicant_email])].filter(Boolean).join(', ') || 'из архива' }}.
     </p>
     <p v-if="app.status === 'draft' && !editable" class="rounded-control bg-canvas px-4 py-3 text-ink-muted">
       Срок заполнения заявок закончился, отправить её больше нельзя.
