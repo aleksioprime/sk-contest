@@ -51,6 +51,7 @@ async function createApplication() {
 
 const statuses = ['requested', 'draft', 'submitted', 'needs_changes', 'accepted', 'rejected', 'withdrawn']
 const total = computed(() => Object.values(page.value.counts).reduce((sum, n) => sum + n, 0))
+const archived = computed(() => props.event.status === 'archived')
 const allSelected = computed(() => page.value.items.length > 0 && selected.value.length === page.value.items.length)
 
 async function load() {
@@ -162,7 +163,7 @@ onMounted(async () => {
       </p>
     </form>
 
-    <div v-if="selected.length" class="flex flex-wrap items-center gap-3 rounded-control border border-brand-200 bg-brand-50 p-3 text-sm">
+    <div v-if="selected.length && !archived" class="flex flex-wrap items-center gap-3 rounded-control border border-brand-200 bg-brand-50 p-3 text-sm">
       <span class="font-medium">Выбрано: {{ selected.length }}</span>
       <UiButton v-if="status === 'requested'" size="sm" variant="primary" @click="bulk('confirmed')">Подтвердить и пригласить</UiButton>
       <UiButton v-else size="sm" variant="primary" @click="bulk('accepted')">Принять</UiButton>
@@ -179,7 +180,7 @@ onMounted(async () => {
       <table class="w-full text-sm">
         <thead class="bg-canvas text-left text-xs text-ink-muted">
           <tr>
-            <th class="w-10 px-3 py-2"><input type="checkbox" :checked="allSelected" aria-label="Выбрать все" class="size-4 accent-brand-600" @change="toggleAll($event.target.checked)" /></th>
+            <th v-if="!archived" class="w-10 px-3 py-2"><input type="checkbox" :checked="allSelected" aria-label="Выбрать все" class="size-4 accent-brand-600" @change="toggleAll($event.target.checked)" /></th>
             <th class="px-3 py-2">№</th>
             <th class="px-3 py-2">Работа</th>
             <th class="px-3 py-2">Заявитель и участники</th>
@@ -196,7 +197,7 @@ onMounted(async () => {
             :class="{ 'bg-brand-50': openedId === app.id }"
             @click="openedId = app.id"
           >
-            <td class="px-3 py-2" @click.stop><input v-model="selected" type="checkbox" :value="app.id" :aria-label="`Выбрать заявку ${app.number}`" class="size-4 accent-brand-600" /></td>
+            <td v-if="!archived" class="px-3 py-2" @click.stop><input v-model="selected" type="checkbox" :value="app.id" :aria-label="`Выбрать заявку ${app.number}`" class="size-4 accent-brand-600" /></td>
             <td class="px-3 py-2 tabular-nums">{{ app.number }}</td>
             <td class="px-3 py-2">
               <p class="font-medium">{{ app.title || 'Без названия' }}</p>

@@ -5,8 +5,10 @@ from httpx import AsyncClient
 from openpyxl import load_workbook
 from sk_common.people.models import User
 from sk_common.testing import login_as
+from sqlalchemy import update
 
 from app.modules.applications.models import ARCHIVE_OWNER_EMAIL, Application, Source
+from app.modules.events.models import Event
 
 pytestmark = pytest.mark.usefixtures('redis_clean')
 
@@ -262,3 +264,22 @@ def test_archive_owner_is_hidden_from_applicant():
     app.user = User(email='real@example.com')
     assert app.applicant_email == 'real@example.com'
     assert app.is_linked is True
+
+
+async def test_no_decisions_in_archived_event(db, client):
+    event = await _open_event(db, client)
+    async with _other(client) as applicant:
+        await login_as(db, applicant, email='archived@example.org')
+        app = await _submitted(client, applicant, event)
+    assert (await client.get(f'/api/v1/applications/{app["id"]}')).json()['allowed_decisions']
+
+    await db.execute(update(Event).where(Event.id == event['id']).values(status='archived'))
+    await db.commit()
+
+    opened = (await client.get(f'/api/v1/applications/{app["id"]}')).json()
+    assert opened['allowed_decisions'] == []
+    response = await client.post(
+        f'/api/v1/applications/{app["id"]}/decision', json={'status': 'rejected', 'comment': 'Нет'}
+    )
+    assert response.status_code == 422
+    assert (await client.get(f'/api/v1/applications/{app["id"]}')).json()['status'] == app['status']
