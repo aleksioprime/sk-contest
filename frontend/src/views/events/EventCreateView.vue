@@ -6,6 +6,7 @@ import { MODULE_LABELS, applyUrl, createEvent, fetchEventTypes, fetchEvents, isS
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 
 const router = useRouter()
 const types = ref([])
@@ -84,10 +85,10 @@ async function submit() {
       <legend class="mb-3 font-semibold">Тип</legend>
       <label v-if="previous.length" class="grid gap-1.5 text-sm">
         <span class="font-medium">Скопировать настройки прошлого мероприятия</span>
-        <select v-model="copyFrom" class="h-10 rounded-control border border-line bg-surface px-3">
+        <UiSelect v-model="copyFrom">
           <option value="">Не копировать, начать с шаблона</option>
           <option v-for="event in previous" :key="event.id" :value="event.id">{{ event.title }}</option>
-        </select>
+        </UiSelect>
       </label>
       <div class="grid gap-3 sm:grid-cols-2">
         <label

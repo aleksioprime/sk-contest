@@ -22,6 +22,7 @@ import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
 const router = useRouter()
@@ -114,17 +115,17 @@ onMounted(load)
       <form v-if="event.can_manage && newSheet.open" class="grid gap-3 rounded-control border border-brand-200 p-4" @submit.prevent="submitSheet">
         <input v-model="newSheet.title" placeholder="Например, Очная защита · Инженерия" aria-label="Название листа" class="h-10 rounded-control border border-line bg-surface px-3" />
         <div class="grid gap-3 sm:grid-cols-3">
-          <select v-model="newSheet.scorecard_id" aria-label="Таблица оценок" class="h-10 rounded-control border border-line bg-surface px-3">
+          <UiSelect v-model="newSheet.scorecard_id" aria-label="Таблица оценок">
             <option :value="null">Таблица оценок…</option>
             <option v-for="card in scorecards" :key="card.id" :value="card.id">{{ card.title }}</option>
-          </select>
-          <select v-model="newSheet.stage_id" aria-label="Этап" class="h-10 rounded-control border border-line bg-surface px-3">
+          </UiSelect>
+          <UiSelect v-model="newSheet.stage_id" aria-label="Этап">
             <option :value="null">Без этапа</option>
             <option v-for="stage in event.stages" :key="stage.id" :value="stage.id">{{ stage.title }}</option>
-          </select>
-          <select v-model="newSheet.mode" aria-label="Кто оценивает" class="h-10 rounded-control border border-line bg-surface px-3">
+          </UiSelect>
+          <UiSelect v-model="newSheet.mode" aria-label="Кто оценивает">
             <option v-for="(label, value) in SHEET_MODE_LABELS" :key="value" :value="value">{{ label }}</option>
-          </select>
+          </UiSelect>
         </div>
         <p v-if="!scorecards.length" class="text-sm text-amber-800">Сначала создайте таблицу оценок ниже.</p>
         <p v-if="sheetError" role="alert" class="text-sm text-red-700">{{ sheetError }}</p>

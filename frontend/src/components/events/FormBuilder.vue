@@ -8,6 +8,7 @@ import RegistrationSettings from '@/components/events/RegistrationSettings.vue'
 import WebhookSettings from '@/components/events/WebhookSettings.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({
@@ -131,9 +132,9 @@ onMounted(load)
               </label>
               <label class="grid gap-1 text-sm">
                 <span class="font-medium">Тип ответа</span>
-                <select v-model="field.type" class="h-10 rounded-control border border-line bg-surface px-3">
+                <UiSelect v-model="field.type">
                   <option v-for="(label, value) in FIELD_TYPES" :key="value" :value="value">{{ label }}</option>
-                </select>
+                </UiSelect>
               </label>
             </div>
             <label v-if="['select', 'multiselect'].includes(field.type)" class="grid gap-1 text-sm">
@@ -151,20 +152,20 @@ onMounted(load)
               </label>
               <label class="flex items-center gap-2">
                 Показывать, если
-                <select :value="field.visible_if?.field ?? ''" class="h-8 rounded-control border border-line bg-surface px-2" @change="setCondition(field, $event.target.value)">
+                <UiSelect :model-value="field.visible_if?.field ?? ''" size="sm" @update:model-value="setCondition(field, $event)">
                   <option value="">всегда</option>
                   <option v-for="source in conditionSources.filter((s) => s !== field)" :key="source.key" :value="source.key">{{ source.label }}</option>
-                </select>
+                </UiSelect>
               </label>
               <template v-if="field.visible_if">
-                <select
+                <UiSelect
                   v-if="conditionSources.find((s) => s.key === field.visible_if.field)?.type === 'select'"
                   v-model="field.visible_if.equals"
                   aria-label="Значение условия"
-                  class="h-8 rounded-control border border-line bg-surface px-2"
+                  size="sm"
                 >
                   <option v-for="option in conditionSources.find((s) => s.key === field.visible_if.field).options" :key="option" :value="option">= {{ option }}</option>
-                </select>
+                </UiSelect>
                 <span v-else class="text-ink-muted">отмечено</span>
               </template>
               <span class="ml-auto flex gap-1">

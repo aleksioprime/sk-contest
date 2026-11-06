@@ -70,23 +70,43 @@
   --color-score-600: #f59e0b;
 }
 
-/* Выпадающие списки: своя стрелка с отступом вместо системной. Вне слоёв, чтобы отступ справа был важнее утилит px-*. */
-select:not([multiple]) {
-  appearance: none;
-  padding-right: 2.25rem;
-  text-overflow: ellipsis;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%235f5a75' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.625rem center;
-  background-size: 1rem;
+/* Единый вид элементов форм. Правила вне слоёв, чтобы быть важнее утилит рамки в разметке. */
+input:not([type='checkbox'], [type='radio'], [type='file']),
+textarea {
   transition: border-color 0.15s;
 }
-select:not([multiple]):hover:not(:disabled) {
+input:not([type='checkbox'], [type='radio'], [type='file'], .border-red-500):hover:not(:disabled, [readonly]),
+textarea:not(.border-red-500):hover:not(:disabled, [readonly]) {
   border-color: var(--color-brand-200);
 }
-select:disabled {
+input:not([type='checkbox'], [type='radio'], [type='file'], .border-red-500):focus,
+textarea:not(.border-red-500):focus {
+  border-color: var(--color-brand-500);
+  outline: none;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-ink-muted);
+}
+input:disabled,
+textarea:disabled {
   opacity: 0.6;
 }
-.dark select:not([multiple]) {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a29cb9' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+input[type='checkbox'] {
+  appearance: none;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-ink-muted) 50%, transparent);
+  border-radius: 4px;
+  background: var(--color-surface) center / 0.75rem no-repeat;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+input[type='checkbox']:hover:not(:disabled) {
+  border-color: var(--color-brand-500);
+}
+input[type='checkbox']:checked {
+  border-color: var(--color-brand-600);
+  background-color: var(--color-brand-600);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E");
 }

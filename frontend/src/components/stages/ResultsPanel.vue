@@ -8,6 +8,7 @@ import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import { formatDateTime } from '@/utils/dates'
 
 const props = defineProps({ event: { type: Object, required: true } })
@@ -171,12 +172,12 @@ onMounted(load)
                 <button type="button" class="text-ink-muted hover:text-red-700" :aria-label="`Убрать ${workLabel(id)}`" @click="assign(nomination, id, false)">×</button>
               </li>
             </ul>
-            <select class="mt-2 h-9 max-w-full rounded-control border border-line bg-surface px-2" aria-label="Добавить работу в номинацию" @change="(assign(nomination, Number($event.target.value), true), ($event.target.value = ''))">
+            <UiSelect size="md" class="mt-2 max-w-full" aria-label="Добавить работу в номинацию" model-value="" @update:model-value="assign(nomination, Number($event), true)">
               <option value="">+ Добавить работу…</option>
               <option v-for="row in results.rows.filter((r) => !nomination.application_ids.includes(r.application_id))" :key="row.application_id" :value="row.application_id">
                 №{{ row.number }} · {{ row.title || 'Без названия' }}
               </option>
-            </select>
+            </UiSelect>
           </li>
         </ul>
         <form class="mt-4 flex gap-2" @submit.prevent="addNomination">
@@ -190,19 +191,19 @@ onMounted(load)
         <form class="grid gap-4 text-sm sm:grid-cols-3" @submit.prevent="run(() => saveAwards(event.id, awards), 'Настройки наград сохранены')">
           <label class="grid gap-1 sm:col-span-3">
             <span class="font-medium">Места и награды</span>
-            <select v-model="awards.rank_scope" class="h-10 rounded-control border border-line bg-surface px-3 sm:max-w-md">
+            <UiSelect v-model="awards.rank_scope" class="sm:max-w-md">
               <option value="direction">В каждом направлении отдельно</option>
               <option value="overall">Общий рейтинг без направлений</option>
-            </select>
+            </UiSelect>
           </label>
           <label class="grid gap-1"><span class="font-medium">{{ awards.rank_scope === 'overall' ? 'Победителей' : 'Победителей в направлении' }}</span><input v-model.number="awards.winners" type="number" min="0" class="h-10 rounded-control border border-line bg-surface px-3" /></label>
           <label class="grid gap-1"><span class="font-medium">Призовых мест всего</span><input v-model.number="awards.prize_places" type="number" min="0" class="h-10 rounded-control border border-line bg-surface px-3" /></label>
           <label class="grid gap-1">
             <span class="font-medium">Итоги по этапу</span>
-            <select v-model="awards.stage_id" class="h-10 rounded-control border border-line bg-surface px-3">
+            <UiSelect v-model="awards.stage_id">
               <option :value="null">Последний этап с участниками</option>
               <option v-for="stage in event.stages" :key="stage.id" :value="stage.id">{{ stage.title }}</option>
-            </select>
+            </UiSelect>
           </label>
           <label class="grid gap-1"><span class="font-medium">Подпись на дипломе</span><input v-model="awards.signatory" placeholder="И. И. Иванов" class="h-10 rounded-control border border-line bg-surface px-3" /></label>
           <label class="grid gap-1"><span class="font-medium">Должность</span><input v-model="awards.signatory_title" placeholder="Председатель жюри" class="h-10 rounded-control border border-line bg-surface px-3" /></label>

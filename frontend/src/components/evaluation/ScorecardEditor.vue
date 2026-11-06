@@ -4,6 +4,7 @@ import { reactive, ref } from 'vue'
 import { createScorecard, updateScorecard } from '@/api/evaluation'
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({
   eventId: { type: Number, required: true },
@@ -94,25 +95,25 @@ async function save() {
       <div v-for="(criterion, index) in draft.criteria" :key="index" class="grid gap-3 rounded-control border border-line p-4">
         <div class="grid gap-3 sm:grid-cols-[3fr_1fr]">
           <input v-model="criterion.title" placeholder="Критерий" aria-label="Название критерия" class="h-10 rounded-control border border-line bg-surface px-3" />
-          <select v-model="criterion.type" aria-label="Тип критерия" class="h-10 rounded-control border border-line bg-surface px-3">
+          <UiSelect v-model="criterion.type" aria-label="Тип критерия">
             <option value="scale">Шкала</option>
             <option value="checklist">Чек-лист</option>
-          </select>
+          </UiSelect>
         </div>
         <textarea v-model="criterion.description" rows="2" placeholder="Пояснение для судей" aria-label="Пояснение" class="rounded-control border border-line bg-surface px-3 py-2 text-sm" />
         <div class="flex flex-wrap items-center gap-3 text-sm">
           <label v-if="criterion.type === 'scale'" class="flex items-center gap-2">
             Шкала
-            <select v-model="criterion.scale_id" class="h-9 rounded-control border border-line bg-surface px-2">
+            <UiSelect v-model="criterion.scale_id" size="md">
               <option v-for="scale in scales" :key="scale.id" :value="scale.id">{{ scale.title }}</option>
-            </select>
+            </UiSelect>
           </label>
           <label v-if="draft.categories.length" class="flex items-center gap-2">
             Категория
-            <select v-model="criterion.category" class="h-9 rounded-control border border-line bg-surface px-2">
+            <UiSelect v-model="criterion.category" size="md">
               <option :value="null">Без категории</option>
               <option v-for="(category, i) in draft.categories" :key="i" :value="i">{{ category || `Категория ${i + 1}` }}</option>
-            </select>
+            </UiSelect>
           </label>
           <label class="flex items-center gap-2">
             Вес

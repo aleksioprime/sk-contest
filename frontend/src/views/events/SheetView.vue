@@ -27,6 +27,7 @@ import { errorMessage } from '@/api/http'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import JudgesPanel from '@/components/evaluation/JudgesPanel.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
@@ -199,28 +200,28 @@ watch(() => props.sheetId, load, { immediate: true })
       <div class="flex flex-wrap gap-4 text-sm">
         <label class="flex items-center gap-2">
           Кто оценивает
-          <select :value="sheet.mode" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { mode: $event.target.value }))">
+          <UiSelect :model-value="sheet.mode" size="md" @update:model-value="(value) => run(() => updateSheet(sheet.id, { mode: value }))">
             <option v-for="(label, value) in SHEET_MODE_LABELS" :key="value" :value="value">{{ label }}</option>
-          </select>
+          </UiSelect>
         </label>
         <label class="flex items-center gap-2">
           Итог по оценкам
-          <select :value="sheet.aggregate" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { aggregate: $event.target.value }))">
+          <UiSelect :model-value="sheet.aggregate" size="md" @update:model-value="(value) => run(() => updateSheet(sheet.id, { aggregate: value }))">
             <option v-for="(label, value) in AGGREGATE_LABELS" :key="value" :value="value">{{ label }}</option>
-          </select>
+          </UiSelect>
         </label>
         <label class="flex items-center gap-2">
           Рейтинг
-          <select :value="sheet.rank_scope" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { rank_scope: $event.target.value }), 'Места пересчитаны')">
+          <UiSelect :model-value="sheet.rank_scope" size="md" @update:model-value="(value) => run(() => updateSheet(sheet.id, { rank_scope: value }), 'Места пересчитаны')">
             <option value="overall">Общий по листу</option>
             <option value="direction">Внутри направлений</option>
-          </select>
+          </UiSelect>
         </label>
         <label class="flex items-center gap-2">
           Места при равенстве
-          <select :value="sheet.rank_method" class="h-9 rounded-control border border-line bg-surface px-2" @change="run(() => updateSheet(sheet.id, { rank_method: $event.target.value }))">
+          <UiSelect :model-value="sheet.rank_method" size="md" @update:model-value="(value) => run(() => updateSheet(sheet.id, { rank_method: value }))">
             <option v-for="(label, value) in RANK_LABELS" :key="value" :value="value">{{ label }}</option>
-          </select>
+          </UiSelect>
         </label>
         <label class="flex items-center gap-2">
           Дедлайн оценки
@@ -248,10 +249,10 @@ watch(() => props.sheetId, load, { immediate: true })
     <div class="overflow-x-auto rounded-card border border-line bg-surface">
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <h2 class="font-semibold">Результаты</h2>
-        <select v-model="sortBy" aria-label="Сортировка" class="h-9 rounded-control border border-line bg-surface px-2 text-sm">
+        <UiSelect v-model="sortBy" aria-label="Сортировка" size="md">
           <option value="rank">По месту</option>
           <option value="number">По номеру заявки</option>
-        </select>
+        </UiSelect>
       </div>
       <table class="w-full text-sm">
         <thead class="bg-canvas text-left text-xs text-ink-muted">

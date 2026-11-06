@@ -22,6 +22,7 @@ import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import SkeletonPage from '@/components/skeleton/SkeletonPage.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -178,18 +179,18 @@ watch(() => props.id, load, { immediate: true })
             <UiInput v-model="draft.title" label="Название работы" :error="errors.title" />
             <label v-if="schema.directions.length" class="grid gap-1.5 text-sm">
               <span class="font-medium">Направление</span>
-              <select v-model="draft.direction_id" class="h-10 rounded-control border bg-surface px-3" :class="errors.direction_id ? 'border-red-500' : 'border-line'">
+              <UiSelect v-model="draft.direction_id" :invalid="!!errors.direction_id">
                 <option :value="null">Не выбрано</option>
                 <option v-for="d in schema.directions" :key="d.id" :value="d.id">{{ d.title }}</option>
-              </select>
+              </UiSelect>
               <span v-if="errors.direction_id" class="text-red-600">{{ errors.direction_id }}</span>
             </label>
             <label v-if="schema.participation_forms.length" class="grid gap-1.5 text-sm">
               <span class="font-medium">Форма участия</span>
-              <select v-model="draft.participation_form_id" class="h-10 rounded-control border bg-surface px-3" :class="errors.participation_form_id ? 'border-red-500' : 'border-line'">
+              <UiSelect v-model="draft.participation_form_id" :invalid="!!errors.participation_form_id">
                 <option :value="null">Не выбрано</option>
                 <option v-for="f in schema.participation_forms" :key="f.id" :value="f.id">{{ f.title }}</option>
-              </select>
+              </UiSelect>
               <span v-if="errors.participation_form_id" class="text-red-600">{{ errors.participation_form_id }}</span>
             </label>
           </div>

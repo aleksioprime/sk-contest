@@ -19,6 +19,7 @@ import SkeletonTable from '@/components/skeleton/SkeletonTable.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 
 const props = defineProps({ event: { type: Object, required: true } })
 
@@ -137,11 +138,11 @@ watch(stageId, load, { immediate: true })
         <form class="flex flex-wrap items-end gap-4 text-sm" @submit.prevent="run(() => setStageRule(event.id, stageId, rule), 'Правило сохранено')">
           <label class="grid gap-1">
             <span class="font-medium">Правило</span>
-            <select v-model="rule.type" class="h-10 rounded-control border border-line bg-surface px-3">
+            <UiSelect v-model="rule.type">
               <option value="top_n">Лучшие N</option>
               <option value="threshold">Проходной балл</option>
               <option value="manual">Решение оргкомитета</option>
-            </select>
+            </UiSelect>
           </label>
           <label v-if="rule.type === 'top_n'" class="grid gap-1">
             <span class="font-medium">Сколько проходит</span>
@@ -161,18 +162,18 @@ watch(stageId, load, { immediate: true })
           <form class="mt-3 flex flex-wrap items-end gap-4" @submit.prevent="run(() => setStageRule(event.id, stageId, rule), 'Места пересчитаны')">
             <label class="grid gap-1">
               <span>Места</span>
-              <select v-model="rule.rank_scope" class="h-10 rounded-control border border-line bg-surface px-3">
+              <UiSelect v-model="rule.rank_scope">
                 <option value="direction">Внутри каждого направления</option>
                 <option value="overall">Общий рейтинг всех работ</option>
-              </select>
+              </UiSelect>
             </label>
             <label class="grid gap-1">
               <span>Работа в нескольких листах этапа</span>
-              <select v-model="rule.score_combine" class="h-10 rounded-control border border-line bg-surface px-3">
+              <UiSelect v-model="rule.score_combine">
                 <option value="avg">Средний балл</option>
                 <option value="sum">Сумма баллов</option>
                 <option value="max">Лучший балл</option>
-              </select>
+              </UiSelect>
             </label>
             <UiButton type="submit">Применить</UiButton>
           </form>
@@ -217,24 +218,24 @@ watch(stageId, load, { immediate: true })
               <td class="px-3 py-2 text-right font-semibold tabular-nums text-score-600">{{ formatPoints(p.score) }}</td>
               <td class="px-3 py-2"><UiBadge :tone="STAGE_STATUS_TONES[p.status]">{{ STAGE_STATUS_LABELS[p.status] }}</UiBadge></td>
               <td class="px-3 py-2">
-                <select
+                <UiSelect
                   v-if="manage && data.slots.length"
-                  :value="p.slot_id ?? ''"
+                  :model-value="p.slot_id ?? ''"
                   aria-label="Слот защиты"
-                  class="h-8 max-w-56 rounded-control border border-line bg-surface px-2"
-                  @change="run(() => updateParticipant(p.id, $event.target.value ? { slot_id: Number($event.target.value) } : { clear_slot: true }), 'Расписание обновлено')"
+                  size="sm" class="max-w-56"
+                  @update:model-value="(slot) => run(() => updateParticipant(p.id, slot ? { slot_id: Number(slot) } : { clear_slot: true }), 'Расписание обновлено')"
                 >
                   <option value="">Не назначена</option>
                   <option v-for="s in data.slots" :key="s.id" :value="s.id">{{ slotLabel(s) }}</option>
-                </select>
+                </UiSelect>
                 <span v-else class="text-ink-muted">{{ data.slots.find((s) => s.id === p.slot_id) ? slotLabel(data.slots.find((s) => s.id === p.slot_id)) : '—' }}</span>
               </td>
               <td v-if="manage" class="px-3 py-2">
-                <select v-if="p.status !== 'withdrawn'" v-model="decisions[p.id]" aria-label="Решение" class="h-8 rounded-control border border-line bg-surface px-2">
+                <UiSelect v-if="p.status !== 'withdrawn'" v-model="decisions[p.id]" aria-label="Решение" size="sm">
                   <option :value="null">—</option>
                   <option value="passed">Прошёл</option>
                   <option value="not_passed">Не прошёл</option>
-                </select>
+                </UiSelect>
                 <UiButton v-if="p.status !== 'withdrawn'" size="sm" variant="ghost" @click="run(() => updateParticipant(p.id, { status: 'withdrawn' }), 'Участник снят с этапа')">Снять</UiButton>
               </td>
             </tr>
