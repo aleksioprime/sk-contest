@@ -1,17 +1,16 @@
 <script setup>
-/** Создание мероприятия: тип, копирование прошлого, название и адрес. */
+/** Создание мероприятия: копирование прошлого, разделы, название и адрес. */
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { MODULE_LABELS, applyUrl, createEvent, fetchEventTypes, fetchEvents, isSlugAvailable, slugify } from '@/api/events'
+import { MODULE_HINTS, MODULE_LABELS, applyUrl, createEvent, fetchEvent, fetchEvents, isSlugAvailable, slugify } from '@/api/events'
 import { errorMessage } from '@/api/http'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 
 const router = useRouter()
-const types = ref([])
 const previous = ref([])
-const type = ref('')
+const modules = ref(Object.fromEntries(Object.keys(MODULE_LABELS).map((module) => [module, true])))
 const copyFrom = ref('')
 const title = ref('')
 const slug = ref('')
@@ -23,7 +22,7 @@ const saving = ref(false)
 
 onMounted(async () => {
   try {
-    ;[types.value, previous.value] = await Promise.all([fetchEventTypes(), fetchEvents()])
+    previous.value = await fetchEvents('all')
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -34,9 +33,13 @@ watch(title, (value) => {
   if (!slugTouched.value) slug.value = slugify(value)
 })
 
-watch(copyFrom, (id) => {
-  const source = previous.value.find((event) => String(event.id) === String(id))
-  if (source) type.value = source.type
+watch(copyFrom, async (id) => {
+  if (!id) return
+  try {
+    modules.value = { ...modules.value, ...(await fetchEvent(id)).modules }
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
 })
 
 let slugTimer
@@ -57,16 +60,15 @@ async function submit() {
   error.value = ''
   if (title.value.trim().length < 3) titleError.value = 'Название — не меньше 3 символов'
   if (!slug.value) slugError.value = 'Укажите адрес'
-  if (!type.value) error.value = 'Выберите тип мероприятия'
   if (titleError.value || slugError.value || error.value) return
 
   saving.value = true
   try {
     const event = await createEvent({
-      type: type.value,
       title: title.value.trim(),
       slug: slug.value,
       copy_from_id: copyFrom.value ? Number(copyFrom.value) : null,
+      modules: modules.value,
     })
     await router.push({ name: 'event', params: { id: event.id } })
   } catch (e) {
@@ -81,35 +83,30 @@ async function submit() {
   <form class="grid max-w-3xl gap-8" novalidate @submit.prevent="submit">
     <h1 class="text-2xl font-bold">Новое мероприятие</h1>
 
+    <label v-if="previous.length" class="grid gap-1.5 text-sm">
+      <span class="font-medium">Скопировать настройки прошлого мероприятия</span>
+      <UiSelect v-model="copyFrom">
+        <option value="">Не копировать</option>
+        <option v-for="event in previous" :key="event.id" :value="event.id">{{ event.title }}</option>
+      </UiSelect>
+    </label>
+
     <fieldset class="grid gap-3">
-      <legend class="mb-3 font-semibold">Тип</legend>
-      <label v-if="previous.length" class="grid gap-1.5 text-sm">
-        <span class="font-medium">Скопировать настройки прошлого мероприятия</span>
-        <UiSelect v-model="copyFrom">
-          <option value="">Не копировать, начать с шаблона</option>
-          <option v-for="event in previous" :key="event.id" :value="event.id">{{ event.title }}</option>
-        </UiSelect>
-      </label>
+      <legend class="mb-3 font-semibold">Разделы</legend>
       <div class="grid gap-3 sm:grid-cols-2">
         <label
-          v-for="item in types"
-          :key="item.id"
-          class="cursor-pointer rounded-card border bg-surface p-4 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50"
-          :class="{ 'pointer-events-none opacity-60': copyFrom }"
+          v-for="(label, module) in MODULE_LABELS"
+          :key="module"
+          class="flex cursor-pointer items-start gap-3 rounded-card border border-line bg-surface p-4 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50"
         >
-          <input v-model="type" type="radio" name="type" :value="item.id" class="sr-only" />
-          <span class="font-semibold">{{ item.title }}</span>
-          <span class="mt-1 block text-sm text-ink-muted">{{ item.description }}</span>
-          <span class="mt-3 flex flex-wrap gap-1">
-            <span
-              v-for="(enabled, module) in item.modules"
-              v-show="enabled"
-              :key="module"
-              class="rounded-full bg-canvas px-2 py-0.5 text-xs text-ink-muted"
-            >{{ MODULE_LABELS[module] }}</span>
+          <input v-model="modules[module]" type="checkbox" class="mt-0.5" />
+          <span>
+            <span class="font-semibold">{{ label }}</span>
+            <span class="mt-1 block text-sm text-ink-muted">{{ MODULE_HINTS[module] }}</span>
           </span>
         </label>
       </div>
+      <p class="text-sm text-ink-muted">Разделы можно изменить позже в настройках мероприятия.</p>
     </fieldset>
 
     <fieldset class="grid gap-4">

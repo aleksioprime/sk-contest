@@ -15,15 +15,6 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class EventTypeOut(BaseModel):
-    """Тип мероприятия: описание и набор включаемых модулей."""
-
-    id: str
-    title: str
-    description: str
-    modules: dict[str, bool]
-
-
 class DirectionIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default='', max_length=5000)
@@ -93,10 +84,18 @@ class MemberOut(BaseModel):
 class EventCreate(BaseModel):
     """Создание мероприятия; copy_from_id указывает мероприятие-образец."""
 
-    type: str
     title: str = Field(min_length=3, max_length=200)
     slug: str = Field(pattern=SLUG_PATTERN)
     copy_from_id: int | None = None
+    modules: dict[str, bool] | None = Field(default=None, description='Разделы; без них — все или как у образца')
+
+    @field_validator('modules')
+    @classmethod
+    def _modules(cls, value):
+        """Проверяет, что разделы известны."""
+        if value and set(value) - set(MODULES):
+            raise ValueError('Неизвестный раздел мероприятия')
+        return value
 
 
 class EventUpdate(BaseModel):
@@ -158,7 +157,6 @@ class EventListItem(BaseModel):
 
     id: int
     slug: str
-    type: str
     title: str
     status: str
     date_start: date | None
@@ -169,7 +167,6 @@ class EventListItem(BaseModel):
 class EventOut(ORMModel):
     id: int
     slug: str
-    type: str
     title: str
     short_description: str
     description: str

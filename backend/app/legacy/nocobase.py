@@ -272,7 +272,6 @@ class Loader:
             event = Event(
                 id=cid,
                 slug=_slug(row.get('title') or 'contest', year, used),
-                type='project_contest',
                 title=_text(row.get('title'), 200) or f'Конкурс {cid}',
                 description=_text(row.get('description'), 20000),
                 status='archived',

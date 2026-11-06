@@ -17,6 +17,8 @@ from datetime import date
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.modules.events.templates import only_registration
+
 FIELD_TYPES = (
     'text',
     'textarea',
@@ -160,21 +162,21 @@ class ApplicationForm(BaseModel):
         return self
 
 
-def default_form(event_type: str) -> dict:
-    """Анкета по умолчанию. На открытое событие хватает общей заявки, второго шага у него нет."""
-    team = event_type in ('project_contest', 'creative')
-    fields = [
-        FormField(key='annotation', type='textarea', label='Краткое описание работы', required=True),
-        FormField(key='work', type='file', label='Файл работы', help='PDF, презентация или документ до 25 МБ'),
-    ]
-    if event_type == 'open_event':
-        fields = []
+def default_form(modules: dict[str, bool]) -> dict:
+    """Анкета по умолчанию. Если нужна только запись на событие, хватает общей заявки."""
+    simple = only_registration(modules)
+    fields = (
+        []
+        if simple
+        else [
+            FormField(key='annotation', type='textarea', label='Краткое описание работы', required=True),
+            FormField(key='work', type='file', label='Файл работы', help='PDF, презентация или документ до 25 МБ'),
+        ]
+    )
     form = ApplicationForm(
-        registration=RegistrationSettings(details_step=event_type != 'open_event'),
+        registration=RegistrationSettings(details_step=not simple),
         fields=fields,
-        team=TeamSettings(
-            enabled=team, min=1, max=3 if team else 1, require_supervisor=event_type == 'project_contest'
-        ),
+        team=TeamSettings(enabled=not simple, min=1, max=1 if simple else 3, require_supervisor=not simple),
         consents=[
             Consent(key='personal_data', title='Согласие на обработку персональных данных', text=DEFAULT_CONSENT_TEXT)
         ],

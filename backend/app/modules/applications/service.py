@@ -61,7 +61,7 @@ class ApplicationError(Exception):
 
 def event_form(event: Event) -> forms.ApplicationForm:
     """Анкета мероприятия; у мероприятий без своей анкеты — по умолчанию для типа."""
-    return forms.parse_form(event.application_form or forms.default_form(event.type))
+    return forms.parse_form(event.application_form or forms.default_form(event.modules))
 
 
 def can_edit(app: Application) -> bool:

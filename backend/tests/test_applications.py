@@ -19,9 +19,7 @@ async def _open_event(db, client, **form_changes) -> dict:
     organizer = await login_as(db, client, email='org@skolkovo.example.org')
     organizer.person.is_employee = True
     await db.commit()
-    event = (
-        await client.post('/api/v1/events', json={'type': 'project_contest', 'title': 'SkolStart', 'slug': SLUG})
-    ).json()
+    event = (await client.post('/api/v1/events', json={'title': 'SkolStart', 'slug': SLUG})).json()
     url = f'/api/v1/events/{event["id"]}'
     await client.patch(url, json={'date_start': '2027-03-12'})
     await client.post(f'{url}/directions', json={'title': 'Инженерия'})

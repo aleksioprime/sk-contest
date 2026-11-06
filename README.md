@@ -47,7 +47,6 @@ npm ci && npm run lint && npm test && npm run build
 | [docs/plan.md](docs/plan.md) | План работ по этапам, задачи и вехи |
 | [docs/development.md](docs/development.md) | Правила разработки, окружение, проверки |
 | [docs/architecture.md](docs/architecture.md) | Стек, сервисы, модули backend, структура репозитория |
-| [docs/event-types.md](docs/event-types.md) | Типы мероприятий и механики |
 | [docs/registration.md](docs/registration.md) | Приём заявок: открытая форма, вебхук, подтверждение, связь с людьми из базы |
 | [docs/integrations/skolstream.md](docs/integrations/skolstream.md) | Вход через SkolStream, синхронизация справочников, портфолио |
 | [docs/legacy/nocobase.md](docs/legacy/nocobase.md) | Модель и формулы старой системы, найденные ошибки, перенос данных |

@@ -70,7 +70,7 @@ async def reset_form(event_id: int, db: Db, user: CurrentUser) -> dict:
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Мероприятие не найдено')
     ensure_manage(user, event)
-    event.application_form = default_form(event.type)
+    event.application_form = default_form(event.modules)
     await db.commit()
     return event.application_form
 

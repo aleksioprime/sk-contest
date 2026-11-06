@@ -63,7 +63,7 @@ onMounted(load)
     <div v-else-if="!events.length" class="rounded-card border border-dashed border-line bg-surface p-10 text-center">
       <h2 class="text-lg font-semibold">Здесь появятся ваши мероприятия</h2>
       <p class="mt-1 text-ink-muted">
-        {{ canCreate ? 'Создайте первое мероприятие из готового шаблона.' : 'Когда вас добавят в команду мероприятия, оно появится в этом списке.' }}
+        {{ canCreate ? 'Создайте первое мероприятие и выберите нужные разделы.' : 'Когда вас добавят в команду мероприятия, оно появится в этом списке.' }}
       </p>
     </div>
 

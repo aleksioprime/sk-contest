@@ -30,6 +30,13 @@ export const MODULE_LABELS = {
   results: 'Итоги',
 }
 
+export const MODULE_HINTS = {
+  registration: 'Открытая форма, вебхук и подтверждение заявок',
+  stages: 'Этапы конкурса и переход участников между ними',
+  evaluation: 'Оценочные листы, таблицы оценок и судьи',
+  results: 'Рейтинг, награды и дипломы',
+}
+
 export const LEVEL_LABELS = {
   school: 'Школьный',
   municipal: 'Муниципальный',
@@ -39,10 +46,6 @@ export const LEVEL_LABELS = {
 }
 
 export const FORMAT_LABELS = { onsite: 'Очный', online: 'Онлайн', hybrid: 'Смешанный' }
-
-export async function fetchEventTypes() {
-  return (await http.get('/v1/events/types')).data
-}
 
 export async function fetchEvents(scope = 'mine') {
   return (await http.get('/v1/events', { params: { scope } })).data

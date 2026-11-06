@@ -15,7 +15,6 @@ class Event(IdMixin, TimestampMixin, Base):
     __tablename__ = 'events'
 
     slug: Mapped[str] = mapped_column(String(63), unique=True)
-    type: Mapped[str] = mapped_column(String(30))
     title: Mapped[str] = mapped_column(String(200))
     short_description: Mapped[str] = mapped_column(String(300), default='', server_default='')
     description: Mapped[str] = mapped_column(Text, default='', server_default='')
