@@ -3,7 +3,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { deadlinePassed, fetchMySheets, fetchMyWorks, formatDeadline, formatPoints } from '@/api/evaluation'
-import { errorMessage, SkeletonList, UiBadge } from 'sk-ui'
+import { errorMessage, SkeletonList, UiBadge, UiBreadcrumbs } from 'sk-ui'
 
 const props = defineProps({ id: { type: String, required: true } })
 const works = ref([])
@@ -30,7 +30,12 @@ onMounted(async () => {
 <template>
   <div class="grid gap-6">
     <div>
-      <RouterLink v-if="sheetsCount > 1" :to="{ name: 'judging' }" class="text-sm text-ink-muted hover:text-ink">← Все листы</RouterLink>
+      <UiBreadcrumbs
+        v-if="sheetsCount > 1" :items="[
+          { label: 'Мои оценочные листы', to: { name: 'judging' } },
+          { label: 'Работы для оценки' },
+        ]"
+      />
       <p v-if="sheet" class="mt-2 text-sm text-ink-muted">{{ sheet.event_title }}</p>
       <h1 class="text-2xl font-bold">{{ sheet?.title ?? 'Работы для оценки' }}</h1>
       <p v-if="!loading && works.length" class="mt-1 text-ink-muted">

@@ -167,7 +167,7 @@ onMounted(load)
               <span class="ml-auto flex gap-1">
                 <UiButton size="sm" variant="ghost" :disabled="index === 0" aria-label="Выше" @click="move(form.fields, index, -1)">↑</UiButton>
                 <UiButton size="sm" variant="ghost" :disabled="index === form.fields.length - 1" aria-label="Ниже" @click="move(form.fields, index, 1)">↓</UiButton>
-                <UiButton size="sm" variant="ghost" @click="form.fields.splice(index, 1)">Удалить</UiButton>
+                <UiButton size="sm" variant="danger-outline" @click="form.fields.splice(index, 1)">Удалить</UiButton>
               </span>
             </div>
           </li>
@@ -201,7 +201,7 @@ onMounted(load)
             <p class="text-xs text-ink-muted">Изменили текст — увеличьте версию: участникам придётся дать согласие заново.</p>
             <div class="flex items-center gap-4 text-sm">
               <label class="flex items-center gap-2"><input v-model="consent.required" type="checkbox" class="size-4 accent-brand-600" /> Обязательное</label>
-              <UiButton class="ml-auto" size="sm" variant="ghost" @click="form.consents.splice(index, 1)">Удалить</UiButton>
+              <UiButton class="ml-auto" size="sm" variant="danger-outline" @click="form.consents.splice(index, 1)">Удалить</UiButton>
             </div>
           </div>
           <div v-if="!readonly"><UiButton size="sm" @click="addConsent">Добавить согласие</UiButton></div>

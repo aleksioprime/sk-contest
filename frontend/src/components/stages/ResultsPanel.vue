@@ -162,7 +162,7 @@ onMounted(load)
           <li v-for="nomination in awards.nominations" :key="nomination.id" class="rounded-control border border-line p-3 text-sm">
             <div class="flex items-center gap-2">
               <p class="min-w-0 flex-1 font-medium">{{ nomination.title }}</p>
-              <UiButton size="sm" variant="ghost" @click="removeNomination(nomination)">Удалить</UiButton>
+              <UiButton size="sm" variant="danger-outline" @click="removeNomination(nomination)">Удалить</UiButton>
             </div>
             <ul class="mt-2 flex flex-wrap gap-2">
               <li v-for="id in nomination.application_ids" :key="id" class="flex items-center gap-1 rounded-full bg-canvas px-3 py-1">

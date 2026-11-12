@@ -115,7 +115,7 @@ const closedForJudges = () => props.sheet.status === 'closed' || deadlinePassed(
                   {{ judge.reopened ? 'Закрыть доступ' : 'Открыть доступ' }}
                 </UiButton>
                 <template v-if="canManage">
-                  <UiButton v-if="removing !== judge.user_id" size="sm" variant="ghost" @click="remove(judge)">Убрать</UiButton>
+                  <UiButton v-if="removing !== judge.user_id" size="sm" variant="danger-outline" @click="remove(judge)">Убрать</UiButton>
                   <UiButton v-else size="sm" variant="danger" @click="remove(judge, true)">Убрать с оценками</UiButton>
                 </template>
               </div>

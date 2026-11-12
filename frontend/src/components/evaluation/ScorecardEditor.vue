@@ -82,7 +82,7 @@ async function save() {
       <span class="text-sm font-medium">Категории критериев</span>
       <div v-for="(category, index) in draft.categories" :key="index" class="flex gap-2">
         <input v-model="draft.categories[index]" aria-label="Название категории" class="h-10 min-w-0 flex-1 rounded-control border border-line bg-surface px-3" />
-        <UiButton size="sm" variant="ghost" @click="removeCategory(index)">Убрать</UiButton>
+        <UiButton size="sm" variant="danger-outline" @click="removeCategory(index)">Убрать</UiButton>
       </div>
       <div><UiButton size="sm" @click="draft.categories.push('')">Добавить категорию</UiButton></div>
     </div>
@@ -120,7 +120,7 @@ async function save() {
           <span class="ml-auto flex gap-1">
             <UiButton size="sm" variant="ghost" :disabled="index === 0" aria-label="Выше" @click="move(index, -1)">↑</UiButton>
             <UiButton size="sm" variant="ghost" :disabled="index === draft.criteria.length - 1" aria-label="Ниже" @click="move(index, 1)">↓</UiButton>
-            <UiButton size="sm" variant="ghost" @click="draft.criteria.splice(index, 1)">Удалить</UiButton>
+            <UiButton size="sm" variant="danger-outline" @click="draft.criteria.splice(index, 1)">Удалить</UiButton>
           </span>
         </div>
         <div v-if="criterion.type === 'checklist'" class="grid gap-2 border-t border-line pt-3">
@@ -128,7 +128,7 @@ async function save() {
             <input v-model="option.title" placeholder="Пункт" aria-label="Пункт чек-листа" class="h-9 min-w-0 flex-1 rounded-control border border-line bg-surface px-3" />
             <input v-model.number="option.points" type="number" step="0.5" aria-label="Баллы" class="h-9 w-20 rounded-control border border-line bg-surface px-2" />
             <label class="flex items-center gap-1"><input v-model="option.is_exclusive" type="checkbox" class="size-4 accent-brand-600" /> снимает остальные</label>
-            <UiButton size="sm" variant="ghost" @click="criterion.options.splice(j, 1)">Убрать</UiButton>
+            <UiButton size="sm" variant="danger-outline" @click="criterion.options.splice(j, 1)">Убрать</UiButton>
           </div>
           <div><UiButton size="sm" @click="addOption(criterion)">Добавить пункт</UiButton></div>
         </div>

@@ -114,7 +114,7 @@ function summary(item) {
             <UiButton size="sm" variant="ghost" :disabled="index === 0" aria-label="Выше" @click="move(index, -1)">↑</UiButton>
             <UiButton size="sm" variant="ghost" :disabled="index === items.length - 1" aria-label="Ниже" @click="move(index, 1)">↓</UiButton>
             <UiButton size="sm" variant="ghost" @click="startEdit(item)">Изменить</UiButton>
-            <UiButton size="sm" variant="ghost" @click="remove(item)">Удалить</UiButton>
+            <UiButton size="sm" variant="danger-outline" @click="remove(item)">Удалить</UiButton>
           </div>
         </div>
       </li>

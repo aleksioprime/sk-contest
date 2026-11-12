@@ -3,7 +3,7 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { judgeClient } from '@/api/evaluation'
-import { errorMessage, SkeletonPage } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiBreadcrumbs } from 'sk-ui'
 import EvaluationForm from '@/components/evaluation/EvaluationForm.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -30,9 +30,12 @@ watch(() => props.id, load, { immediate: true })
 
   <div v-else class="grid max-w-3xl gap-6">
     <div>
-      <RouterLink :to="{ name: 'judge-sheet', params: { id: bundle.sheet_id } }" class="text-sm text-ink-muted hover:text-ink">
-        ← {{ bundle.sheet_title }}
-      </RouterLink>
+      <UiBreadcrumbs
+        :items="[
+          { label: bundle.sheet_title, to: { name: 'judge-sheet', params: { id: bundle.sheet_id } } },
+          { label: 'Оценка работы' },
+        ]"
+      />
       <h1 class="mt-2 text-2xl font-bold">№{{ bundle.work.number }} · {{ bundle.work.title || 'Без названия' }}</h1>
       <p class="mt-1 text-ink-muted">
         {{ bundle.work.participants.join(', ') }}

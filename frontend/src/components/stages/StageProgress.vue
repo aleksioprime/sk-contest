@@ -268,7 +268,7 @@ watch([() => props.event.id, stageId], () => {
           <li v-for="s in data.slots" :key="s.id" class="flex items-center gap-3 py-2 text-sm">
             <span class="flex-1">{{ slotLabel(s) }}</span>
             <span class="text-ink-muted">работ: {{ s.participants }}</span>
-            <UiButton size="sm" variant="ghost" @click="run(() => deleteSlot(s.id), 'Слот удалён')">Удалить</UiButton>
+            <UiButton size="sm" variant="danger-outline" @click="run(() => deleteSlot(s.id), 'Слот удалён')">Удалить</UiButton>
           </li>
         </ul>
         <form class="grid gap-3 text-sm sm:grid-cols-4" @submit.prevent="createSlot">

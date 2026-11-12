@@ -47,7 +47,7 @@ async function save() {
       <div v-for="(level, index) in draft.levels" :key="index" class="flex gap-2">
         <input v-model.number="level.points" type="number" step="0.5" aria-label="Баллы" class="h-10 w-24 rounded-control border border-line bg-surface px-3" />
         <input v-model="level.title" placeholder="Описание уровня" aria-label="Описание уровня" class="h-10 min-w-0 flex-1 rounded-control border border-line bg-surface px-3" />
-        <UiButton size="sm" variant="ghost" :disabled="draft.levels.length <= 2" @click="draft.levels.splice(index, 1)">Убрать</UiButton>
+        <UiButton size="sm" variant="danger-outline" :disabled="draft.levels.length <= 2" @click="draft.levels.splice(index, 1)">Убрать</UiButton>
       </div>
       <div><UiButton size="sm" @click="draft.levels.push({ title: '', points: draft.levels.length })">Добавить уровень</UiButton></div>
     </div>

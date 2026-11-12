@@ -18,7 +18,7 @@ import {
   removeMember,
   updateEvent,
 } from '@/api/events'
-import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect, UiBreadcrumbs } from 'sk-ui'
 import { uploadFile } from '@/api/applications'
 import ApplicationsPanel from '@/components/events/ApplicationsPanel.vue'
 import EvaluationPanel from '@/components/evaluation/EvaluationPanel.vue'
@@ -208,6 +208,12 @@ watch(() => props.id, load, { immediate: true })
   <div v-else class="grid gap-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
+        <UiBreadcrumbs
+          class="mb-2" :items="[
+            { label: 'Мероприятия', to: { name: 'events' } },
+            { label: 'Мероприятие' },
+          ]"
+        />
         <div class="flex flex-wrap items-center gap-2">
           <h1 class="text-2xl font-bold">{{ event.title }}</h1>
           <UiBadge :tone="STATUS_TONES[event.status]">{{ STATUS_LABELS[event.status] }}</UiBadge>
@@ -230,7 +236,7 @@ watch(() => props.id, load, { immediate: true })
         >
           {{ STATUS_ACTIONS[status] }}
         </UiButton>
-        <UiButton v-if="event.status === 'draft'" variant="ghost" @click="confirmDelete = true">Удалить</UiButton>
+        <UiButton v-if="event.status === 'draft'" variant="danger-outline" @click="confirmDelete = true">Удалить</UiButton>
         <UiConfirm v-model:open="confirmDelete" title="Удалить черновик?" confirm-label="Удалить" variant="danger" @confirm="remove">
           Мероприятие «{{ event.title }}» удалится без возможности восстановления.
         </UiConfirm>
@@ -292,7 +298,7 @@ watch(() => props.id, load, { immediate: true })
               {{ coverUploading ? 'Загрузка…' : event.cover_file_id ? 'Заменить' : 'Загрузить' }}
               <input type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" @change="setCover($event.target.files[0]); $event.target.value = ''" />
             </label>
-            <UiButton v-if="event.cover_file_id && !readonly" size="sm" variant="ghost" @click="setCover(null)">Убрать</UiButton>
+            <UiButton v-if="event.cover_file_id && !readonly" size="sm" variant="danger-outline" @click="setCover(null)">Убрать</UiButton>
           </div>
           <p v-if="coverError" role="alert" class="mt-2 text-sm text-red-700">{{ coverError }}</p>
         </UiCard>
@@ -411,7 +417,7 @@ watch(() => props.id, load, { immediate: true })
             <p class="text-sm text-ink-muted">{{ member.email }}</p>
           </div>
           <UiBadge :tone="member.role === 'organizer' ? 'brand' : 'neutral'">{{ ROLE_LABELS[member.role] }}</UiBadge>
-          <UiButton v-if="!readonly" size="sm" variant="ghost" @click="dropMember(member)">Убрать</UiButton>
+          <UiButton v-if="!readonly" size="sm" variant="danger-outline" @click="dropMember(member)">Убрать</UiButton>
         </li>
       </ul>
     </div>

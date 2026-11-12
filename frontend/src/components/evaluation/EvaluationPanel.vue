@@ -151,7 +151,7 @@ onMounted(load)
             </div>
             <UiButton v-if="!card.in_use" size="sm" variant="ghost" @click="editingCard = card">Изменить</UiButton>
             <UiButton size="sm" variant="ghost" @click="run(() => copyScorecard(card.id))">Копировать</UiButton>
-            <UiButton size="sm" variant="ghost" @click="run(() => deleteScorecard(card.id))">Удалить</UiButton>
+            <UiButton size="sm" variant="danger-outline" @click="run(() => deleteScorecard(card.id))">Удалить</UiButton>
           </li>
         </ul>
         <UiButton size="sm" @click="editingCard = 'new'">Новая таблица</UiButton>
@@ -175,7 +175,7 @@ onMounted(load)
               <p class="text-sm text-ink-muted">{{ scale.levels.map((l) => `${formatPoints(l.points)} — ${l.title}`).join(' · ') }}</p>
             </div>
             <UiButton size="sm" variant="ghost" @click="editingScale = scale">Изменить</UiButton>
-            <UiButton size="sm" variant="ghost" @click="run(() => deleteScale(scale.id))">Удалить</UiButton>
+            <UiButton size="sm" variant="danger-outline" @click="run(() => deleteScale(scale.id))">Удалить</UiButton>
           </li>
         </ul>
         <UiButton size="sm" @click="editingScale = 'new'">Новая шкала</UiButton>

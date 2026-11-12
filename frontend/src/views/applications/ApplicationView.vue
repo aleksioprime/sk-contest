@@ -1,7 +1,7 @@
 <script setup>
 /** Страница заявки: просмотр и редактирование заявителем, решения сотрудников. */
 import { computed, reactive, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import {
   APP_STATUS_LABELS,
   APP_STATUS_TONES,
@@ -14,7 +14,7 @@ import {
   submitApplication,
   withdrawApplication,
 } from '@/api/applications'
-import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect, UiBreadcrumbs } from 'sk-ui'
 import { AWARD_LABELS, diplomaUrl, fetchMyResults } from '@/api/stages'
 import ConsentsList from '@/components/applications/ConsentsList.vue'
 import FieldInput from '@/components/applications/FieldInput.vue'
@@ -129,10 +129,15 @@ watch(() => props.id, load, { immediate: true })
 
   <div v-else class="grid max-w-3xl gap-6">
     <div>
-      <RouterLink v-if="staffMode" :to="{ name: 'event', params: { id: app.event.id }, query: { tab: 'applications' } }" class="text-sm text-ink-muted hover:text-ink">
-        ← Заявки мероприятия
-      </RouterLink>
-      <RouterLink v-else :to="{ name: 'my-applications' }" class="text-sm text-ink-muted hover:text-ink">← Мои заявки</RouterLink>
+      <UiBreadcrumbs
+        :items="[
+          ...(staffMode ? [
+            { label: 'Мероприятия', to: { name: 'events' } },
+            { label: app.event.title, to: { name: 'event', params: { id: app.event.id }, query: { tab: 'applications' } } },
+          ] : [{ label: 'Мои заявки', to: { name: 'my-applications' } }]),
+          { label: 'Заявка' },
+        ]"
+      />
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <h1 class="text-2xl font-bold">Заявка №{{ app.number }}</h1>
         <UiBadge :tone="APP_STATUS_TONES[app.status]">{{ APP_STATUS_LABELS[app.status] }}</UiBadge>
@@ -197,7 +202,7 @@ watch(() => props.id, load, { immediate: true })
               <UiInput v-model="member.full_name" placeholder="Фамилия Имя Отчество" aria-label="ФИО участника" />
               <UiInput v-model="member.grade" placeholder="Класс" aria-label="Класс" />
               <UiInput v-model="member.organization" placeholder="Школа, если не Гимназия Сколково" aria-label="Школа" />
-              <UiButton v-if="editable" size="sm" variant="ghost" @click="removeMember(member)">Убрать</UiButton>
+              <UiButton v-if="editable" size="sm" variant="danger-outline" @click="removeMember(member)">Убрать</UiButton>
             </div>
             <div v-if="editable && participants.length < maxParticipants">
               <UiButton size="sm" @click="addMember('participant')">Добавить участника</UiButton>
@@ -208,7 +213,7 @@ watch(() => props.id, load, { immediate: true })
               <div v-for="(member, index) in supervisors" :key="`s${index}`" class="grid gap-3 rounded-control border border-line p-3 sm:grid-cols-[2fr_2fr_auto]">
                 <UiInput v-model="member.full_name" placeholder="Фамилия Имя Отчество" aria-label="ФИО руководителя" />
                 <UiInput v-model="member.email" type="email" placeholder="Email" aria-label="Email руководителя" />
-                <UiButton v-if="editable" size="sm" variant="ghost" @click="removeMember(member)">Убрать</UiButton>
+                <UiButton v-if="editable" size="sm" variant="danger-outline" @click="removeMember(member)">Убрать</UiButton>
               </div>
               <div v-if="editable && supervisors.length < form.team.supervisors_max">
                 <UiButton size="sm" @click="addMember('supervisor')">Добавить руководителя</UiButton>

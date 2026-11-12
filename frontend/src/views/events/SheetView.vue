@@ -24,7 +24,7 @@ import {
   updateSheet,
 } from '@/api/evaluation'
 import { fetchEvent } from '@/api/events'
-import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiSelect } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiSelect, UiBreadcrumbs } from 'sk-ui'
 import JudgesPanel from '@/components/evaluation/JudgesPanel.vue'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })
@@ -118,7 +118,13 @@ watch(() => props.sheetId, load, { immediate: true })
   <div v-else class="grid gap-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <RouterLink :to="{ name: 'event', params: { id }, query: { tab: 'evaluation' } }" class="text-sm text-ink-muted hover:text-ink">← {{ event?.title }}</RouterLink>
+        <UiBreadcrumbs
+          :items="[
+            { label: 'Мероприятия', to: { name: 'events' } },
+            { label: event?.title ?? 'Мероприятие', to: { name: 'event', params: { id }, query: { tab: 'evaluation' } } },
+            { label: 'Оценочный лист' },
+          ]"
+        />
         <div class="mt-2 flex flex-wrap items-center gap-2">
           <h1 class="text-2xl font-bold">{{ sheet.title }}</h1>
           <UiBadge :tone="SHEET_STATUS_TONES[sheet.status]">{{ SHEET_STATUS_LABELS[sheet.status] }}</UiBadge>
@@ -149,7 +155,7 @@ watch(() => props.sheetId, load, { immediate: true })
         >
           Листы судей с QR
         </RouterLink>
-        <UiButton v-if="canManage && sheet.status === 'draft'" variant="ghost" @click="remove">Удалить</UiButton>
+        <UiButton v-if="canManage && sheet.status === 'draft'" variant="danger-outline" @click="remove">Удалить</UiButton>
       </div>
     </div>
 
@@ -279,7 +285,7 @@ watch(() => props.sheetId, load, { immediate: true })
             <td v-if="canPublic" class="px-3 py-2 tabular-nums">{{ work.anonymous_count }}</td>
             <td class="px-3 py-2 whitespace-nowrap text-right">
               <UiButton v-if="canPublic" size="sm" variant="ghost" @click="showQr(work)">QR</UiButton>
-              <UiButton v-if="canManage && !work.evaluations_scored && !work.anonymous_count" size="sm" variant="ghost" @click="run(() => removeWork(sheet.id, work.id))">Убрать</UiButton>
+              <UiButton v-if="canManage && !work.evaluations_scored && !work.anonymous_count" size="sm" variant="danger-outline" @click="run(() => removeWork(sheet.id, work.id))">Убрать</UiButton>
             </td>
           </tr>
         </tbody>

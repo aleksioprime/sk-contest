@@ -2,10 +2,10 @@
 /** Листы судей для печати: на каждого судью страница с QR для входа. Ссылки одноразовые и действуют 20 минут. */
 import QRCode from 'qrcode'
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { fetchSheet, issueJudgeCards } from '@/api/evaluation'
 import { fetchEvent } from '@/api/events'
-import { errorMessage, SkeletonPage, UiButton } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiButton, UiBreadcrumbs } from 'sk-ui'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })
 const route = useRoute()
@@ -44,7 +44,14 @@ onMounted(issue)
 <template>
   <div class="mx-auto max-w-3xl px-4 py-6 print:max-w-none print:p-0">
     <div class="mb-6 flex flex-wrap items-center gap-3 print:hidden">
-      <RouterLink :to="{ name: 'event-sheet', params: { id, sheetId } }" class="text-sm text-ink-muted hover:text-ink">← К листу</RouterLink>
+      <UiBreadcrumbs
+        :items="[
+          { label: 'Мероприятия', to: { name: 'events' } },
+          { label: event?.title ?? 'Мероприятие', to: { name: 'event', params: { id }, query: { tab: 'evaluation' } } },
+          { label: sheet?.title ?? 'Оценочный лист', to: { name: 'event-sheet', params: { id, sheetId } } },
+          { label: 'Карточки судей' },
+        ]"
+      />
       <span class="flex-1" />
       <UiButton :loading="loading" @click="issue">Выпустить новые QR</UiButton>
       <UiButton variant="primary" :disabled="!cards.length" @click="print">Печать</UiButton>

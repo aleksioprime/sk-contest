@@ -3,7 +3,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MODULE_HINTS, MODULE_LABELS, applyUrl, createEvent, fetchEvent, fetchEvents, isSlugAvailable, slugify } from '@/api/events'
-import { errorMessage, UiButton, UiInput, UiSelect } from 'sk-ui'
+import { errorMessage, UiButton, UiInput, UiSelect, UiBreadcrumbs } from 'sk-ui'
 
 const router = useRouter()
 const previous = ref([])
@@ -78,6 +78,12 @@ async function submit() {
 
 <template>
   <form class="grid max-w-3xl gap-8" novalidate @submit.prevent="submit">
+    <UiBreadcrumbs
+      :items="[
+        { label: 'Мероприятия', to: { name: 'events' } },
+        { label: 'Новое мероприятие' },
+      ]"
+    />
     <h1 class="text-2xl font-bold">Новое мероприятие</h1>
 
     <label v-if="previous.length" class="grid gap-1.5 text-sm">
