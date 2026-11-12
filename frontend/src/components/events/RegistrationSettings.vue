@@ -16,7 +16,7 @@ function toggleAsked(name, checked) {
 <template>
   <UiCard>
     <template #title>Общая заявка</template>
-    <div class="grid gap-4 text-sm">
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-4 text-sm">
       <p class="text-ink-muted">
         Сначала человек оставляет общую заявку, модератор её подтверждает. Приглашение в кабинет приходит на почту,
         там заполняется остальная анкета.
@@ -38,7 +38,7 @@ function toggleAsked(name, checked) {
         </span>
       </label>
 
-      <fieldset class="grid gap-2">
+      <fieldset class="grid min-w-0 gap-2">
         <legend class="mb-1 font-medium">Что спрашивать, кроме ФИО и email</legend>
         <div class="flex flex-wrap gap-x-6 gap-y-2">
           <label v-for="(label, name) in ASKABLE_FIELDS" :key="name" class="flex items-center gap-2">

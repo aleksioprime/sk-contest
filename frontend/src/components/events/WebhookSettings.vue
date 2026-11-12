@@ -49,7 +49,7 @@ onMounted(() => run(() => fetchWebhook(props.eventId)))
 <template>
   <UiCard>
     <template #title>Вебхук для внешних форм</template>
-    <div class="grid gap-4 text-sm">
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-4 text-sm">
       <p class="text-ink-muted">
         Заявки из других сервисов, например Tilda, сразу попадают к модератору. В настройках формы Tilda выберите
         «Webhook» и вставьте этот адрес. Подойдёт любое приложение, которое отправляет POST в формате JSON или формы.

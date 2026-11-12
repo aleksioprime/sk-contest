@@ -205,7 +205,7 @@ watch(() => props.id, load, { immediate: true })
   <p v-if="loadError" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ loadError }}</p>
   <SkeletonPage v-else-if="!event" :cards="3" />
 
-  <div v-else class="grid gap-6">
+  <div v-else class="grid grid-cols-[minmax(0,1fr)] gap-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
         <UiBreadcrumbs

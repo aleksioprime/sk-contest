@@ -111,8 +111,8 @@ onMounted(load)
   <p v-if="!form && error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
   <SkeletonPage v-else-if="!form" :cards="2" />
 
-  <form v-else class="grid gap-6" @submit.prevent="save">
-    <fieldset :disabled="readonly" class="grid gap-6">
+  <form v-else class="grid grid-cols-[minmax(0,1fr)] gap-6" @submit.prevent="save">
+    <fieldset :disabled="readonly" class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
       <RegistrationSettings v-model="form.registration" :slug="slug" />
       <WebhookSettings v-if="!readonly" v-model="form.registration.webhook_fields" :event-id="eventId" :fields="form.fields" />
 
