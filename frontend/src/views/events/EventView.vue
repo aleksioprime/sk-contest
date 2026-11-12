@@ -1,7 +1,7 @@
 <script setup>
 /** Страница мероприятия: настройки, статус, команда и вкладки модулей. */
-import { computed, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import {
   FORMAT_LABELS,
   LEVEL_LABELS,
@@ -18,7 +18,7 @@ import {
   removeMember,
   updateEvent,
 } from '@/api/events'
-import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiInput, UiSelect, UiBreadcrumbs } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiConfirm, UiFormActions, UiInput, UiSelect, UiBreadcrumbs } from 'sk-ui'
 import { uploadFile } from '@/api/applications'
 import ApplicationsPanel from '@/components/events/ApplicationsPanel.vue'
 import EvaluationPanel from '@/components/evaluation/EvaluationPanel.vue'
@@ -36,7 +36,7 @@ const loadError = ref('')
 const form = reactive({})
 const saving = ref(false)
 const saveError = ref('')
-const savedAt = ref(null)
+const saved = ref(false)
 const statusError = ref('')
 const confirmDelete = ref(false)
 
@@ -104,17 +104,45 @@ function toLocalInput(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-function fillForm(data) {
-  for (const key of FIELDS) form[key] = data[key] ?? ''
-  for (const key of MOMENT_FIELDS) form[key] = toLocalInput(data[key])
-  form.modules = { ...data.modules }
+function savedField(key) {
+  const value = event.value?.[key]
+  return MOMENT_FIELDS.includes(key) ? toLocalInput(value) : value ?? ''
 }
+
+function fillForm() {
+  for (const key of FIELDS) form[key] = savedField(key)
+  form.modules = { ...event.value.modules }
+}
+
+const fieldChanged = (key) => form[key] !== savedField(key)
+const moduleChanged = (key) => form.modules[key] !== event.value.modules[key]
+const modulesChanged = computed(() => !!form.modules && Object.keys(form.modules).some(moduleChanged))
+const dirty = computed(() => !!form.modules && (FIELDS.some(fieldChanged) || modulesChanged.value))
+
+function cancelChanges() {
+  fillForm()
+  saveError.value = ''
+  saved.value = false
+}
+
+function confirmLeave() {
+  return !saving.value && (!dirty.value || window.confirm('Есть несохранённые изменения. Уйти со страницы?'))
+}
+
+function warnOnClose(event) {
+  if (dirty.value) event.preventDefault()
+}
+
+onBeforeRouteLeave(confirmLeave)
+onBeforeRouteUpdate((to, from) => to.params.id === from.params.id || confirmLeave())
+window.addEventListener('beforeunload', warnOnClose)
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnClose))
 
 async function load() {
   loadError.value = ''
   try {
     event.value = await fetchEvent(props.id)
-    fillForm(event.value)
+    cancelChanges()
     members.value = await fetchMembers(props.id)
   } catch (e) {
     loadError.value = errorMessage(e)
@@ -122,15 +150,22 @@ async function load() {
 }
 
 async function save() {
+  if (!dirty.value || saving.value || coverUploading.value || readonly.value) return
   saving.value = true
   saveError.value = ''
+  saved.value = false
   try {
-    const changes = { ...form }
-    for (const key of ['date_start', 'date_end']) changes[key] ||= null
-    for (const key of MOMENT_FIELDS) changes[key] = changes[key] ? new Date(changes[key]).toISOString() : null
+    const changes = Object.fromEntries(FIELDS.filter(fieldChanged).map((key) => [key, form[key]]))
+    for (const key of ['date_start', 'date_end']) {
+      if (key in changes) changes[key] ||= null
+    }
+    for (const key of MOMENT_FIELDS) {
+      if (key in changes) changes[key] = changes[key] ? new Date(changes[key]).toISOString() : null
+    }
+    if (modulesChanged.value) changes.modules = { ...form.modules }
     event.value = await updateEvent(event.value.id, changes)
-    fillForm(event.value)
-    savedAt.value = new Date()
+    fillForm()
+    saved.value = true
   } catch (e) {
     saveError.value = errorMessage(e)
   } finally {
@@ -274,15 +309,15 @@ watch(() => props.id, load, { immediate: true })
       </button>
     </div>
 
-    <form v-if="tab === 'main'" class="grid gap-6" @submit.prevent="save">
-      <fieldset :disabled="readonly" class="grid gap-6">
+    <form v-if="tab === 'main'" class="grid grid-cols-[minmax(0,1fr)] gap-6" @submit.prevent="save">
+      <fieldset :disabled="readonly || saving" class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
         <UiCard>
           <template #title>Описание</template>
           <div class="grid gap-4">
-            <UiInput v-model="form.title" label="Название" />
-            <UiInput v-model="form.slug" label="Адрес" :hint="`Открытая форма заявки: ${applyUrl(form.slug)}`" />
-            <UiInput v-model="form.short_description" label="Кратко" hint="Одна-две фразы для открытой формы и списка мероприятий" maxlength="300" />
-            <label class="grid gap-1.5 text-sm">
+            <UiInput v-model="form.title" :class="{ 'ui-changed': fieldChanged('title') }" label="Название" />
+            <UiInput v-model="form.slug" :class="{ 'ui-changed': fieldChanged('slug') }" label="Адрес" :hint="`Открытая форма заявки: ${applyUrl(form.slug)}`" />
+            <UiInput v-model="form.short_description" :class="{ 'ui-changed': fieldChanged('short_description') }" label="Кратко" hint="Одна-две фразы для открытой формы и списка мероприятий" maxlength="300" />
+            <label class="grid gap-1.5 text-sm" :class="{ 'ui-changed': fieldChanged('description') }">
               <span class="font-medium">Подробное описание</span>
               <textarea v-model="form.description" rows="6" class="rounded-control border border-line bg-surface px-3 py-2" />
             </label>
@@ -306,16 +341,16 @@ watch(() => props.id, load, { immediate: true })
         <UiCard>
           <template #title>Когда и где</template>
           <div class="grid gap-4 sm:grid-cols-2">
-            <UiInput v-model="form.date_start" type="date" label="Начало" />
-            <UiInput v-model="form.date_end" type="date" label="Окончание" />
-            <UiInput v-model="form.place" label="Место" class="sm:col-span-2" placeholder="Гимназия Сколково, ул. Новая, 100" />
-            <label class="grid gap-1.5 text-sm">
+            <UiInput v-model="form.date_start" :class="{ 'ui-changed': fieldChanged('date_start') }" type="date" label="Начало" />
+            <UiInput v-model="form.date_end" :class="{ 'ui-changed': fieldChanged('date_end') }" type="date" label="Окончание" />
+            <UiInput v-model="form.place" :class="{ 'ui-changed': fieldChanged('place') }" label="Место" class="sm:col-span-2" placeholder="Гимназия Сколково, ул. Новая, 100" />
+            <label class="grid gap-1.5 text-sm" :class="{ 'ui-changed': fieldChanged('format') }">
               <span class="font-medium">Формат</span>
               <UiSelect v-model="form.format">
                 <option v-for="(label, value) in FORMAT_LABELS" :key="value" :value="value">{{ label }}</option>
               </UiSelect>
             </label>
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid gap-1.5 text-sm" :class="{ 'ui-changed': fieldChanged('level') }">
               <span class="font-medium">Уровень</span>
               <UiSelect v-model="form.level">
                 <option v-for="(label, value) in LEVEL_LABELS" :key="value" :value="value">{{ label }}</option>
@@ -327,9 +362,9 @@ watch(() => props.id, load, { immediate: true })
         <UiCard v-if="form.modules.registration">
           <template #title>Приём заявок</template>
           <div class="grid gap-4 sm:grid-cols-2">
-            <UiInput v-model="form.registration_opens_at" type="datetime-local" label="Открывается" />
-            <UiInput v-model="form.registration_closes_at" type="datetime-local" label="Закрывается" />
-            <UiInput v-model="form.details_closes_at" type="datetime-local" label="Заполнить анкету до" hint="Для подтверждённых заявок. Пусто — пока идёт приём" />
+            <UiInput v-model="form.registration_opens_at" :class="{ 'ui-changed': fieldChanged('registration_opens_at') }" type="datetime-local" label="Открывается" />
+            <UiInput v-model="form.registration_closes_at" :class="{ 'ui-changed': fieldChanged('registration_closes_at') }" type="datetime-local" label="Закрывается" />
+            <UiInput v-model="form.details_closes_at" :class="{ 'ui-changed': fieldChanged('details_closes_at') }" type="datetime-local" label="Заполнить анкету до" hint="Для подтверждённых заявок. Оставьте пустым, если срок не ограничен" />
           </div>
           <p class="mt-3 text-sm text-ink-muted">Новые заявки принимаются, когда мероприятие в статусе «Регистрация» и время попадает в этот интервал.</p>
         </UiCard>
@@ -337,7 +372,7 @@ watch(() => props.id, load, { immediate: true })
         <UiCard>
           <template #title>Модули</template>
           <div class="flex flex-wrap gap-x-6 gap-y-3">
-            <label v-for="(label, module) in MODULE_LABELS" :key="module" class="flex items-center gap-2">
+            <label v-for="(label, module) in MODULE_LABELS" :key="module" class="flex items-center gap-2" :class="{ 'ui-changed': moduleChanged(module) }">
               <input v-model="form.modules[module]" type="checkbox" class="size-4 accent-brand-600" />
               {{ label }}
             </label>
@@ -345,11 +380,9 @@ watch(() => props.id, load, { immediate: true })
         </UiCard>
       </fieldset>
 
-      <div v-if="!readonly" class="flex items-center gap-3">
-        <UiButton type="submit" variant="primary" :loading="saving">Сохранить</UiButton>
-        <span v-if="saveError" role="alert" class="text-sm text-red-700">{{ saveError }}</span>
-        <span v-else-if="savedAt" class="text-sm text-ink-muted" role="status">Сохранено</span>
-      </div>
+      <p v-if="saveError" role="alert" class="text-sm text-red-700">{{ saveError }}</p>
+      <p v-else-if="saved && !dirty" role="status" class="text-sm text-ink-muted">Сохранено</p>
+      <UiFormActions v-if="!readonly && dirty" :loading="saving" :disabled="coverUploading" @cancel="cancelChanges" />
     </form>
 
     <EventItemsEditor
