@@ -2,6 +2,7 @@
 /** Ход по этапам: участники, баллы из листов, правило перехода, расписание защит. */
 import { computed, reactive, ref, watch } from 'vue'
 import { formatPoints } from '@/api/evaluation'
+import { useUrlQuery } from '@/utils/useUrlQuery'
 import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiConfirm, UiSelect } from 'sk-ui'
 import {
   STAGE_STATUS_LABELS,
@@ -19,7 +20,11 @@ import {
 const props = defineProps({ event: { type: Object, required: true } })
 
 const stages = computed(() => [...props.event.stages].sort((a, b) => a.order - b.order))
-const stageId = ref(stages.value[0]?.id ?? null)
+const { route, setQuery } = useUrlQuery()
+const stageId = computed({
+  get: () => stages.value.find((stage) => String(stage.id) === route.query.stage)?.id ?? stages.value[0]?.id ?? null,
+  set: (value) => setQuery({ stage: String(value) }),
+})
 const data = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -39,29 +44,41 @@ function fill(overview) {
   decisions.value = Object.fromEntries(overview.participants.filter((p) => p.status !== 'withdrawn').map((p) => [p.id, p.proposal]))
 }
 
+let lastLoad = 0
 async function load() {
-  if (!stageId.value) return
+  const request = ++lastLoad
+  if (!stageId.value) {
+    data.value = null
+    loading.value = false
+    return
+  }
   loading.value = true
   error.value = ''
   try {
-    fill(await fetchStage(props.event.id, stageId.value))
+    const result = await fetchStage(props.event.id, stageId.value)
+    if (request === lastLoad) fill(result)
   } catch (e) {
-    error.value = errorMessage(e)
+    if (request === lastLoad) error.value = errorMessage(e)
   } finally {
-    loading.value = false
+    if (request === lastLoad) loading.value = false
   }
 }
 
 async function run(fn, message) {
   error.value = ''
   notice.value = ''
+  const stage = stageId.value
+  const event = props.event.id
   try {
     const result = await fn()
+    if (stage !== stageId.value || event !== props.event.id) return
     if (result?.participants) fill(result)
     else await load()
-    notice.value = typeof message === 'function' ? message(result) : message
+    if (stage === stageId.value && event === props.event.id) {
+      notice.value = typeof message === 'function' ? message(result) : message
+    }
   } catch (e) {
-    error.value = errorMessage(e)
+    if (stage === stageId.value && event === props.event.id) error.value = errorMessage(e)
   }
 }
 
@@ -95,7 +112,12 @@ function slotLabel(s) {
   return [time, s.room && `ауд. ${s.room}`, s.title].filter(Boolean).join(' · ')
 }
 
-watch(stageId, load, { immediate: true })
+watch([() => props.event.id, stageId], () => {
+  data.value = null
+  notice.value = ''
+  confirmApply.value = false
+  load()
+}, { immediate: true })
 </script>
 
 <template>
@@ -120,6 +142,7 @@ watch(stageId, load, { immediate: true })
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
     <p v-if="notice" role="status" class="rounded-control bg-green-100 px-4 py-3 text-green-800">{{ notice }}</p>
 
+    <SkeletonTable v-if="loading && !data" :rows="4" :columns="6" />
     <template v-if="data">
       <div v-if="manage" class="flex flex-wrap items-center gap-3">
         <UiButton @click="run(() => admitToStage(event.id, stageId), 'Участники допущены')">

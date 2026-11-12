@@ -1,18 +1,16 @@
 <script setup>
 /** Администрирование людей: персоны, пользователи и синхронизация с SkolStream. */
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiSelect } from 'sk-ui'
 import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, setPersonAdmin, startSync, updateUser } from '@/api/people'
 import { useAuthStore } from '@/stores/auth'
+import { useListPage } from '@/utils/useListPage'
+import { useUrlQuery } from '@/utils/useUrlQuery'
 import { formatDateTime } from '@/utils/dates'
 
 const auth = useAuthStore()
 const PAGE = 50
 
-const tab = ref('persons')
-const search = ref('')
-const kind = ref('')
-const offset = ref(0)
 const page = ref({ items: [], total: 0 })
 const loading = ref(false)
 const error = ref('')
@@ -27,22 +25,41 @@ const kinds = [
   { value: 'employee', label: 'Сотрудники' },
   { value: 'external', label: 'Внешние' },
 ]
+const { route, setQuery } = useUrlQuery()
+const tab = computed({
+  get: () => route.query.tab === 'users' ? 'users' : 'persons',
+  set: (value) => {
+    if (value !== tab.value) setQuery({ tab: value === 'users' ? value : undefined, kind: undefined, page: undefined })
+  },
+})
+const kind = computed({
+  get: () => tab.value === 'persons' ? (kinds.find(({ value }) => value === route.query.kind)?.value ?? '') : '',
+  set: (value) => {
+    if (value !== kind.value) setQuery({ kind: value || undefined, page: undefined })
+  },
+})
+const { search, searchTerm, offset, fitTotal } = useListPage(route, setQuery, PAGE, { filters: [tab, kind] })
 const syncStatus = {
   running: ['warning', 'идёт'],
   success: ['success', 'завершена'],
   failed: ['danger', 'ошибка'],
 }
 
+let lastLoad = 0
 async function load() {
+  const request = ++lastLoad
   loading.value = true
   error.value = ''
   try {
-    const params = { search: search.value, offset: offset.value, limit: PAGE }
-    page.value = tab.value === 'persons' ? await fetchPersons({ ...params, kind: kind.value }) : await fetchUsers(params)
+    const params = { search: searchTerm.value, offset: offset.value, limit: PAGE }
+    const result = tab.value === 'persons' ? await fetchPersons({ ...params, kind: kind.value }) : await fetchUsers(params)
+    if (request !== lastLoad) return
+    page.value = result
+    fitTotal(result.total)
   } catch (e) {
-    error.value = errorMessage(e)
+    if (request === lastLoad) error.value = errorMessage(e)
   } finally {
-    loading.value = false
+    if (request === lastLoad) loading.value = false
   }
 }
 
@@ -54,19 +71,10 @@ async function loadSync() {
   }
 }
 
-let timer
-watch(search, () => {
-  clearTimeout(timer)
-  timer = setTimeout(() => {
-    offset.value = 0
-    load()
-  }, 300)
-})
-watch([tab, kind], () => {
-  offset.value = 0
+watch([tab, kind, offset, searchTerm], ([activeTab], [previousTab]) => {
+  if (activeTab !== previousTab) page.value = { items: [], total: 0 }
   load()
-})
-watch(offset, load)
+}, { immediate: true })
 
 async function runSync(mode) {
   syncing.value = true
@@ -123,8 +131,8 @@ async function create() {
     const user = await createUser(payload)
     notice.value = `Создан ${user.email}${user.has_password ? ': можно входить по паролю' : ''}`
     newUser.value = { email: '', full_name: '', password: '', is_employee: true, is_superuser: false }
-    tab.value = 'users'
-    await load()
+    if (tab.value === 'users') await load()
+    else await setQuery({ tab: 'users', kind: undefined, page: undefined })
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -154,10 +162,7 @@ async function setEmployee(user, value) {
   }
 }
 
-onMounted(() => {
-  load()
-  loadSync()
-})
+onMounted(loadSync)
 </script>
 
 <template>

@@ -1,29 +1,37 @@
 <script setup>
 /** Список мероприятий пользователя. */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROLE_LABELS, STATUS_LABELS, STATUS_TONES, fetchEvents } from '@/api/events'
 import { errorMessage, SkeletonList, UiBadge, UiSelect } from 'sk-ui'
 import { useAuthStore } from '@/stores/auth'
 import { formatRange } from '@/utils/dates'
+import { useUrlQuery } from '@/utils/useUrlQuery'
 
 const auth = useAuthStore()
 const events = ref([])
 const loading = ref(true)
 const error = ref('')
-const scope = ref('mine')
+const { route, setQuery } = useUrlQuery()
+const scope = computed({
+  get: () => auth.isAdmin && route.query.scope === 'all' ? route.query.scope : 'mine',
+  set: (value) => setQuery({ scope: value === 'mine' ? undefined : value }),
+})
 
 const canCreate = computed(() => auth.isAdmin || auth.user?.person?.is_employee)
 
+let lastLoad = 0
 async function load() {
+  const request = ++lastLoad
   loading.value = true
   error.value = ''
   try {
-    events.value = await fetchEvents(scope.value)
+    const result = await fetchEvents(scope.value)
+    if (request === lastLoad) events.value = result
   } catch (e) {
-    error.value = errorMessage(e)
+    if (request === lastLoad) error.value = errorMessage(e)
   } finally {
-    loading.value = false
+    if (request === lastLoad) loading.value = false
   }
 }
 
@@ -31,8 +39,7 @@ function dates(event) {
   return formatRange(event.date_start, event.date_end) || 'Даты не указаны'
 }
 
-watch(scope, load)
-onMounted(load)
+watch(scope, load, { immediate: true })
 </script>
 
 <template>

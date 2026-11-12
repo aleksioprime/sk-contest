@@ -3,6 +3,7 @@
 import QRCode from 'qrcode'
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { useUrlQuery } from '@/utils/useUrlQuery'
 import {
   AGGREGATE_LABELS,
   RANK_LABELS,
@@ -52,7 +53,11 @@ function worksFilter() {
   return { direction_ids: directionIds.value.length ? directionIds.value : null, numbers: numbers.length ? numbers : null }
 }
 const qr = ref(null) // { title, url, image }
-const sortBy = ref('rank')
+const { route, setQuery } = useUrlQuery()
+const sortBy = computed({
+  get: () => route.query.sort === 'number' ? route.query.sort : 'rank',
+  set: (value) => setQuery({ sort: value === 'rank' ? undefined : value }),
+})
 
 const canPublic = computed(() => sheet.value?.mode !== 'jury')
 const canManage = computed(() => !!event.value?.can_manage)
