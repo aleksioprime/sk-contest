@@ -13,7 +13,13 @@ const auth = useAuthStore()
 const next = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
 
 const providers = ref({ magic_link: true, skolstream: false, captcha_site_key: null })
-const mode = ref('password') // password | link
+const mode = computed({
+  get: () => route.query.method === 'link' ? 'link' : 'password',
+  set: (value) => router.push({
+    query: { ...route.query, method: value === 'link' ? 'link' : undefined, error: undefined },
+    hash: route.hash,
+  }),
+})
 const email = ref('')
 const password = ref('')
 const sending = ref(false)

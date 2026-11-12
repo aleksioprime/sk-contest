@@ -15,20 +15,19 @@ import {
 import { errorMessage, SkeletonTable, UiBadge, UiButton, UiSelect } from 'sk-ui'
 import ApplicationReview from '@/components/events/ApplicationReview.vue'
 import { formatDateTime } from '@/utils/dates'
+import { useListPage } from '@/utils/useListPage'
+import { useUrlQuery } from '@/utils/useUrlQuery'
 
 const props = defineProps({ event: { type: Object, required: true } })
 
 const PAGE = 50
 const page = ref({ items: [], total: 0, counts: {} })
 const fields = ref([])
-const status = ref('requested')
-const directionId = ref('')
-const search = ref('')
-const offset = ref(0)
 const loading = ref(false)
 const error = ref('')
 const selected = ref([])
-const openedId = ref(null)
+const searchedApplication = ref(null)
+const reviewedApplication = ref(null)
 const bulkComment = ref('')
 const bulkResult = ref('')
 
@@ -50,27 +49,69 @@ async function createApplication() {
 }
 
 const statuses = ['requested', 'draft', 'submitted', 'needs_changes', 'accepted', 'rejected', 'withdrawn']
+const { route, setQuery } = useUrlQuery()
+const resetList = { page: undefined, application: undefined }
+const status = computed({
+  get: () => {
+    if (route.query.status === 'all') return ''
+    return statuses.includes(route.query.status) ? route.query.status : 'requested'
+  },
+  set: (value) => {
+    if (value !== status.value) setQuery({ ...resetList, status: value === 'requested' ? undefined : value || 'all' })
+  },
+})
+const directionId = computed({
+  get: () => props.event.directions.find((direction) => String(direction.id) === route.query.direction)?.id ?? '',
+  set: (value) => {
+    if (value !== directionId.value) setQuery({ ...resetList, direction: value ? String(value) : undefined })
+  },
+})
+const { search, searchTerm, offset, fitTotal } = useListPage(route, setQuery, PAGE, {
+  resetQuery: { application: undefined },
+  filters: [status, directionId],
+})
+const openedId = computed({
+  get: () => {
+    const value = searchTerm.value ? searchedApplication.value : route.query.application
+    return page.value.items.find((application) => String(application.id) === value)?.id
+      ?? (String(reviewedApplication.value) === value ? reviewedApplication.value : null)
+  },
+  set: (value) => {
+    if (searchTerm.value) searchedApplication.value = value == null ? null : String(value)
+    else setQuery({ application: value == null ? undefined : String(value) })
+  },
+})
 const total = computed(() => Object.values(page.value.counts).reduce((sum, n) => sum + n, 0))
 const archived = computed(() => props.event.status === 'archived')
 const allSelected = computed(() => page.value.items.length > 0 && selected.value.length === page.value.items.length)
 
+let lastLoad = 0
 async function load() {
+  const request = ++lastLoad
   loading.value = true
   error.value = ''
   try {
-    page.value = await fetchEventApplications(props.event.id, {
+    const result = await fetchEventApplications(props.event.id, {
       status: status.value,
       direction_id: directionId.value || undefined,
-      search: search.value,
+      search: searchTerm.value,
       offset: offset.value,
       limit: PAGE,
     })
-    selected.value = selected.value.filter((id) => page.value.items.some((a) => a.id === id))
+    if (request !== lastLoad) return
+    page.value = result
+    fitTotal(result.total)
+    selected.value = selected.value.filter((id) => result.items.some((a) => a.id === id))
   } catch (e) {
-    error.value = errorMessage(e)
+    if (request === lastLoad) error.value = errorMessage(e)
   } finally {
-    loading.value = false
+    if (request === lastLoad) loading.value = false
   }
+}
+
+function refreshReview() {
+  reviewedApplication.value = openedId.value
+  return load()
 }
 
 function toggleAll(checked) {
@@ -91,23 +132,16 @@ async function bulk(newStatus) {
   }
 }
 
-let timer
-watch(search, () => {
-  clearTimeout(timer)
-  timer = setTimeout(() => {
-    offset.value = 0
-    load()
-  }, 300)
-})
-watch([status, directionId], () => {
-  offset.value = 0
-  openedId.value = null
+watch(() => route.query.application, () => { reviewedApplication.value = null })
+watch([() => props.event.id, status, directionId, offset, searchTerm], () => {
+  reviewedApplication.value = null
+  searchedApplication.value = null
+  page.value = { ...page.value, items: [] }
+  selected.value = []
   load()
-})
-watch(offset, load)
+}, { immediate: true })
 
 onMounted(async () => {
-  load()
   try {
     fields.value = (await fetchForm(props.event.id)).fields
   } catch {
@@ -173,7 +207,7 @@ onMounted(async () => {
     <p v-if="bulkResult" role="status" class="text-sm text-ink-muted">{{ bulkResult }}</p>
     <p v-if="error" role="alert" class="rounded-control bg-red-100 px-4 py-3 text-red-800">{{ error }}</p>
 
-    <ApplicationReview v-if="openedId" :application-id="openedId" :event-id="event.id" :fields="fields" @decided="load" @close="openedId = null" />
+    <ApplicationReview v-if="openedId" :key="openedId" :application-id="openedId" :event-id="event.id" :fields="fields" @decided="refreshReview" @close="openedId = null" />
 
     <div class="overflow-x-auto rounded-card border border-line bg-surface" :aria-busy="loading">
       <SkeletonTable v-if="loading && !page.items.length" :rows="5" :columns="5" />

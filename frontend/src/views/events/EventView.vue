@@ -79,7 +79,7 @@ const canView = computed(
 )
 const tab = computed({
   get: () => (tabs.value.some((t) => t.id === route.query.tab) ? route.query.tab : 'main'),
-  set: (value) => router.replace({ query: { ...route.query, tab: value } }),
+  set: (value) => router.push({ query: { ...route.query, tab: value === 'main' ? undefined : value }, hash: route.hash }),
 })
 const readonly = computed(() => !event.value?.can_manage)
 
