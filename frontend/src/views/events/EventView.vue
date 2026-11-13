@@ -372,7 +372,7 @@ watch(() => props.id, load, { immediate: true })
         <UiCard>
           <template #title>Модули</template>
           <div class="flex flex-wrap gap-x-6 gap-y-3">
-            <label v-for="(label, module) in MODULE_LABELS" :key="module" class="flex items-center gap-2" :class="{ 'ui-changed': moduleChanged(module) }">
+            <label v-for="(label, module) in MODULE_LABELS" :key="module" class="flex items-center gap-2 px-2 py-1" :class="{ 'ui-changed': moduleChanged(module) }">
               <input v-model="form.modules[module]" type="checkbox" class="size-4 accent-brand-600" />
               {{ label }}
             </label>
