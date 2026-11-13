@@ -2,8 +2,7 @@
 /** Ход по этапам: участники, баллы из листов, правило перехода, расписание защит. */
 import { computed, reactive, ref, watch } from 'vue'
 import { formatPoints } from '@/api/evaluation'
-import { useUrlQuery } from '@/utils/useUrlQuery'
-import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiConfirm, UiSelect } from 'sk-ui'
+import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiConfirm, UiSelect, useUrlQuery } from 'sk-ui'
 import {
   STAGE_STATUS_LABELS,
   STAGE_STATUS_TONES,

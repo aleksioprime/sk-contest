@@ -3,7 +3,6 @@
 import QRCode from 'qrcode'
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { useUrlQuery } from '@/utils/useUrlQuery'
 import {
   AGGREGATE_LABELS,
   RANK_LABELS,
@@ -24,7 +23,7 @@ import {
   updateSheet,
 } from '@/api/evaluation'
 import { fetchEvent } from '@/api/events'
-import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiSelect, UiBreadcrumbs } from 'sk-ui'
+import { errorMessage, SkeletonPage, UiBadge, UiButton, UiCard, UiSelect, UiBreadcrumbs, useUrlQuery } from 'sk-ui'
 import JudgesPanel from '@/components/evaluation/JudgesPanel.vue'
 
 const props = defineProps({ id: { type: String, required: true }, sheetId: { type: String, required: true } })

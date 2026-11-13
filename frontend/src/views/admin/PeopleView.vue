@@ -1,11 +1,10 @@
 <script setup>
 /** Администрирование людей: персоны, пользователи и синхронизация с SkolStream. */
 import { computed, onMounted, ref, watch } from 'vue'
-import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiSelect } from 'sk-ui'
+import { errorMessage, SkeletonTable, UiBadge, UiButton, UiCard, UiSelect, useUrlQuery } from 'sk-ui'
 import { createUser, fetchPersons, fetchSyncRuns, fetchUsers, setPersonAdmin, startSync, updateUser } from '@/api/people'
 import { useAuthStore } from '@/stores/auth'
 import { useListPage } from '@/utils/useListPage'
-import { useUrlQuery } from '@/utils/useUrlQuery'
 import { formatDateTime } from '@/utils/dates'
 
 const auth = useAuthStore()

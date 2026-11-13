@@ -12,11 +12,10 @@ import {
   fetchEventApplications,
   fetchForm,
 } from '@/api/applications'
-import { errorMessage, SkeletonTable, UiBadge, UiButton, UiSelect } from 'sk-ui'
+import { errorMessage, SkeletonTable, UiBadge, UiButton, UiSelect, useUrlQuery } from 'sk-ui'
 import ApplicationReview from '@/components/events/ApplicationReview.vue'
 import { formatDateTime } from '@/utils/dates'
 import { useListPage } from '@/utils/useListPage'
-import { useUrlQuery } from '@/utils/useUrlQuery'
 
 const props = defineProps({ event: { type: Object, required: true } })
 
